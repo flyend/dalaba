@@ -9,4 +9,6 @@ demo/
 tools/
 .plus.yaml
 bin/
+build/
 gulpfile.js
+index.html
