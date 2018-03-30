@@ -1,0 +1,39 @@
+{
+  "name": "dalaba",
+  "version": "0.3.1",
+  "description": "A JavaScript chart library for Canvas.",
+  "main": "dist/dalaba.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/flyend/dalaba.git"
+  },
+  "scripts": {
+    "start": "gulp",
+    "publish-to-cdn": "sh deploy/publish-to-cdn.sh" 
+  },
+  "files": [
+    "dist/dalaba.js"
+  ],
+  "contributors": [
+    { "name": "flyend", "email": "flyend@126.com" }
+  ],
+  "license": "ISC",
+  "devDependencies": {
+    "browserify": "13.1.1",
+    "gulp": "3.9.0",
+    "connect-modrewrite": "0.10.1",
+    "gulp-connect": "5.0.0",
+    "gulp-watch": "4.3.5",
+    "gulp-rename": "1.2.2",
+    "gulp-header": "1.8.8",
+    "vinyl-source-stream": "1.1.0",
+    "less-plugin-autoprefix": "1.5.1",
+    "gulp-less": "3.0.3",
+    "watchify": "3.6.1",
+    "glob": "7.0.3",
+    "glob-watcher": "3.0.0",
+    "browserify-derequire": "0.9.4",
+    "src-import-curt": "0.0.4",
+    "gulp-jsbeautifier": "2.1.0"
+  }
+}

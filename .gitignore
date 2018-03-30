@@ -1,0 +1,12 @@
+node_modules/
+.DS_Store
+.orig
+.swp
+.cache/
+npm-debug.log
+deploy/
+demo/
+tools/
+.plus.yaml
+bin/
+gulpfile.js
