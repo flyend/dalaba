@@ -81,12 +81,12 @@
                             plotWidth = series.plotWidth;
                             plotHeight = series.plotHeight;
 
-                            yAxisOptions = series._yAxis;// yAxis[series.yAxis | 0];
+                            yAxisOptions = series._yAxis || {};// yAxis[series.yAxis | 0];
                             logBase = (yAxisOptions.logarithmic || {}).base || 10;
                             reversed = yAxisOptions.reversed;
                             maxValue = yAxisOptions.maxValue;
                             minValue = yAxisOptions.minValue;
-                            xAxisOptions = series._xAxis;
+                            xAxisOptions = series._xAxis || {};
 
                             isStart = pointPosition === "start";
                             size = mathMax(1, m - isStart);

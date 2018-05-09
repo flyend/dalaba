@@ -6,7 +6,7 @@
 
     var addLayout = require("./layout").deps(Linked);
 
-    var diagramLinkArrow = function(context, from, to, s) {
+    var diagramLinkArrow = function (context, from, to, s) {
         var x = from.x,
             y = from.y;
         var tx = to.x,
@@ -31,7 +31,7 @@
         context.restore();
     };
 
-    var Diagram = function(canvas, options) {
+    var Diagram = function (canvas, options) {
         this.canvas = canvas;
         this.context = canvas.getContext("2d");
         this.series = [];
@@ -44,7 +44,7 @@
 
     diagramProto = {
         constructor: Diagram,
-        init: function(options) {            
+        init: function (options) {            
             var panels = [],
                 panel = options.panel;
             var n = panel.length, i = -1, j, nn;
@@ -65,8 +65,18 @@
             this.panels = panels;
 
             addLayout(panels);
+            this.reflow();
         },
-        draw: function() {
+        reflow: function () {
+            var context = this.context;
+            var chart = this;
+            this.series.forEach(function (series) {
+                series.shapes.forEach(function (shape){
+                    chart.dataLabels(context, shape, series);
+                });
+            });
+        },
+        draw: function () {
             var context = this.context,
                 chart = this;
                 
@@ -89,22 +99,23 @@
                     chart.drawPath(context, chart.actived.link, series);
                 }*/
             });
-            this.series.forEach(function(series) {
+            this.series.forEach(function (series) {
                 
-                series.shapes.forEach(function(shape){
-                    chart.dataLabels(context, shape, series);
+                series.shapes.forEach(function (shape){
+                    DataLabels.render(context, shape, series);
                     chart.drawLink(context, shape, series);
                 });
-                series.shapes.forEach(function(shape){
+                series.shapes.forEach(function (shape){
                     chart.drawShape(context, shape, series);
                 });
             });
         },
-        redraw: function() {
+        redraw: function () {
             addLayout(this.panels, 1);
+            this.reflow();
             this.draw();
         },
-        drawShape: function(context, shape, series) {
+        drawShape: function (context, shape, series) {
             var borderWidth = pack("number", shape.borderWidth, series.borderWidth, 0),
                 borderColor = shape.borderColor || series.borderColor,
                 fillColor = shape.color || series.fillColor,
@@ -126,7 +137,7 @@
             borderWidth > 0 && (context.lineWidth = borderWidth, context.strokeStyle = borderColor, context.stroke());
             context.restore();
         },
-        drawLink: function(context, shape) {
+        drawLink: function (context, shape) {
             var linklines = shape.linklines || [],
                 dirSize = linklines.dirSize;
             context.save();
@@ -152,8 +163,8 @@
             
             context.restore();
         },
-        dataLabels: function(context, shape, series) {
-            dataLabels.value(shape.value).align(function(type, bbox){
+        dataLabels: function (context, shape, series) {
+            shape.dataLabel = DataLabels.value(shape.value).align(function(type, bbox){
                 var x = shape.x,
                     w = bbox.width,
                     w2 = shape.width;
@@ -175,7 +186,7 @@
                 }[t];
             }).call(shape, series, context);
         },
-        getShape: function(x, y) {
+        getShape: function (x, y) {
             var series, shapes, shape;
             var n = this.series.length, ii, i, j;
             var symbol;

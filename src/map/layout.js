@@ -1,18 +1,34 @@
-(function(global){
+(function (global) {
+    var mathMin = Math.min;
+    var mathMax = Math.max;
+    var MAX_VALUE = Number.MAX_VALUE;
 
-    function factoy(geo, Color){
-        var rescale = function(s){
-            return isNumber(s) && isFinite(s) ? Math.min(10, Math.max(s, 0)) : 1;
-        };
-        return function(type, options){
+    var rescale = function (s) {
+        return isNumber(s) && isFinite(s) ? Math.min(10, Math.max(s, 0)) : 1;
+    };
+
+    var setTransform = function (a, b, k) {
+        return a * k + b;
+    };
+
+    var setBounds = function (bounds, x, y) {
+        bounds[0][0] = mathMin(bounds[0][0], x);
+        bounds[1][0] = mathMax(bounds[1][0], x);
+        bounds[0][1] = mathMin(bounds[0][1], y);
+        bounds[1][1] = mathMax(bounds[1][1], y);
+        return bounds;
+    };
+
+    function factoy (geo, Color) {
+        return function (type, options) {
             var defaultGeoPath = {};
             var Path = geo.Path;
 
-            options.panel.forEach(function(pane){
-                var series = arrayFilter(pane.series, function(series){
+            options.panel.forEach(function (pane) {
+                var series = arrayFilter(pane.series, function (series) {
                     return series.type === type;
                 });
-                series.forEach(function(series){
+                series.forEach(function (series) {
                     var geoJson = series.mapData,
                         geoPath = defaultGeoPath,
                         shapes = [];
@@ -29,13 +45,15 @@
                         lerp;
                     var minValue = colorAxisOptions.minValue,
                         maxValue = colorAxisOptions.maxValue;
-                    var maxWidth = 0,
-                        maxHeight = 0;
                     var scale = [1, 1],
                         translate = [0, 0];
+                    var transform = series.transform,
+                        scaleRadio = pack("number", transform.scale, 0.75),
+                        translateX = transform.translate[0],
+                        translateY = transform.translate[1];
 
                     if (defined(colorAxisOptions) && isArray(colorAxisOptions.stops)) {
-                        colorAxisOptions.stops.forEach(function(stop){
+                        colorAxisOptions.stops.forEach(function (stop) {
                             domain.push(stop[0]);
                             range.push(stop[1]);
                         });
@@ -45,81 +63,104 @@
                     if (defined(geoJson)) {
                         scale = [plotWidth / chartWidth * 0.9, plotHeight / chartHeight * 0.9];
                         translate = [plotX, plotY];
-                        if(defined(series.scale)){
+                        if (defined(series.scale)) {
                             isNumber(series.scale) && (scale = rescale(series.scale), scale = [scale, scale]);
-                            if(isArray(series.scale)){
+                            if (isArray(series.scale)) {
                                 scale = [rescale(series.scale[0]), rescale(series.scale[1])];
                             }
                         }
-                        if(defined(series.translate)){
-                            isNumber(series.translate) && (translate = [plotX + pack("number", series.translate), plotY + pack("number", series.translate)]);
-                            if(isArray(series.translate)){
-                                translate = [plotX + pack("number", series.translate[0]), plotY + pack("number", series.translate[1])];
-                            }
+                        if (defined(series.translate)) {
+                            translate = TRouBLe(series.translate).map(function (d, i) {
+                                return d * [plotX, plotY][i];
+                            });
                         }
-                        
-                        Path.size([chartWidth, chartHeight]).scale(scale).translate(translate).parse(geoJson, function(groups, feature){
+                        var center = geoJson.cp;
+                        //var projection = series.projection.call(series, center, scale, translate);
+                        var bounds = [[MAX_VALUE, MAX_VALUE], [-MAX_VALUE, -MAX_VALUE]];
+                        var centerX = 0,
+                            centerY = 0;
+                        //Path.size([chartWidth, chartHeight]).scale(scale).translate(translate).projection(projection).parse(geoJson, function (groups, feature) {
+                        var projected = new Dalaba.geo.Projection({
+                            //scale: 450,
+                            //center: [137, 38]
+                        });
+                        projected.size([plotWidth, plotHeight]).parse(geoJson, function (groups, feature) {
                             var points = [];
                             var count = 0;
-                            var centerX = 0,
-                                centerY = 0;
+                            var cx = 0,
+                                cy = 0;
+                            var properties = feature.properties || {};
                             var shape = {
-                                name: (feature.properties || {}).name,
+                                key: properties.name,
+                                name: properties.name,
+                                code: properties.code || properties.id,
                                 points: points
                             };
+                            var cp = properties.cp;
 
-                            groups.forEach(function(polygon, i) {
+                            groups.forEach(function (polygon, i) {
                                 var x, y;
                                 var length = polygon.length,
                                     j;
                                 var point;
-                                i && points.push({x: polygon[j = 0].x, y: polygon[j].y, isNext: true});
-                                for(j = 1; j < length; j++){
+                                x = setTransform(polygon[j = 0][0], translateX, scaleRadio);
+                                y = setTransform(polygon[j][1], translateY, scaleRadio);
+                                bounds = setBounds(bounds, x, y);
+                                i && points.push({x: x, y: y, isNext: true});
+                                for (j = 1; j < length; j++) {
                                     point = polygon[j];
-                                    x = point.x;
-                                    y = point.y;
-                                    maxWidth = Math.max(x, maxWidth);
-                                    maxHeight = Math.max(y, maxHeight);
-                                    centerX += (x - centerX) / ++count;
-                                    centerY += (y - centerY) / count;
+                                    x = setTransform(point[0], translateX, scaleRadio);
+                                    y = setTransform(point[1], translateY, scaleRadio);
+                                    cx += (x - cx) / ++count;
+                                    cy += (y - cy) / count;
                                     points.push({x: x, y: y});
+                                    bounds = setBounds(bounds, x, y);
                                 }
                             });
+                            if (defined(cp) && isNumber(cp[0], true) && isNumber(cp[1], true)) {
+                                cp = projected.projection(cp);
+                                cx = setTransform(cp[0], translateX, scaleRadio);
+                                cy = setTransform(cp[1], translateY, scaleRadio);
+                            }
                             shape.shapeArgs = {
-                                x: centerX, y: centerY,
-                                maxX: maxWidth,
-                                maxY: maxHeight
+                                x: cx, y: cy,
+                                maxX: bounds[1][0],
+                                maxY: bounds[1][1]
                             };
 
-                            var data = series.mapKey[shape.name],
+                            var data = series.mapKey[shape.name] || series.mapKey[shape.code],
                                 value,
                                 color;
-                            if(!isObject(data)){
+                            if (!isObject(data)) {
                                 data = {value: null};
                             }
-                            if(isNumber(value = data.value)){
+                            if (!defined(data.color) && isNumber(value = data.value)) {
                                 color = lerp && lerp(interpolate(value, minValue, maxValue, 0, 1));
-                                shape.color = color || series.color;
+                                shape.color = color || shape.color || series.color;
                             }
                             extend(shape, data);
+                            shape.name = properties.name;
                             shapes.push(shape);
                         });
-                        shapes.forEach(function(shape) {
-                            var cx = (chartWidth - maxWidth) / 2,
-                                cy = (chartHeight - maxHeight) / 2 + plotY;
-                            shape.points.forEach(function(point){
-                                point.x += cx;
-                                point.y += cy;
+                        centerX = plotX + (plotWidth - (bounds[1][0] - bounds[0][0])) / 2 - bounds[0][0];
+                        centerY = plotY + (plotHeight - (bounds[1][1] - bounds[0][1])) / 2 - bounds[0][1];
+
+                        shapes.forEach(function (shape) {
+                            shape.points.forEach(function (point) {
+                                point.x += centerX;
+                                point.y += centerY;
                             });
-                            shape.shapeArgs.x += cx;
-                            shape.shapeArgs.y += cy;
+                            shape.shapeArgs.x += centerX;
+                            shape.shapeArgs.y += centerY;
                         });
-                        series._geo = {
-                            path: Path,
-                            size: geoPath.size,
-                            x: geoPath.x,
-                            y: geoPath.y,
-                            center: geoPath.center
+                        series.__transform__ = {
+                            center: [centerX, centerY]
+                        };
+                        series.__projector__ = {
+                            projection: function (point) { return projected.projection.call(projected, point); },
+                            //scale: projection.scale(),
+                            //translate: projection.translate(),
+                            //center: projection.center()
                         };
                     }
                     series.shapes = shapes;
@@ -128,9 +169,8 @@
         };
     }
     return {
-        deps: function() {
-            var args = Array.prototype.slice.call(arguments, 0);
-            return factoy.apply(global, [].concat(args));
+        deps: function () {
+            return factoy.apply(global, [].slice.call(arguments, 0));
         }
     };
 }).call(typeof window !== "undefined" ? window : this)

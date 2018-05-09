@@ -61,6 +61,14 @@
                 var ry = (p0.y - p1.y) * (p0.y - p1.height);
                 return rx <= 0.0 && ry <= 0.0;
             },
+            aabb: function (x1, y1, w1, h1, x2, y2, w2, h2) {
+                return !(
+                    x2 > x1 + w1 ||
+                    x2 + w2 < x1 ||
+                    y2 > y1 + h1 ||
+                    y2 + h2 < y1
+                );
+            },
             polygon: function (p0, points) {
                 var n = 0;
                 for(var i = 0, length = points.length, j = length - 1; i < length; j = i, i++){
@@ -89,7 +97,7 @@
         /**
          * Dash Line
         */
-        var arcDashLine = function(context, cx, cy, radius, startAngle, endAngle, dasharrays) {
+        var arcDashLine = function (context, cx, cy, radius, startAngle, endAngle, dasharrays) {
             var length = pack("number", dasharrays && dasharrays[0], 1),
                 offset = pack("number", dasharrays && dasharrays[1], 2);
             var size = PI / radius / (2 / length);
@@ -105,7 +113,7 @@
             }
         };
         var DashLine = {
-            line: function(x, y, w, h, dasharray) {
+            line: function (x, y, w, h, dasharray) {
                 var dx = w - x,
                     dy = h - y,
                     length = Math.sqrt(dx * dx + dy * dy),
@@ -114,7 +122,7 @@
                     di = 0;
                 var isDraw = true;
 
-                return function(context) {
+                return function (context) {
                     context.save();
                     context.translate(x, y);
                     context.rotate(angle);
@@ -132,7 +140,7 @@
                     context.restore();
                 };
             },
-            arc: function(context, cx, cy, radius, startAngle, endAngle, type){
+            arc: function (context, cx, cy, radius, startAngle, endAngle, type) {
                 arcDashLine(context, cx, cy, radius, startAngle, endAngle, {
                     dot: [2, 6],
                     dash: [8, 6],
@@ -141,40 +149,43 @@
                     longdash: [16, 6]
                 }[type] || [2, 6]);
             },
-            solid: function(context, x, y, w, h){
+            solid: function (context, x, y, w, h) {
                 //this.line(x, y, w, h, [w])(context);
                 context.moveTo(x, y);
                 context.lineTo(w, h);
                 context.stroke();
             },
-            dot: function(context, x, y, w, h){
+            dot: function (context, x, y, w, h) {
                 this.line(x, y, w, h, [2, 6])(context);
             },
-            dash: function(context, x, y, w, h){
+            dash: function (context, x, y, w, h) {
                 this.line(x, y, w, h, [8, 6])(context);
             },
-            shortdash: function(context, x, y, w, h){
+            shortdash: function (context, x, y, w, h) {
                 this.line(x, y, w, h, [6, 2])(context);
             },
-            shortdot: function(context, x, y, w, h){
+            shortsolid: function (context, x, y, w, h) {
+                this.line(x, y, w, h, [6, 2])(context);
+            },
+            shortdot: function (context, x, y, w, h) {
                 this.line(x, y, w, h, [2, 2])(context);
             },
-            shortdashdot: function(context, x, y, w, h){
+            shortdashdot: function (context, x, y, w, h) {
                 this.line(x, y, w, h, [6, 2, 2, 2])(context);
             },
-            shortdashdotdot: function(context, x, y, w, h){
+            shortdashdotdot: function (context, x, y, w, h) {
                 this.line(x, y, w, h, [6, 2, 2, 2, 2, 2])(context);
             },
-            longdash: function(context, x, y, w, h){
+            longdash: function (context, x, y, w, h) {
                 this.line(x, y, w, h, [16, 6])(context);
             },
-            dashdot: function(context, x, y, w, h){
+            dashdot: function (context, x, y, w, h) {
                 this.line(x, y, w, h, [8, 6, 2, 6])(context);
             },
-            longdashdot: function(context, x, y, w, h){
+            longdashdot: function (context, x, y, w, h) {
                 this.line(x, y, w, h, [16, 6, 2, 6])(context);
             },
-            longdashdotdot: function(context, x, y, w, h){
+            longdashdotdot: function (context, x, y, w, h) {
                 this.line(x, y, w, h, [16, 6, 2, 6, 2, 6])(context);
             }
         };
@@ -267,7 +278,7 @@
          * Rect
         **/
         var Rect = {
-            getRotationBound: function(width, height, angle) {
+            getRotationBound: function (width, height, angle) {
                 var sin = Math.sin,
                     cos = Math.cos,
                     abs = Math.abs;
@@ -285,10 +296,43 @@
             }
         };
 
+        var Symbol = {
+            rect: function (x, y, w, h, r) {
+                r = r || 0;
+                var linePixel = fixLinePixel(x, y, w - 1, h - 1);
+                x  = linePixel.x, y = linePixel.y;
+                w = linePixel.width, h = linePixel.height;
+                return function (context) {
+                    context.beginPath();
+                    context.moveTo(x + r, y);
+                    //top-right
+                    context.lineTo(x + w - r, y);
+                    context.bezierCurveTo(x + w, y, x + w, y, x + w, y + r);//top-right corner
+                    //bottom-right
+                    context.lineTo(x + w, y + h - r);
+                    context.bezierCurveTo(x + w, y + h, x + w, y + h, x + w - r, y + h);//bottom-right corner
+                    //bottom-left
+                    context.lineTo(x + r, y + h);
+                    context.bezierCurveTo(x, y + h, x, y + h, x, y + h - r);//bottom-left corner
+                    //top-left
+                    context.lineTo(x, y + r);
+                    context.bezierCurveTo(x, y, x, y, x + r, y);//top-left corner
+                    //context.closePath();
+                    return {
+                        x: x - 1,
+                        y: y - 1,
+                        width: w,
+                        height: h
+                    };
+                }
+            }
+        };
+
         var Geometry = {
             Intersection: Intersection,
             Line: Line,
-            Rect: Rect
+            Rect: Rect,
+            Symbol: Symbol
         };
         return Geometry;
     }

@@ -1,4 +1,4 @@
-(function() {
+(function () {
 
     var dragging = false;
 
@@ -6,9 +6,9 @@
 
     var isClicking = true;
 
-    var fetchData = function(chart, start, end){
+    var fetchData = function (chart, start, end) {
         //setTimeout(function(){
-            chart.series.forEach(function(item){
+            chart.series.forEach(function (item) {
                 item.start = start;
                 item.end = end;
                 item.shapes = item.addShape();
@@ -17,48 +17,54 @@
         //}, 0);
     };
 
-    var addTooltip = function() {
+    var addTooltip = function () {
         
         var timer, moving = false;
         
-        function clearBuffer(chart, x, y) {
+        function clearBuffer (chart, x, y) {
             var tooltip = chart.tooltip;
 
-            if (tooltip.context === chart.context) {
+            //if (tooltip.context === chart.context) {
                 chart.render("hover", {x: x, y: y});//no redraw
-            }
+            /*}
             else {
                 tooltip.context.clearRect(0, 0, chart.width, chart.height);
                 if(chart.legend !== null && tooltip.context === chart.legend.context){
                     chart.legend.data.length && chart.legend.draw();
                 }
-            }
+            }*/
         }
-        function axisTo(chart, x, y) {
-            chart.colorAxis.forEach(function(axis) {
+        function axisTo (chart, x, y) {
+            chart.colorAxis.forEach(function (axis) {
                 if (axis.options.enabled !== false) {
                     axis.addTooltip(x, y);
                 }
             });
-            chart.yAxis.forEach(function(axis) {
+            chart.yAxis.forEach(function (axis) {
                 if(axis.options.plotLine){
                     axis.addTooltip(x, y);
                 }
             });
-            chart.xAxis.forEach(function(axis) {
+            chart.xAxis.forEach(function (axis) {
                 if(axis.options.plotLine){
                     axis.addTooltip(x, y);
                 }
             });
         }
 
-        var tooltipHide = function(chart, pos) {
-            var tooltip = chart.tooltip;
+        var tooltipHide = function (chart, pos) {
             var options = chart.options,
-                tooltipOptions = options.tooltip || {};
-            var hideDelay = pack("number", tooltipOptions.hideDelay, 1000);
-            var callback = function() {
-                tooltip.hide();
+                panels = chart.panel;
+            var tooltipOptions = options.tooltip || {},
+                hideDelay = pack("number", tooltipOptions.hideDelay, 1000);
+
+            var callback = function () {
+                panels.forEach(function (pane) {
+                    //defined(pane.tooltip) && pane.tooltip.aaa === 0 && pane.tooltip.hide();
+                    if (pane.tooltip) {
+                        pane.tooltip.hide();
+                    }
+                });
                 pos !== null && clearBuffer(chart, pos.x, pos.y);
             };
             if (hideDelay > 0) {
@@ -72,38 +78,83 @@
             }
         };
 
-        var tooltipMoved = function(chart, e) {
-            var pos = Event.normalize(e, chart.container),
-                x = pos.x,
-                y = pos.y;
-            var tooltip = chart.tooltip;
+        var tooltipFilter = function (x, y, data, ret) {
+            var n = data.length,
+                i = 0;
+            var d, insides = [];
+            for (; i < n; i++) if (defined((d = data[i]).tooltip)) {
+                defined(d.tooltip) && Intersection.rect({
+                    x: x, y: y
+                }, {
+                    x: d.x, y: d.y,
+                    width: d.x + d.width, height: d.y + d.height
+                }) ? insides.push(d) : ret.push(d);
+            }
+            return insides;
+        };
 
-            chart.container.style.cursor = "default";
+        var tooltipMoved = function (chart, layoutLinked, pos, isShow) {
+            var x = pos.x,
+                y = pos.y;
+            var linked = layoutLinked; //matrix(layoutLinked);
+            var panels, curPanel = tooltipFilter(x, y, chart.panel, panels = [])[0];
+
+            if (defined(curPanel)) {
+                var item = curPanel.tooltip.move(x, y, true)[0],
+                    shape;
+                var curIndex;
+                moving = curPanel.tooltip.itemLength !== 0;
+                chart.canvas.style.cursor = moving ? "pointer" : "default";
+                if (item && linked === true  && panels.length) {// if exists link to panel
+                    curIndex = item.shape.index;
+                    panels.forEach(function (pane) {
+                        var shapes = pane.series[0].shapes;
+                        if (isNumber(curIndex, true) && defined(shapes = shapes[curIndex])) {
+                            pane.tooltip.move(shapes.x, shapes.y, true);
+                        }
+                    });
+                }
+            }
+            if (!linked) {
+                chart.panel.forEach(function (pane) {
+                    var tooltip = pane.tooltip;
+                    if (tooltip && !Intersection.rect({
+                            x: x, y: y
+                        }, {
+                            x: pane.x, y: pane.y,
+                            width: pane.x + pane.width, height: pane.y + pane.height
+                        })) {
+
+                        if (!isShow)
+                            tooltip.hide();
+                    }
+                });
+            }
             
-            tooltip.move(x, y, true);
             clearBuffer(chart, x, y);
             axisTo(chart, x, y);
         };
 
-        var tooltipEnd = function(chart, e) {
+        var tooltipEnd = function (chart, e) {
             var tooltipOptions = chart.options.tooltip,
-                tooltip = chart.tooltip,
                 pos = Event.normalize(e, chart.canvas);
-            if (tooltip !== null) {
-                if (tooltipOptions.show === true) {
-                    pos = tooltip.position();
-                    pos !== null && tooltip.move(pos.x, pos.y);
-                }
-                else tooltipHide(chart, pos);
+            if (tooltipOptions.show === true) {
+                chart.panel.forEach(function (pane) {
+                    var tooltip, xy;
+                    if ((tooltip = pane.tooltip) && (xy = tooltip.position())) {
+                        tooltip.move(xy.x, xy.y);
+                    }
+                });
+                tooltipMoved(chart, (chart.options.layout || {}).linked, pos, tooltipOptions.show);
             }
+            else tooltipHide(chart, pos);
         };
 
-        var getAllCursor = function(chart, e) {
+        var getAllCursor = function (chart, pos) {
             var canvas = chart.canvas,
-                pos = e && Event.normalize(e, canvas),
                 cursor;
             if (pos) {
-                chart.rangeSlider.forEach(function(slider) {
+                chart.rangeSlider.forEach(function (slider) {
                     if(slider !== null){
                         cursor = slider.getCursor(pos.x, pos.y, e);
                         canvas.style.cursor = cursor !== null ? cursor : "default";
@@ -116,41 +167,43 @@
         };
 
         return {
-            show: function(e, chart) {
+            show: function (e, chart) {
                 var tooltip = chart.tooltip,
-                    tooltipOptions = chart.options.tooltip;
-                if (tooltip) {
-                    tooltipMoved(chart, e);
-                    getAllCursor(chart, e);
-                    moving = tooltip.itemLength !== 0;
-                    
-                    if (tooltipOptions.show === true) {
-                        !moving && tooltipEnd(chart, e);
-                    }
-                    else {
-                        tooltipEnd(chart, e);
-                    }
+                    tooltipOptions = chart.options.tooltip,
+                    layoutLinked = (chart.options.layout || {}).linked;
+                var pos = Event.normalize(e, chart.container);
+
+                tooltipMoved(chart, layoutLinked, pos, tooltipOptions.show);
+                getAllCursor(chart, pos);
+                //moving = tooltip.itemLength !== 0;
+                
+                if (tooltipOptions.show === true) {
+                    //!moving && tooltipEnd(chart, e);
+                }
+                else {
+                    //tooltipEnd(chart, e);
                 }
             },
-            hide: function(e, chart) {
-                //moving = false;
-                chart.tooltip && tooltipEnd(chart, e);
+            hide: function (e, chart) {
+                moving = false;
+                tooltipEnd(chart, e);
                 getAllCursor(chart);
+                chart.canvas.style.cursor = "default";
             }
         };
     };
 
-    var onClick = function(e, chart) {
+    var onClick = function (e, chart) {
         var options = chart.options;
         var pos = Event.normalize(e, chart.container);
         var x = pos.x,
             y = pos.y;
         var plotOptions, click;
 
-        if(isClicking && chart.globalAnimation.isReady === true){
+        if (isClicking && chart.globalAnimation.isReady === true) {
             chart.charts.forEach(function(item){
                 var shapes = [];
-                item.series.forEach(function(series){
+                (item.series || []).forEach(function(series){
                     shapes = [];
                     plotOptions = (options.plotOptions || {})[series.type] || {};
                     click = (click = (click = series.events || {}).click || (plotOptions.events || {}).click);
@@ -318,7 +371,7 @@
             }
             return scale;
         };
-        return function(e){
+        return function (e) {
             var viewport = chart.getViewport().plot,
                 x = Event.normalize(e, this),
                 y = x.y;
@@ -328,9 +381,9 @@
                 {x: viewport.left, y: viewport.top, width: viewport.left + viewport.width, height: viewport.top + viewport.height}
             )){
                 var scale = getZoom(e);
-                if(scale.disabled)
+                if (scale.disabled)
                     return;
-                chart.rangeSlider.forEach(function(slider, i){
+                chart.rangeSlider.forEach(function (slider, i) {
                     var rangeSelector = chart.rangeSelector[i];
                     var from = rangeSelector.from,
                         to = rangeSelector.to;
@@ -347,7 +400,7 @@
                     slider && slider.startToEnd(from + "%", to + "%");
                 });
                 var rangeSelector = chart.rangeSelector;
-                if(rangeSelector.length && rangeSelector[0].from !== rangeSelector[0].to){
+                if (rangeSelector.length && rangeSelector[0].from !== rangeSelector[0].to) {
                     fetchData(chart, rangeSelector[0].from, rangeSelector[0].to);
                     e.preventDefault && e.preventDefault();
                 }
@@ -355,29 +408,27 @@
         };
     };
 
-    var onResize = function(e, chart){
+    var onResize = function (e, chart) {
         var timer;
-        var width = chart.getSize(chart.renderer),
-            height = width.height;
-        width = width.width;
-        
-        if(chart.globalAnimation.isReady === true){
+        var width, height;
+        if (chart.globalAnimation.isReady === true) {
             timer && clearTimeout(timer);
-            timer = setTimeout(function(){
-                chart.setSize(width, height, false);
+            timer = setTimeout(function () {
+                height = (width = chart.getSize(chart.renderer)).height;
+                chart.setSize(width.width, height);
             }, 100);
         }
     };
 
-    var onVisible = function(){
-        function visible(){
+    var onVisible = function () {
+        function visible () {
         }
         (document.hidden || document.webkitHidden) && visible();
     };
 
-    function factory(Dalaba, Event){
+    function factory (Dalaba, Event) {
 
-        function bindAll(chart, removed) {
+        function bindAll (chart, removed) {
             var container = chart.container;
             var globalEvent = chart.globalEvent;
             var type = removed ? "removeEventListener" : "addEventListener",
@@ -395,70 +446,70 @@
                 visibilitychange: {el: document, listener: globalEvent.visible},
                 webkitvisibilitychange: {el: document, listener: globalEvent.visible}
             }, event;
-            for(var p in events) if(event = events[p], events.hasOwnProperty(p))
+            for (var p in events) if (event = events[p], events.hasOwnProperty(p))
                 (event.el || container)[type](p, event.listener || event, useCapture);
 
             container[type]("mousemove", globalEvent.drag, useCapture);
         }
 
-        function event(chart) {
+        function event (chart) {
             var tooltip = addTooltip();
 
-            var hasAnimateReady = function(chart) {
+            var hasAnimateReady = function (chart) {
                 return chart.globalAnimation.isReady === true;
             };
-            var hasDragging = function(chart) {
+            var hasDragging = function (chart) {
                 return !chart.globalEvent.isDragging;
             };
-            var hasEventDisabled = function(chart) {
+            var hasEventDisabled = function (chart) {
                 return chart.globalEvent.disabled !== true;
             };
 
             //dnd
-            chart.rangeSelector.forEach(function(selector) {
+            chart.rangeSelector.forEach(function (selector) {
                 selector._start = selector.from = pack("number", parseFloat(selector.start, 10), 0);
                 selector._end = selector.to = pack("number", parseFloat(selector.end, 10), 100);
             });
-            (function(chart) {
+            (function (chart) {
                 var container = chart.container;
                 var globalEvent = chart.globalEvent;
 
                 extend(globalEvent, {
-                    click: function(e) {
+                    click: function (e) {
                         hasEventDisabled(chart) && onClick.call(this, e, chart);
                     },
-                    mousemove: function(e) {
+                    mousemove: function (e) {
                         hasAnimateReady(chart) & hasEventDisabled(chart) & hasDragging(chart) && tooltip.show.call(this, e, chart);
                     },
-                    mouseout: function(e) {
+                    mouseout: function (e) {
                         hasEventDisabled(chart) && tooltip.hide.call(this, e, chart);
                     },
-                    start: function(e) {
+                    start: function (e) {
                         hasEventDisabled(chart) && onStart.call(container, e, chart);
                     },
-                    drop: function(e) {
+                    drop: function (e) {
                         hasEventDisabled(chart) && onDrop.call(document, e, chart);
                     },
-                    drag: function(e) {
+                    drag: function (e) {
                         hasEventDisabled(chart) && onDrag.call(container, e, chart);
                     },
-                    zoom: function(e) {
+                    zoom: function (e) {
                         var zoom = onZoom(chart);
                         hasEventDisabled(chart) && zoom.call(container, e);
                     },
-                    resize: function(e) {
+                    resize: function (e) {
                         var options = chart.options;
                         var width = options.chart.width,
                             height = options.chart.height;
                         width = Math.max(1, width), height = Math.max(1, height);
                         options.chart.reflow !== false & (!isNumber(width, true) | !isNumber(height, true)) & hasAnimateReady(chart) & onResize.call(window, e, chart);
                     },
-                    visible: function(e){
+                    visible: function (e) {
                         globalEvent.disabled !== true && onVisible.call(document, e, chart);
                     }
                 });
 
-                var touchSwipe = function(e, touch) {
+                var touchSwipe = function (e, touch) {
                     if (touch.status === "start") {
                         onStart.call(this, e, chart);
                     }
@@ -473,7 +524,7 @@
                     }
                 };
 
-                var touchPress = function(e, touch) {
+                var touchPress = function (e, touch) {
                     globalEvent = chart.globalEvent;
                     onStart.call(this, e, chart);
                     globalEvent.mousemove && globalEvent.mousemove.call(this, e, chart);
@@ -481,7 +532,7 @@
                         globalEvent.mouseout.call(this, e, chart);
                     }
                 };
-                var touchTap = function(e) {
+                var touchTap = function (e) {
                     globalEvent.click.call(this, e, chart);
                 };
 
@@ -489,7 +540,7 @@
                     tap: touchTap,
                     press: touchPress,
                     swipe: touchSwipe,
-                    pinch: function(e) {
+                    pinch: function (e) {
                         globalEvent.zoom.call(this, e, chart);
                     }
                 }) : bindAll(chart);
@@ -507,7 +558,7 @@
 
 
     return {
-        deps: function() {
+        deps: function () {
             var args = Array.prototype.slice.call(arguments, 0);
             return factory.apply(global, [].concat(args));
         }

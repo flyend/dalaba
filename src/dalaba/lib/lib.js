@@ -1,28 +1,28 @@
-(function() {
+(function () {
 
     var toString = Object.prototype.toString;
 
-    var isObject = function(a) {
+    var isObject = function (a) {
         return toString.call(a) === "[object Object]";
     };
 
-    var isNumber = function(a, finite) {
+    var isNumber = function (a, finite) {
         return typeof a === "number" && !isNaN(a) && (finite !== true || isFinite(a));
     };
 
-    var isArray = function(a) {
+    var isArray = function (a) {
         return toString.call(a) === "[object Array]";
     };
 
-    var isFunction = function(a) {
+    var isFunction = function (a) {
         return toString.call(a) === "[object Function]";
     };
     
-    var isString = function(a) {
+    var isString = function (a) {
         return toString.call(a) === "[object String]";
     };
 
-    var isValue = function(a, isAF) {
+    var isValue = function (a, isAF) {
         var v = a;
 
         if (isObject(a) && defined(a.value))
@@ -37,7 +37,7 @@
         return NaN;
     };
 
-    var defined = function(a) {
+    var defined = function (a) {
         return typeof a !== "undefined" && a !== null;
     };
 

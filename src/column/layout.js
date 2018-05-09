@@ -6,8 +6,8 @@
         return min <= 0 && max >= 0;
     };
 
-    function factoy() {
-        var computeColumn = function(group, width, height, groupCounting, groupLength) {
+    function factoy () {
+        var computeColumn = function (group, width, height, groupCounting, groupLength) {
             var series = group[0];
             var plotX = pack("number", series.plotX, 0),
                 plotY = pack("number", series.plotY, 0),
@@ -19,7 +19,6 @@
                 maxValue = yAxisOptions.maxValue,
                 minValue = yAxisOptions.minValue;
             var reversed = yAxisOptions.reversed;
-            //console.log(series.minValue, minValue, series.maxValue, maxValue, reversed)
 
             var xAxisOptions = series._xAxis /*[series.xAxis | 0]*/ || {},
                 minTickValue = 0,
@@ -28,7 +27,7 @@
 
             var n = group.length, m = series.maxLength;//group[0].shapes.length;
             var maxLength = m;
-            if(series.grouping === false){
+            if (series.grouping === false) {
                 groupLength = 1;
                 groupCounting = 0;
             }
@@ -40,21 +39,21 @@
 
             var shape, value;
             
-            for(var j = 0; j < m; j++){
+            for (var j = 0; j < m; j++) {
                 series = group[0];
                 shape = series.shapes[j] || {};
                 value = shape.value;
 
                 var sum = value,
                     total = value;
-                if(yAxisOptions.type === "logarithmic"){
+                if (yAxisOptions.type === "logarithmic") {
                     value = mathLog(value, logBase);
                 }
-                for(var i = 1; i < n; i++){
+                for (var i = 1; i < n; i++) {
                     total += (group[i].shapes[j] || {}).value;
                 }
                 var key = getKey(series, minTickValue + j * maxTickValue / m, categories, j, center / width / m);
-                if(shape._x){
+                if (shape._x) {
                     key = shape._x;
                 }
 
@@ -69,37 +68,38 @@
                 y0 = plotY + (reversed === true ? 0 : zeroY);
                 y1 = y0;//value is zero
 
-
-                if(series.selected === false || value === 0){
+                if (series.selected === false || value === 0) {
                     y1 = 0;
                     sum = 1;//log value is 0
                 }
-                else if(value < 0){
+                else if (value < 0) {
                     y1 = interpolate(value, 0, minValue, 0, Math.abs(plotHeight - zeroY));
                 }
-                else{
+                else {
                     y1 = interpolate(value, 0, maxValue, 0, zeroY);
                 }
 
                 dirTop = dirBottom = y0;
-                if(value >= 0){
+                if (value >= 0) {
                     startY = dirTop;
                     dirTop -= y1;
                     y1 = -y1;
                 }
-                else{
+                else {
                     startY = dirBottom;
                     dirBottom += y1;
                 }
                 //y1 = (y0 = startY) + y1;
                 y1 = (y0 = startY) + (!(reversed === true) || -1) * y1;
 
-                if(series.selected === false){
+                if (series.selected === false) {
                     x0 = x1;
                     y1 = y0;
                 }
 
                 extend(shape, {
+                    x: x0,
+                    y: y0,
                     x0: x0,
                     y0: y0,
                     x1: x1,
@@ -114,43 +114,42 @@
                 });
 
                 //stack
-                for(i = 1; i < n; i++){
+                for (i = 1; i < n; i++) {
                     series = group[i];
                     shape = series.shapes[j] || {};
                     value = shape.value;
-                    if(!isNumber(value)){
+                    if (!isNumber(value)) {
                         value = 0;
                     }
 
                     //dirTop = dirBottom = y1;
-                    if(yAxisOptions.type === "logarithmic"){
+                    if (yAxisOptions.type === "logarithmic") {
                         value = mathLog(value += sum, logBase);
                         y1 = interpolate(value, minValue, maxValue, 0, plotHeight);
                         y1 -= interpolate(mathLog(sum, logBase), minValue, maxValue, 0, plotHeight);
                     }
-                    else{
-                        if(series.selected === false || value === 0){
+                    else {
+                        if (series.selected === false || value === 0) {
                             y1 = 0;
                         }
-                        else if(value < 0){
+                        else if (value < 0) {
                             y1 = interpolate(value, 0, minValue, 0, Math.abs(plotHeight - zeroY));
                         }
-                        else{
+                        else {
                             y1 = interpolate(value, 0, maxValue, 0, zeroY);
                         }
                     }
 
-                    if(value >= 0){
+                    if (value >= 0) {
                         startY = dirTop;
                         dirTop -= y1;
                         y1 = -y1;
                     }
-                    else{
+                    else {
                         startY = dirBottom;
                         dirBottom += y1;
                     }
 
-                    //pointSize = getPointSize(item[i], tickWidth, groupLength);
                     
                     x0 = plotX + (j * tickWidth);
                     x0 += center;
@@ -160,11 +159,13 @@
                     y0 = startY;
                     //y1 = y0 + y1;
                     y1 = y0 + (!(reversed === true) || -1) * y1;
-                    if(series.selected === false){
+                    if (series.selected === false) {
                         x0 = x1;
                         y1 = y0;
                     }
                     extend(shape, {
+                        x: x0,
+                        y: y0,
                         x0: x0,
                         y0: y0,
                         x1: x1,
@@ -276,6 +277,8 @@
                 }
 
                 extend(shape, {
+                    x: x0,
+                    y: y1,
                     x0: x0,
                     y0: y0,
                     x1: x1,
@@ -350,8 +353,9 @@
                         y0 = y1;
                         x1 = x0;
                     }
-                    //console.log(shape)
                     extend(shape, {
+                        x: x0,
+                        y: y0,
                         x0: x0,
                         y0: y0,
                         x1: x1,
@@ -413,22 +417,22 @@
             return flag;
         };
 
-        return function(panels, modified) {
-            panels.forEach(function(pane) {
+        return function (panels, modified) {
+            panels.forEach(function (pane) {
                 var series = pane.series;
                 groupLength = 0,
                 groupCounting = -1;
-                var groups = partition(series, function(a, b) {
+                var groups = partition(series, function (a, b) {
                     if(typeof a.stack === "undefined" && typeof b.stack === "undefined")
                         return false;
                     return (a.yAxis === b.yAxis) && a.stack === b.stack && a.type === b.type;
                 });
                 
-                groups.forEach(function(group) {
+                groups.forEach(function (group) {
                     counter(group) && groupLength++;
                 });
                 groupLength = Math.max(1, groupLength);
-                groups.forEach(function(group) {
+                groups.forEach(function (group) {
                     counter(group) && groupCounting++;
                     //console.log(groupCounting, groupLength, group[0].panelIndex, group)
                     group[0].type === "bar" ?
@@ -440,7 +444,7 @@
     }
 
     return {
-        deps: function() {
+        deps: function () {
             return factoy.apply(global, [].concat([].slice.call(arguments, 0)));
         }
     };

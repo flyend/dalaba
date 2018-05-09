@@ -1,29 +1,29 @@
-(function(){
+(function () {
     
     var toString = Object.prototype.toString;
 
-    var isObject = function(a) {
+    var isObject = function (a) {
         return toString.call(a) === "[object Object]";
     };
-    var isNumber = function(a, finite) {
+    var isNumber = function (a, finite) {
         return typeof a === "number" && !isNaN(a) && (finite !== true || isFinite(a));
     };
-    var isArray = function(a) {
+    var isArray = function (a) {
         return toString.call(a) === "[object Array]";
     };
-    var isFunction = function(a) {
+    var isFunction = function (a) {
         return toString.call(a) === "[object Function]";
     };
-    var isString = function(a) {
+    var isString = function (a) {
         return toString.call(a) === "[object String]";
     };
-    var isEmptyObject = function(o) {
+    var isEmptyObject = function (o) {
         for (var p in o) if (o.hasOwnProperty(p))
             return false;
         return true;
     };
 
-    var defined = function(a) {
+    var defined = function (a) {
         return typeof a !== "undefined" && a !== null;
     };
 
@@ -41,7 +41,7 @@
      * @param first is object type
      * @param last default value
     */
-    Dalaba.pack = function() {
+    Dalaba.pack = function () {
         var r = {
             "number": [0, isNumber],
             "function": [null, isFunction],
@@ -74,7 +74,7 @@
      * @param b{Object} target object
      * Returns new object
     */
-    Dalaba.extend = function extend() {
+    Dalaba.extend = function extend () {
         var args = arguments,// arraySlice.call(arguments, 1),
             i = 1,
             length = args.length,

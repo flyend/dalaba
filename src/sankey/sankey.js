@@ -1,4 +1,4 @@
-(function(global, Chart){
+(function (global, Chart) {
     var Layout = require("./layout").deps(Dalaba.Numeric);
 
     var xClip = function(t, context, canvas, x, y){
@@ -22,7 +22,7 @@
         return ret;
     };
 
-    var parseGradient = function(context, x, y, width, height, options) {
+    var parseGradient = function (context, x, y, width, height, options) {
         var linearGradient = options.linearGradient,
             x1 = linearGradient.x1,
             y1 = linearGradient.y1,
@@ -44,7 +44,7 @@
         return gradient;
     };
 
-    function Sankey(canvas, options) {
+    function Sankey (canvas, options) {
         this.canvas = canvas;
         this.context = canvas.getContext("2d");
         this.type = "sankey";
@@ -54,7 +54,7 @@
     }
     Sankey.prototype = {
         constructor: Sankey,
-        init: function(options) {
+        init: function (options) {
             var canvas = this.canvas,
                 type = this.type,
                 chart = this;
@@ -67,7 +67,7 @@
             
             Layout(type, options);
 
-            if(canvas.nodeType === 1){
+            if (canvas.nodeType === 1) {
                 this.series.forEach(function(series){
                     if(series.animationEnabled){
                         var image = document.createElement("canvas"),
@@ -98,6 +98,16 @@
                     }
                 });
             }
+            this.reflow();
+        },
+        reflow: function () {
+            var context = this.context;
+            var chart = this;
+            this.series.forEach(function (series) {
+                series.shapes.forEach(function (shape) {
+                    chart.dataLabels(context, shape, series);
+                });
+            });
         },
         draw: function() {
             var context = this.context,
@@ -126,12 +136,13 @@
                     chart.drawShape(context, shape, series);
                 });
                 series.nodes.forEach(function(shape) {
-                    chart.dataLabels(context, shape, series);
+                    DataLabels.render(context, shape, series);
                 });
             });
         },
         redraw: function() {
             Layout(this.type, this.options);
+            this.reflow();
             this.draw();
         },
         drawShape: function(context, shape, series) {
@@ -230,8 +241,8 @@
             });
             context.restore();
         },
-        dataLabels: function(context, shape, series) {
-            dataLabels.value(shape.value).align(function(type, bbox){
+        dataLabels: function (context, shape, series) {
+            shape.dataLabel = DataLabels.value(shape.value).align(function (type, bbox){
                 var x = shape.x,
                     w = bbox.width,
                     w2 = shape.width;
@@ -327,27 +338,27 @@
             });
             return shapes;
         },
-        onFrame: function(context, initialize){
+        onFrame: function (context, initialize) {
             var chart = this;
-            this.series.forEach(function(series){
+            this.series.forEach(function (series ){
                 var animators = series._animators;
                 if(initialize === true){
-                    animators.forEach(function(series){
+                    animators.forEach(function (series ){
                         series._image && xClip(series._timer, context, series._image, 0, 0);
                     });
                 }
                 else{
-                    animators.forEach(function(shape){
+                    animators.forEach(function (shape) {
                         chart.drawLink(context, shape, series);
                     });
-                    animators.forEach(function(shape){
+                    animators.forEach(function (shape) {
                         chart.drawShape(context, shape, series);
-                        chart.dataLabels(context, shape, series);
+                        DataLabels.render(context, shape, series);
                     });
                 }
             });
         },
-        onStart: function(){
+        onStart: function () {
             this.series.forEach(function(series){
                 var transform = series.transform;
                 if(defined(transform) && defined(transform.translate)){

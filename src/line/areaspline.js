@@ -6,7 +6,7 @@
                     extend = Dalaba.extend,
                     arrayFilter = Dalaba.Cluster.List.filter;
                 
-                function AreaSpline(canvas, options) {
+                function AreaSpline (canvas, options) {
                     this.canvas = canvas;
                     this.context = canvas.getContext("2d");
                     this.type = "areaspline";
@@ -14,8 +14,8 @@
                     this.init(options);
                 }
                 extend(AreaSpline.prototype, Area.prototype, {
-                    init: function(options) {
-                        this.series = arrayFilter(pack("array", options.series, []), function(series){
+                    init: function (options) {
+                        this.series = arrayFilter(pack("array", options.series, []), function (series) {
                             return series.type === "areaspline";
                         });
                         Area.prototype.init.call(this, options);

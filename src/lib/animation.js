@@ -11,7 +11,7 @@
  *     duration: 1000
  * })
 */
-(function(callback){
+(function (callback) {
     // Easing functions take at least four arguments:
     // t: Current time
     // b: Start value
@@ -254,14 +254,14 @@
         }
     };
     return callback && callback.call(this, easing);
-}).call(typeof window !== "undefined" ? window : this, function(easing){
+}).call(typeof window !== "undefined" ? window : typeof this !== "undefined" ? this : global, function (easing) {
     var toString = Object.prototype.toString;
 
-    var isObject = function(v){
+    var isObject = function (v) {
         return toString.call(v) === "[object Object]";
     };
     
-    var extend = function(a, b){
+    var extend = function (a, b) {
         var n;
         if (!a) {
             a = {};

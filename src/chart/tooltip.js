@@ -1,4 +1,4 @@
-(function(global, Dalaba) {    
+(function (global, Dalaba) {    
     var Chart = Dalaba.Chart || {};
 
     var defaultOptions = {
@@ -21,6 +21,7 @@
         borderColor: "#7B7B7B",
         backgroundColor: "rgba(251, 251, 251, .85)",
         shadow: true,
+        boxShadow: "0px 0px 3px #7B7B7B",
         headerFormat: "",
         //crosshairs: {color, width, dashStyle, snap}
         positioner: undefined//The return should be an object containing x and y values
@@ -109,7 +110,7 @@
             this.node = null;
             this.selected = options.selected;
         },//new this.Element
-        init: function(canvas, options) {
+        init: function (canvas, options) {
             var tooltipOptions;
             this.options = extend({}, defaultOptions);
             tooltipOptions = extend(this.options, options);
@@ -134,26 +135,22 @@
                     //visibility: "visible",
                     display: "none",
                     "z-index": 3,
-                    "box-shadow": "0px 0px 3px #7B7B7B"
+                    "box-shadow": tooltipOptions.boxShadow
                 };
-                if(tooltipOptions.animation){
+                if (tooltipOptions.animation) {
                     attr.transition = "left .1s linear, top .1s linear";
                 }
                 this.canvas = document.createElement("div");
-                for(var p in attr) if(attr.hasOwnProperty(p)){
-                    this.canvas.style[p.replace(/\-(\w)/g, function(all, s){
-                        return s.toUpperCase();
-                    })] = attr[p];
-                }
+                setStyle(this.canvas, attr);
                 canvas.parentNode.appendChild(this.canvas);
             }
 
             this.x = +tooltipOptions.x;
             this.y = +tooltipOptions.y;
-            if(isNaN(this.x)){
+            if (isNaN(this.x)) {
                 this.x = -9999;
             }
-            if(isNaN(this.y)){
+            if (isNaN(this.y)) {
                 this.y = -9999;
             }
 
@@ -165,24 +162,23 @@
 
             this.data = [];
         },
-        addCrosshair: function() {
+        addCrosshair: function () {
             var options = this.options,
                 crosshairs = options.crosshairs;
             var bounds = this.bounds;
-            if(!defined(bounds))
+            if (!defined(bounds))
                 return this;
             var x = this.dx,
                 y = this.dy;
-            //console.log(x)
             var lineWidth = 1,
                 color = "#ACD8FF";
             var context = this.context;
             var left = bounds.left || 0,
                 top = bounds.top || 0,
-                width = (bounds.width + left) || 100,
-                height = (bounds.height + top) || 25;
+                width = pack("number", bounds.width, 100),
+                height = pack("number", bounds.height, 25);
 
-            var lineTo = function(x0, y0, x1, y1, prop) {
+            var lineTo = function (x0, y0, x1, y1, prop) {
                 var dashStyle = pack("string", prop.dashStyle, "solid"),
                     linePixel;
                 context.lineWidth = prop.lineWidth;
@@ -196,12 +192,12 @@
                     y1,
                     prop.lineWidth
                 );
-                if(dashStyle === "solid"){
+                if (dashStyle === "solid") {
                     context.moveTo(x0, y0);
                     context.lineTo(x1, y1);
                     context.stroke();
                 }
-                else{
+                else {
                     DashLine[dashStyle] ? DashLine[dashStyle](
                         context,
                         linePixel.x,
@@ -216,7 +212,7 @@
                 context.save();
                 crosshairs = crosshairs === true ? !0 : crosshairs[0];
                 
-                if(defined(crosshairs)){
+                if (defined(crosshairs)) {
                     lineTo(
                         Math.max(left, Math.min(width, x)),
                         top,
@@ -231,7 +227,7 @@
                     );
                 }
                 crosshairs = options.crosshairs[1];
-                if(defined(crosshairs)){
+                if (defined(crosshairs)) {
                     lineTo(
                         left,
                         Math.max(top, Math.min(height, y)),
@@ -249,9 +245,9 @@
             }
             return this;
         },
-        parseHTML: function(item, isLast) {
+        parseHTML: function (item, isLast) {
             var content = "";
-            if(defined(item.color)){
+            if (defined(item.color)) {
                 content += symbolHTML("span", "",
                     "display:inline-block",
                     "margin:3px",
@@ -265,7 +261,7 @@
             content += isLast ? "" : "<br />";
             return content;
         },
-        formatter: function() {
+        formatter: function () {
             var options = this.options,
                 style = options.style || {},
                 fontStyle = {
@@ -284,7 +280,7 @@
 
             var content = "";
 
-            data.forEach(function(item, i, items) {
+            data.forEach(function (item, i, items) {
                 var fontWeight = fontStyle.fontWeight;
                 if (item.type === "title") {
                     fontWeight = "bold";
@@ -319,14 +315,14 @@
                 }
             });
             
-            if(content.nodeType === 1){
+            if (content.nodeType === 1) {
                 canvas.appendChild(content);
             }
-            else if(useHTML === true){
+            else if (useHTML === true) {
                 canvas.innerHTML = content;
             }
         },
-        setLabels: function() {
+        setLabels: function () {
             var options = this.options,
                 style = options.style,
                 padding = parseInt(options.padding, 10) | 0,
@@ -343,44 +339,44 @@
 
             var content = "", bbox;
 
-            this.data.forEach(function(item, i, items){
+            this.data.forEach(function (item, i, items) {
                 var bbox = Text.measureText(item.value, style);
                 var dy = -~i * (bbox.height);
                 item.height = bbox.height;
                 item.x = x + padding;
                 item.symbolWidth = symbolWidth;
-                if(i){
+                if (i) {
                     dy += i * lineHeight;
                 }
                 item.y = y + dy + padding;
                 sumHeight = dy + padding;
                 sumWidth = Math.max(bbox.width, sumWidth);
-                if(item.value.nodeType === 1){
+                if (item.value.nodeType === 1) {
                     content = item.value;
                 }
-                else if(useHTML === true){
+                else if (useHTML === true) {
                     content += tooltip.parseHTML(item, !(~-items.length - i));
                 }
             });
-            if(defined(options.height) && isNumber(options.height)){
+            if (defined(options.height) && isNumber(options.height)) {
                 this.height = options.height;
             }
-            else{
+            else {
                 this.height = sumHeight + padding;
             }
-            if(defined(options.width) && isNumber(options.height)){
+            if (defined(options.width) && isNumber(options.height)) {
                 this.width = options.width;
             }
-            else{
+            else {
                 this.width = sumWidth + symbolWidth + padding * 2;
             }
-            if(content.nodeType === 1){
+            if (content.nodeType === 1) {
                 bbox = content.getBoundingClientRect();
                 canvas.innerHTML = "";
                 this.width = bbox.width;
                 this.height = bbox.height;
             }
-            else if(useHTML === true){
+            else if (useHTML === true) {
                 canvas.style.display = "block";
                 canvas.innerHTML = content;
                 bbox = canvas.getBoundingClientRect();
@@ -388,10 +384,10 @@
                 this.height = bbox.height;
             }
         },
-        setBounds: function(bounds) {
+        setBounds: function (bounds) {
             this.bounds = bounds;
         },
-        pointFormatter: function(items, x, y) {
+        pointFormatter: function (items, x, y) {
             var options = this.options,
                 formatter = options.formatter,
                 shared = options.shared;
@@ -436,8 +432,8 @@
                         else {
                             var html = Text.HTML(Text.parseHTML(text)).toHTML();
                             html = html.split(/<br\s*\/*>/);
-                            if(defined(html)){
-                                html.forEach(function(item){
+                            if (defined(html)) {
+                                html.forEach(function (item) {
                                     tooltip.text({
                                         value: item,
                                         //color: shape.color
@@ -454,7 +450,7 @@
                     if (defined(title)) {
                         tooltip.text({value: "<b>" + title + "</b>", type: "title"});
                     }
-                    shapes.forEach(function(shape) {
+                    shapes.forEach(function (shape) {
                         tooltip.text(shape.name + ": " + shape.$value, {
                             color: shape.color
                         });
@@ -462,7 +458,7 @@
                 }
             }
         },
-        draw: function() {
+        draw: function () {
             if (this.data.length) {
                 this.setLabels();
                 this.show();
@@ -474,7 +470,7 @@
             }
             this.addCrosshair();
         },
-        style: function() {
+        style: function () {
             var options = this.options,
                 padding = pack("number", options.padding, 0),
                 context = this.context;
@@ -497,23 +493,23 @@
                 r: options.borderRadius || 4
             })(context);
             
-            if(defined(options.borderWidth) && options.borderWidth > 0){
+            if (defined(options.borderWidth) && options.borderWidth > 0) {
                 context.stroke();
             }
-            if(defined(options.backgroundColor)){
+            if (defined(options.backgroundColor)) {
                 context.fill();
             }
             context.restore();
         },
-        setOptions: function(options) {
+        setOptions: function (options) {
             extend(this.options, options);
             return this;
         },
-        setChart: function(charts) {
+        setChart: function (charts) {
             this.charts = charts;
             //(pos = this.position()) !== null && this.move(pos.x, pos.y);
         },
-        position: function(x, y) {
+        position: function (x, y) {
             var options = this.options,
                 positioner = options.positioner;
             var pos;
@@ -531,13 +527,14 @@
             }
             return null;
         },
-        getShape: function(x, y) {
+        getShape: function (x, y) {
             var options = this.options,
                 shared = options.shared;
             var shapes = [];
+            //console.log(this.charts)
 
-            this.charts.forEach(function(chart) {
-                pack("array", pack("function", chart.getShape, noop).call(chart, x, y, shared)).forEach(function(shape) {
+            this.charts.forEach(function (chart) {
+                pack("array", pack("function", chart.getShape, noop).call(chart, x, y, shared)).forEach(function (shape) {
                     shapes.push({
                         shape: shape.shape,
                         series: shape.series,
@@ -547,7 +544,7 @@
             });
             return shapes;
         },
-        move: function(x, y, isMoving) {
+        move: function (x, y, isMoving) {
             var options = this.options;
             var items = this.getShape(x, y),
                 length,
@@ -569,14 +566,14 @@
                     right: 0,
                     top: plot.plotY,
                     bottom: 0,
-                    width: plot.plotWidth,
-                    height: plot.plotHeight
+                    width: plot.plotX + plot.plotWidth,
+                    height: plot.plotY + plot.plotHeight
                 });
             }
 
             switch (isMove * (!length << -~isShow) + !isMove * isShow) {
                 case 0:
-                    //this.draw();
+                    this.draw();
                 break;
                 case 1:
                     this.draw();
@@ -588,14 +585,15 @@
                     this.dx = pos.x, this.dy = pos.y, this.show();
                 break;
             }
+            return items;
         },
-        show: function() {
+        show: function () {
             var canvas = this.canvas,
                 useHTML = this.useHTML;
             var margin = 8;
             var bounds = this.bounds || {};
-            var height = bounds.height - bounds.top - bounds.bottom,
-                width = bounds.width - bounds.left - bounds.right;
+            var height = bounds.height,// - bounds.top - bounds.bottom,
+                width = bounds.width;// - bounds.left - bounds.right;
             var tooltipHeight = this.height,
                 tooltipWidth = this.width;
             var x = this.dx,
@@ -635,13 +633,13 @@
                 canvas.style.top = this.y + "px";
             }
         },
-        hide: function() {
+        hide: function () {
             //this.bounds = {};
             this.visible = false;
             this.addCrosshair();
             this.destroy();
         },
-        text: function(value, params) {
+        text: function (value, params) {
             params = params || {};
             // value can be string or array
             if (!isObject(value)) {
@@ -651,23 +649,25 @@
             this.data.push(value);
             return this;
         },
-        destroy: function() {
+        destroy: function (hasDOM) {
+            var canvas = this.canvas;
             this.data.splice(0);
-            if(this.useHTML === true){
-                this.canvas.style.display = "none";
+            if (this.useHTML === true) {
+                canvas.style.display = "none";
+                if (hasDOM === true) {
+                    canvas.parentNode.removeChild(canvas);
+                }
                 //this.canvas.innerHTML = "";
             }
         }
     };
 
-    if(typeof module === "object")
+    if (typeof module === "object")
         module.exports = Tooltip;
-    else if(typeof define === "function" && define.amd)
-        define(function(){
+    else if (typeof define === "function" && define.amd)
+        define(function () {
             return Tooltip;
         });
-    else{
-        
-    }
+
     Chart.Tooltip = Tooltip;
 })(typeof window !== "undefined" ? window : this, Dalaba);

@@ -1,4 +1,4 @@
-(function(global, Chart){
+(function (global, Chart) {
 
     var relayout = require("./layout").deps(Numeric);
 
@@ -6,7 +6,7 @@
 
     var angle2arc = Chart.angle2arc;
 
-    var Clip = function(canvas){
+    var Clip = function (canvas) {
         var cx, cy, cr;
         //var image = canvas.getContext("2d");
         var angle;
@@ -52,7 +52,7 @@
     /*
      * Class Scatter
     */
-    function Radar(canvas, options){
+    function Radar (canvas, options) {
         this.type = "radar";
 
         this.canvas = canvas;
@@ -64,7 +64,7 @@
     }
     Radar.prototype = {
         constructor: Radar,
-        init: function(options){
+        init: function (options) {
             var type = this.type,
                 canvas = this.canvas;
             var chart = this;
@@ -93,28 +93,39 @@
                     }
                 });
             }
+            this.reflow();
         },
-        draw: function(){
+        reflow: function () {
+            var context = this.context;
+            var chart = this;
+            this.series.forEach(function (series) {
+                series.shapes.forEach(function (shape) {
+                    chart.dataLabels(context, shape, series);
+                });
+            });
+        },
+        draw: function () {
             var context = this.context,
                 chart = this;
-            this.series.forEach(function(series){
+            this.series.forEach(function (series) {
                 chart.drawLine(context, series.shapes, series);
-                if(series.selected !== false){
-                    series.shapes.forEach(function(shape){
+                if (series.selected !== false) {
+                    series.shapes.forEach(function (shape) {
                         chart.drawShape(context, shape, series);
                     });
-                    series.shapes.forEach(function(shape){
-                        chart.drawLabels(context, shape, series);
+                    series.shapes.forEach(function (shape) {
+                        DataLabels.render(context, shape, series);
                         chart.onHover(context, shape, series);
                     });
                 }
             });
         },
-        redraw: function(){
+        redraw: function () {
             relayout(this.type, this.options);
+            this.reflow();
             this.draw();
         },
-        getShape: function(x, y){
+        getShape: function (x, y) {
             var series,
                 shape,
                 sl = this.series.length,
@@ -156,7 +167,7 @@
             }
             return results;
         },
-        drawShape: function(context, shape, series){
+        drawShape: function (context, shape, series){
             var marker = pack("object", shape.marker, series.marker, {});
             var lineWidth = pack("number", marker.lineWidth, 0),
                 lineColor = pack("string", marker.lineColor, shape.color, series.color, "#000"),
@@ -177,7 +188,7 @@
                 context.restore();
             }
         },
-        drawLine: function(context, shapes, series){
+        drawLine: function (context, shapes, series){
             var lineWidth = pack("number", series.lineWidth, 2),
                 lineColor = series.lineColor || series.color,
                 fillColor = series.fillColor || series.color,
@@ -211,7 +222,7 @@
             );
             context.restore();
         },
-        onHover: function(context, shape, series){
+        onHover: function (context, shape, series){
             var marker = series.marker || {},
                 fillColor = shape.color || series.color,
                 hoverColor;
@@ -234,9 +245,9 @@
             }
             delete shape.current;
         },
-        drawLabels: function(context, shape, series){
+        dataLabels: function (context, shape, series) {
             var radius = pack("number", (shape.marker || {}).radius, (series.marker || {}).radius, 0);
-            dataLabels.align(function(type, bbox){
+            shape.dataLabel = DataLabels.align(function (type, bbox) {
                 var t = pack("string", type, "center"),
                     //angle = shape.angle,
                     x = shape.x,
@@ -329,23 +340,23 @@
             });
             return shapes;
         },
-        onFrame: function(context, initialize){
+        onFrame: function (context, initialize) {
             var chart = this;
-            this.series.forEach(function(series){
+            this.series.forEach(function (series) {
                 var animator = series._animators;
-                if(initialize === true){
-                    animator.forEach(function(series){
+                if (initialize === true) {
+                    animator.forEach(function (series) {
                         series._image && Clip(series._image)
                             .ploar(series.plotCenterX, series.plotCenterY, series.plotRadius * 2 + 10)
                             .angle([series._startAngle, series._endAngle * (series._timer) + series._startAngle])
                             .clip(context);
                     });
                 }
-                else{
+                else {
                     chart.drawLine(context, animator, series);
-                    animator.forEach(function(mergeShape){
+                    animator.forEach(function (mergeShape) {
                         chart.drawShape(context, mergeShape, series);
-                        chart.drawLabels(context, mergeShape, series);
+                        DataLabels.render(context, mergeShape, series);
                     });
                 }
             });

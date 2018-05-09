@@ -31,7 +31,7 @@
 
                     shapes.forEach(function(shape){
                         chart.drawMarker(context, shape, series, "y");//draw marker
-                        chart.drawLabels(context, shape, series);//draw data labels
+                        DataLabels.render(context, shape, series);//draw data labels
                         Renderer.hover(context, shape, series, "y");//hover points
                     });
                 });

@@ -1,6 +1,6 @@
-(function(global){
+(function (global) {
     var document = global.document;
-    function factory(Dalaba) {
+    function factory (Dalaba) {
         var DEVICE_PIXEL_RATIO = Dalaba.DEVICE_PIXEL_RATIO;
 
         var pack = Dalaba.pack;
@@ -83,9 +83,9 @@
         });
     }
     return {
-        deps: function(){
+        deps: function () {
             var args = Array.prototype.slice.call(arguments, 0);
             return factory.apply(global, [].concat(args));
         }
     };
-})(typeof window !== "undefined" ? window : this)
+})(typeof window !== "undefined" ? window : typeof this !== "undefined" ? this : global)

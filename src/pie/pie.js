@@ -3,7 +3,7 @@
 
     var angle2arc = Chart.angle2arc;
 
-    function Pie(canvas, options){
+    function Pie (canvas, options) {
         this.type = "pie";
 
         this.series = [];
@@ -14,19 +14,19 @@
     }
     Pie.prototype = {
         constructor: Pie,
-        init: function(options){
+        init: function (options) {
             var type = this.type;
             var seriesColors;
             this.options = extend({}, options);
             seriesColors = this.options.colors || [];
-            this.series = arrayFilter(this.options.series || [], function(series){
+            this.series = arrayFilter(this.options.series || [], function (series) {
                 var shapes = series.shapes || [],
                     length = shapes.length,
                     j = 0;
                 var value, minValue, maxValue, sumValue;
                 var filter = series.type === type;
                 if(filter){
-                    series._diffValues = List.diff(series.shapes, series._shapes || [], function(a, b){
+                    series._diffValues = List.diff(series.shapes, series._shapes || [], function (a, b) {
                         return a && b && a.value === b.value;
                     });
                     minValue = maxValue = sumValue = 0;
@@ -51,7 +51,7 @@
             this.shapes = pie.shapes;
             this.layout = pie;
         },
-        draw: function(){
+        draw: function () {
             var context = this.context;
             var chart = this;
 
@@ -65,11 +65,14 @@
                 });
             });
         },
-        redraw: function(){
+        reflow: function () {
+
+        },
+        redraw: function () {
             this.shapes = this.layout.subgroup();
             this.draw();
         },
-        animateTo: function(){
+        animateTo: function () {
             var shapes = [];
             this.shapes.forEach(function(series){
                 var newData = series.shapes,
@@ -214,7 +217,7 @@
             context.fill();
             context.restore();
         },
-        drawShape: function(context, shape, series){
+        drawShape: function (context, shape, series) {
             var color = pack("string", shape.color, series.color, "#000");
             var borderWidth = pack("number", series.borderWidth, 0),
                 borderColor = pack("string", series.borderColor, "#FFFFFF");
@@ -380,7 +383,7 @@
                 currentShape.sliced = !currentShape.sliced;
             });
         },
-        getShape: function(x, y){
+        getShape: function (x, y) {
             var series = this.shapes,
                 length = series.length,
                 index = -1;
@@ -435,7 +438,7 @@
         init: function(){
             this.shapes = this.subgroup();
         },
-        subgroup: function(){
+        subgroup: function () {
             var options = this.options,
                 type = this.type,
                 minRadius = 10;
@@ -570,14 +573,14 @@
             });
             return shapes;
         },
-        labels: function(shapes, series){
-            var sortByValue = function(a, b){
+        labels: function (shapes, series) {
+            var sortByValue = function (a, b) {
                 return a.point.value - b.point.value;
             };
-            var sortByAngle = function(a, b){
+            var sortByAngle = function (a, b) {
                 return a.angle - b.angle;
             };
-            var angleToQuadrant = function(angle){
+            var angleToQuadrant = function (angle) {
                 angle = angle % (PI2);
                 0 > angle && (angle = PI2 + angle);
                 return 0 <= angle && angle < Math.PI / 2 ? 1 : angle < Math.PI ? 2 : angle < Math.PI * 1.5 ? 3 : 0;
@@ -602,16 +605,13 @@
                 radius = positions[2],
                 innerRadius = positions[3];
             var labelsRadius = series.labelsRadius || (radius + distance / 2);
-            var labelsMaxInQuadrant = series.labelsMaxInQuadrant || Math.floor(labelsRadius / parseInt(style.fontSize, 10));
-            var fontSize = parseInt(style.fontSize, 10);
+            var fontSize = pack("number", parseInt(style.fontSize, 10), 12);
+            var labelsMaxInQuadrant = series.labelsMaxInQuadrant || Math.floor(labelsRadius / parseInt(fontSize, 10));
 
             var connectorPadding = pack("number", dataLabels.connectorPadding, 15),
                 connectorPaddings = [connectorPadding, connectorPadding, -connectorPadding, -connectorPadding];
 
             var fourQuadrants = [[], [], [], []];
-
-            //if(dataLabels.enabled !== true)
-            //    return;
             
             //one data and inside
             if(shapes.length === 1 && !innerRadius && isInside){
@@ -623,8 +623,8 @@
                 };
             }
             //inside
-            else if(isInside){
-                shapes.forEach(function(shape){
+            else if (isInside) {
+                shapes.forEach(function (shape) {
                     if(shape.value !== null && dataLabels.enabled === true || isObject(shape.dataLabels) && shape.dataLabels.enabled === true){
                         //var halfRadius = innerRadius;// + (radius - innerRadius) / 1.5;//radius center
                         //var quadrants = angleToQuadrant(shape.angle);
@@ -640,7 +640,7 @@
                             textY = y1 + dy * 4;
                         //var reversed = quadrants >= 2;
 
-                        if(shape.sliced){
+                        if (shape.sliced) {
                             //var slicedTranslation = shape.slicedTranslation;
                             //x += ma[0] - positions[0];//canvasLeft;
                             //y += ma[1] - positions[1];
@@ -653,7 +653,7 @@
                     }
                 });
             }
-            else{
+            else {
                 var point;
                 var maxAngle, midAngle, currentAngle;
                 var quadrants;
@@ -723,7 +723,7 @@
                     var labelQuadrant = quadrants.length;
                     var angle;
 
-                    skipOverlapLabels || (fontSize = labelQuadrant > labelsMaxInQuadrant ? maxInQuadrant / labelQuadrant : parseInt(style.fontSize, 10), fontSize / 2);
+                    skipOverlapLabels || (fontSize = labelQuadrant > labelsMaxInQuadrant ? maxInQuadrant / labelQuadrant : parseInt(fontSize, 10), fontSize / 2);
                     currentAngle = labelQuadrant * fontSize;
                     maxAngle = maxInQuadrant;
                     for(k = 0; k < labelQuadrant; k += 1, currentAngle -= fontSize){
@@ -752,7 +752,6 @@
                         centerX = point.shapeArgs.x;
                         centerY = point.shapeArgs.y;
                         radius = point.shapeArgs.radius;
-                        //console.log(point.shapeArgs.x, centerX)
                         angle = centerX + ([1, 1, -1, -1][g]) * labelsRadius * Math.cos(Math.asin(Math.max(-1, Math.min(toY / maxInQuadrant, 1))));
                         toY *= [-1, 1, 1, -1][g];//d
                         toY += centerY;
@@ -760,10 +759,11 @@
                             y = centerY + radius * Math.sin(shape.angle),
                             dx = Math.cos(midAngle = (point.shapeArgs.startAngle + point.shapeArgs.endAngle) / 2),
                             dy = Math.sin(midAngle);
-                        
+
                         (2 > g && angle < x || 1 < g && angle > x) && (angle = x);
                         var toX = angle + connectorPaddings[g];
                         //var textX = toX + connectorPaddings[g];
+
                         if(manageLabelOverflow){
                             var textHeight = lineHeight + borderWidth;
                             void 0 === point.clearance && textHeight > fontSize && (toY += fontSize);
@@ -790,6 +790,7 @@
                         point.connectorPoints = [
                             {x: x, y: y}, {x: x1, y: toY}, {x: x2, y: toY}
                         ];
+
                         point.textArgs = {
                             x: toX + (dx >= 0 || -1) * (3 + distance),
                             y: toY,

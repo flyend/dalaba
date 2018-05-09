@@ -1,4 +1,4 @@
-(function(global){
+(function (global) {
 
     var document = global.document;
 
@@ -20,10 +20,10 @@
             width: {},
             height: {}
         },
-        context: function(context){
+        context: function (context) {
             Text._context = context;
         },
-        getWidth: function(text, style){
+        getWidth: function (text, style) {
             var fontFamily = (style = style || {}).fontFamily || "sans-serif",
                 fontSize = style.fontSize || "12px",
                 fontWeight = style.fontWeight || "normal",
@@ -46,25 +46,25 @@
             var context = Text._context,
                 canvas;
             
-            if(document && document.createElement){
+            if (document && document.createElement){
                 context = (canvas = document.createElement("canvas")).getContext("2d");
             }
-            else if(context){
+            else if (context) {
                 canvas = context.canvas;
             }
-            if(!context){
+            if (!context) {
                 return 0;
             }
             Text._context = context;
             //console.log(font, text)
             
-            text.split("\n").forEach(function(){
+            text.split("\n").forEach(function () {
                 context.font = font;
                 width = Math.max(width, context.measureText(text).width);
             });
             return (Text._cache.width[id] = width);
         },
-        getHeight: function(text, style){
+        getHeight: function (text, style) {
             var fontFamily = (style = style || {}).fontFamily || "sans-serif",
                 fontSize = style.fontSize || "12px",
                 fontWeight = style.fontWeight || "normal",
@@ -130,7 +130,7 @@
             //console.log(bottom - top + 1, text, font)
             return Text._cache.height[id] = bottom - top + 1;
         },
-        measureText: function(text, style){
+        measureText: function (text, style) {
             var angle = style && style.rotation,
                 width = 0,
                 height = 0;

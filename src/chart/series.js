@@ -1,8 +1,8 @@
-(function(global) {
+(function (global) {
     var mathMax = Math.max,
         mathMin = Math.min;
 
-    function factoy(global, Dalaba, List) {
+    function factoy (global, Dalaba, List) {
 
         var defined = Dalaba.defined;
 
@@ -10,30 +10,30 @@
 
         var indexOf = List.indexOf;
 
-        var isNumber = function(v) {
+        var isNumber = function (v) {
             return Dalaba.isNumber(v, true);
         };
 
-        var prediction = function(values) {
+        var prediction = function (values) {
             var n = values.length,
                 sum = 0,
                 mean = false;
-            var each = function(fn){
+            var each = function (cb) {
                 var l = n & 1,
                     r = n;
-                l && fn(values[0], mean === false ? 0 : mean);
+                l && cb(values[0], mean === false ? 0 : mean);
                 while (l < r) {
-                    fn(values[l++], values[--r]);
+                    cb(values[l++], values[--r]);
                 }
             };
-            each(function(a, b){ sum += a; sum += b; });
+            each(function (a, b) { sum += a; sum += b; });
             mean = sum / n, sum = 0;
-            each(function(a, b){ sum += (a - mean) * (a - mean), sum += (b - mean) * (b - mean); });
+            each(function (a, b) { sum += (a - mean) * (a - mean), sum += (b - mean) * (b - mean); });
 
             return values[n - 1]; //mean;// n ? Math.sqrt(sum / n) : 0;
         };
 
-        var valueOf = function(v, k) {
+        var valueOf = function (v, k) {
             var value = parseFloat(v, 10),
                 values = v.match(/([\+\-]?\d+[\.eE]?\d*)/g),
                 p = values && values.length;
@@ -45,10 +45,10 @@
                 return value = parseFloat(values[0], 10);
             }
             if (p) {
-                var kdtree = new KDTree(values.map(function(t) {
+                var kdtree = new KDTree(values.map(function (t) {
                     return {x: parseFloat(t, 10)};
                 }), ["x"]);
-                value = kdtree.nearest({x: k}, function(a, b) {
+                value = kdtree.nearest({x: k}, function (a, b) {
                     return (a.x - b.x) * (a.x - b.x);
                 })[0];
                 kdtree.destroy();
@@ -59,39 +59,34 @@
             return null;
         };
 
-        function Series(options) {
+        function Series (options) {
             extend(this, options);
-            this.type = options.type || "line";
-            this.name = options.name;
-            this.data = options.data || [];
-            this.shapes = [];
-            this.options = options;
+            this.__options__ = options;
         }
         Series.prototype = {
             constructor: Series,
-            update: function(options, redraw) {
+            update: function (options, redraw) {
                 var chart = this.chart,
-                    series = this,
                     newSeries;
-                this.options = options;
                 
-                if(defined(chart)){
+                if (defined(chart)) {
                     newSeries = extend(this, options);
-                    series._shapes = series.shapes;
-                    series.shapes = series.addShape();
+                    this.__options__ = options;
+                    this._shapes = this.shapes;
+                    this.shapes = this.addShape();
 
                     redraw !== false && chart.draw();
                 }
             },
-            addShape: function() {
+            addShape: function () {
                 var newSeries = this;
-                var animation = this.options.animation || {};
                 var data = pack("array", newSeries.data, []),
                     item, value,
                     shapes = [], shape,
                     minValue, maxValue,
                     diff = 0;
                 var vari = [];
+                var animationDelay = newSeries.animationDelay;
 
                 var type = newSeries.type;
                 var length = data.length,
@@ -105,7 +100,7 @@
                 newSeries.startIndex = start;
                 newSeries.endIndex = end;
 
-                if(diff = (end - start)){
+                if (diff = (end - start)) {
                     minValue = Number.MAX_VALUE,
                     maxValue = -minValue;
                     for(; start < end; start++, j++){
@@ -115,17 +110,17 @@
                             series: newSeries,
                             source: item
                         };
-                        if(newSeries.animationEnabled !== false){
-                            shape.duration = pack("number", animation.duration, newSeries.duration);
-                            shape.easing = animation.easing || newSeries.easing;
-                            if(isFunction(animation.delay)) shape.delay = animation.delay.call(item, j);
-                            else if(isNumber(animation.delay)) shape.delay = animation.delay;
+                        if (newSeries.animationEnabled !== false) {
+                            shape.duration = newSeries.animationDuration;
+                            shape.easing = newSeries.animationEasing;
+                            if (isFunction(animationDelay)) shape.delay = animationDelay.call(item, j);
+                            else if (isNumber(animationDelay)) shape.delay = animationDelay;
                             else shape.delay = isFunction(newSeries.delay) ? newSeries.delay.call(item, j) : newSeries.delay;
                         }
 
-                        if(isObject(item)){
+                        if (isObject(item)) {
                             value = defined(item.value) ? item.value : item.y;
-                            if(type === "arearange" && defined(item.high)){
+                            if (type === "arearange" && defined(item.high)) {
                                 value = item.high;
                             }
                             extend(shape, item);
@@ -134,7 +129,7 @@
                             defined(item.x) && (shape._x = item.x);
                             defined(item.y) && (shape._y = item.y);
                         }
-                        else if(isArray(item)){
+                        else if (isArray(item)) {
                             value = defined(item[1]) ? item[1] : item[0];
                             if(type === "arearange" || defined(item[2])){
                                 value = defined(item[2]) ? item[2] : item[1];
@@ -146,22 +141,22 @@
                         }
                         var svalue = value,
                             $value = svalue;
-                        if(isString(value)){
+                        if (isString(value)) {
                             var k = vari.length ? vari.length > 2 ? prediction(vari.slice(-10)) : vari[0] : 0;
                             value = valueOf(svalue = value, k);
                         }
                         
-                        if(!isNumber(value) || !isFinite(value)){
+                        if (!isNumber(value) || !isFinite(value)) {
                             value = svalue = null;
                             $value = "--";
                         }
-                        if(isNumber(value)){
+                        if (isNumber(value)) {
                             minValue = mathMin(minValue, value);
                             maxValue = mathMax(maxValue, value);
                             vari.push(value);
                         }
                         isNULL = value === null;
-                        if(type === "candlestick"){
+                        if (type === "candlestick") {
                             (isNULL = !(
                                 isNumber(+shape.open, true) &&
                                 isNumber(+shape.close, true) &&
@@ -191,7 +186,7 @@
                             !defined(shape.name) && (shape.name = svalue);
                         }
                         else {
-                            if(type !== "diagram" && type !== "sankey")
+                            if (type !== "diagram" && type !== "sankey")
                                 shape.name = newSeries.name;
                             !defined(shape.color) && (shape.color = newSeries.color);
                         }
@@ -199,6 +194,7 @@
                         shape.value = value;//cal value
                         shape.$value = $value;//tooltip value
                         shape.isNULL = isNULL;
+                        shape.dataLabel = {};
                         shapes.push(shape);
                         if ((type === "pie" || type === "funnel")) {
                             data[start] = isObject(item) || isArray(item) ? item : {value: item};//legend data
@@ -209,28 +205,70 @@
                 newSeries.maxValue = diff ? maxValue : 0;
                 return shapes;
             },
-            getShape: function(){
-                return this.shapes;
-            },
-            setOptions: function(){
-
-            },
-            setData: function(){
-
-            },
-            translate: function(){
-
-            },
             destroy: function(){
 
             }
+        };
+
+        Series.mapping = function (series) {
+            var axisSeries = {
+                yAxis: {},
+                xAxis: {},
+                polarAxis: {},
+                radiusAxis: {},
+                colorAxis: {}
+            };
+
+            var clamp = function (v, max) {
+                return mathMax(0, mathMax(pack("number", max, 0), pack("number", v, 0)));
+            };
+
+            var add = function (axisSeries, key, value) {
+                if (!axisSeries.hasOwnProperty(key)) {
+                    axisSeries[key] = [value];
+                }
+                else {
+                    axisSeries[key].push(value);
+                }
+            };
+            var isAxis2D = false;
+
+            partition(series, function (a, b) {
+                return a.panelIndex === b.panelIndex;
+            }).forEach(function (groups) {
+                var maxLength = 0,
+                    sumLength = 0;
+                
+                groups.forEach(function (series) {
+                    var type = series.type;
+                    isAxis2D = isAxis2D || (!defined(series.projection) && hasAxis(type));
+                    
+                    if (series.selected !== false) {
+                        series.sumLength = mathMax(sumLength, (series.data || []).length | 0);
+                        series.maxLength = mathMax(maxLength, series.shapes.length);
+                    }
+                    //2d axis
+                    if (isAxis2D) {
+                        add(axisSeries.yAxis, clamp(series.yAxis), series);
+                        add(axisSeries.xAxis, clamp(series.xAxis), series);
+                    }
+                    if (!!~(arrayIndexOf(["map", "heatmap"], type))) {
+                        add(axisSeries.colorAxis, clamp(series.colorAxis), series);
+                    }
+                    if (!!~(arrayIndexOf(["radar"], type))) {
+                        add(axisSeries.polarAxis, clamp(series.polarAxis), series);
+                        add(axisSeries.radiusAxis, clamp(series.polarAxis), series);
+                    }
+                });
+            });
+            return axisSeries;
         };
 
         /**
          * data classification calculated
          * @param series{Array}
         */
-        Series.normalize = function(series) {
+        Series.normalize = function (series) {
             var MAX_VALUE = Number.MAX_VALUE,
                 MIN_VALUE = -MAX_VALUE;
             var minValue = MAX_VALUE,
@@ -244,7 +282,7 @@
 
             var maxLength = -MAX_VALUE;
 
-            var groups = partition(series, function(a, b) {
+            var groups = partition(series, function (a, b) {
                 if(a.type !== b.type)
                     return false;
                 if(typeof a.stack === "undefined" && typeof b.stack === "undefined")
@@ -253,10 +291,10 @@
             });
             var isAllEmpty = false;
 
-            var ztree = new Dalaba.ZTree(series, ["type", "stack"]),
+            var ztree = new ZTree(series, ["type", "stack"]),
                 root;
 
-            root = ztree.update(function(item) {
+            root = ztree.update(function (item) {
                 var minValue = MAX_VALUE,
                     maxValue = MIN_VALUE;
                 var minAxisX = MAX_VALUE,
@@ -264,7 +302,7 @@
                 var minAxisY = MAX_VALUE,
                     maxAxisY = MIN_VALUE;
 
-                item.forEach(function(item) {
+                item.forEach(function (item) {
                     maxLength = Math.max(maxLength, item.data.length);
                 });
                 var series = item[0],
@@ -431,9 +469,8 @@
         return Series;
     }
     return {
-        deps: function(){
-            var args = Array.prototype.slice.call(arguments, 0);
-            return factoy.apply(global, [global].concat(args));
+        deps: function () {
+            return factoy.apply(global, [global].concat([].slice.call(arguments, 0)));
         }
     };
 })(typeof window !== "undefined" ? window : global)

@@ -23,7 +23,7 @@
     var dateTypes = {
         millisecond: {
             interval: 1,
-            format: function(timestamp) {
+            format: function (timestamp) {
                 var date = new Date(timestamp);
                 return [
                     stringPad(date.getMinutes(), "0"), ":",
@@ -34,7 +34,7 @@
         },
         second: {
             interval: 1E3,
-            format: function(timestamp) {
+            format: function (timestamp) {
                 var date = new Date(timestamp);
                 return [
                     stringPad(date.getHours(), "0"), ":",
@@ -45,7 +45,7 @@
         },
         minute: {
             interval: 6E4,
-            format: function(timestamp){
+            format: function (timestamp){
                 var date = new Date(timestamp);
                 return [
                     stringPad(date.getHours(), "0"), ":",
@@ -66,7 +66,7 @@
         },
         day: {
             interval: ONE_DAY,
-            format: function(timestamp){
+            format: function (timestamp){
                 var date = new Date(timestamp),
                     year = date.getFullYear(),
                     month = date.getMonth(),
@@ -80,7 +80,7 @@
         },
         week: {
             interval: 7 * ONE_DAY,
-            format: function(timestamp){
+            format: function (timestamp){
                 var date = new Date(timestamp),
                     year = date.getFullYear(),
                     day = date.getDate(),
@@ -97,7 +97,7 @@
         },
         month: {
             interval: 30 * ONE_DAY,
-            format: function(timestamp){
+            format: function (timestamp) {
                 var date = new Date(timestamp),
                     year = date.getFullYear(),
                     month = date.getMonth();
@@ -109,14 +109,14 @@
         },
         year: {
             interval: 365 * ONE_DAY,
-            format: function(timestamp){
+            format: function (timestamp) {
                 var date = new Date(timestamp);
                 return date.getFullYear();
             }
         }
     };
 
-    var lg10ln = function(n) {
+    var lg10ln = function (n) {
         return Math.pow(10, Math.floor(Math.log(n) / Math.LN10));
     };
 
@@ -129,7 +129,7 @@
             while (i-- && !defined(ret)) {
                 multi = Math.pow(1000, i + 1);
                 if (v >= multi && numericSymbols[i] !== null) {
-                    ret = numberFormat((v * 10) % multi === 0 ? v / multi : (Math.round(v / multi * 100) / 100, null)) + numericSymbols[i];
+                    ret = numberFormat((v * 10) % multi === 0 ? v / multi : (Math.round(v / multi * 100) / 100), null) + numericSymbols[i];
                 }
             }
             if (defined(ret)) {
@@ -283,18 +283,33 @@
                 maxRange = this.maxRange;
             var axis = this;
 
-            var setAlign = function(x, maxLabelWidth, width){
+            var setAlign = function (x, maxLabelWidth, width) {
                 return {
                     left: x - (maxLabelWidth - width),
                     center: x,
                     right: x + (maxLabelWidth - width)
                 };
             };
+            var lineTo = function (context, x, y, w, h, options) {
+                var lineWidth = options.lineWidth || 1,
+                    dashStyle = (options.dashStyle || "solid").toLowerCase();
+                context.beginPath();
+                context.lineWidth = lineWidth;
+                context.strokeStyle = options.lineColor;
+                if (defined(DashLine[dashStyle]) && dashStyle !== "solid") {
+                    DashLine[dashStyle](context, x, y, w, h);
+                }
+                else {
+                    context.moveTo(x, y);
+                    context.lineTo(w, h);
+                    context.stroke();
+                }
+            };
 
-            function tick(){
+            function tick () {
 
             }
-            tick.line = function(){
+            tick.line = function () {
                 var tx = pack("number", options.x, 0),
                     ty = pack("number", options.y, 0);
                 var lineColor = options.lineColor,
@@ -306,46 +321,44 @@
                     cx, cy;
                 var startAngle = pack("number", options.startAngle, -90);
                 
-                linePixel = fixLinePixel(tx, ty - tickWidth / 2, tx, ty + maxRange + tickWidth, lineWidth);
-                if(name === "xAxis"){
-                    linePixel = fixLinePixel(tx, ty, tx + maxRange, ty + lineWidth, lineWidth);
-                }
                 context.save();
-                if(lineWidth > 0){
-                    if(name === "yAxis" || name === "xAxis"){
-                        context.beginPath();
-                        context.lineWidth = lineWidth;
-                        context.strokeStyle = lineColor;
-                        context.moveTo(linePixel.x, linePixel.y);
-                        context.lineTo.apply(context,
+                if (lineWidth > 0) {
+                    linePixel = fixLinePixel(tx, ty - tickWidth / 2, tx, ty + maxRange + tickWidth, lineWidth);
+                    if (name === "xAxis") {
+                        linePixel = fixLinePixel(tx, ty, tx + maxRange, ty + lineWidth, lineWidth);
+                    }
+                    if (name === "yAxis" || name === "xAxis") {
+                        lineTo.apply(null, [context, linePixel.x, linePixel.y].concat(
                             name === "yAxis"
                             ? [linePixel.x, linePixel.height]
                             : [linePixel.width, linePixel.y]
-                        );
-                        context.stroke();
-                        if(!zeroAxis.hidden){
+                        , [{
+                            lineWidth: lineWidth,
+                            lineColor: lineColor,
+                            dashStyle: lineDashStyle
+                        }]));
+                        if (!zeroAxis.hidden && false) {
                             linePixel = fixLinePixel.apply(null,
                                 name === "xAxis"
                                 ? [tx + zeroAxis.x, ty, tx + zeroAxis.x, ty - options.height * !opposite, 1]
                                 : [tx, ty + zeroAxis.y, tx + options.width * !opposite, ty + zeroAxis.y, 1]
                             );
-                            context.beginPath();
-                            context.lineWidth = lineWidth;
-                            context.strokeStyle = Color.parse(lineColor).alpha(0.45).rgba();
-                            context.moveTo(linePixel.x, linePixel.y);
-                            context.lineTo.apply(context,
+                            lineTo.apply(null, [context, linePixel.x, linePixel.y].concat(
                                 name === "xAxis"
-                                ? [linePixel.x, linePixel.height]
-                                : [linePixel.width, linePixel.y]
-                            );
-                            context.stroke();
+                                    ? [linePixel.x, linePixel.height]
+                                    : [linePixel.width, linePixel.y]
+                                , [{
+                                    lineWidth: lineWidth,
+                                    lineColor: Color.parse(lineColor).alpha(0.45).rgba()
+                                }]
+                            ));
                         }
                     }
-                    else if(name === "polarAxis" && center){
+                    else if (name === "polarAxis" && center) {
                         cx = center[0], cy = center[1];
                         context.beginPath();
-                        if(gridLineInterpolation === "polygon"){
-                            axis.ticks.forEach(function(tick, i){
+                        if (gridLineInterpolation === "polygon") {
+                            axis.ticks.forEach(function (tick, i) {
                                 context[i ? "lineTo" : "moveTo"](
                                     Math.cos(tick.angle * PI / 180) * radius + cx,
                                     Math.sin(tick.angle * PI / 180) * radius + cy
@@ -353,11 +366,11 @@
                             });
                             context.closePath();
                         }
-                        else{
-                            if(defined(lineDashStyle)){
+                        else {
+                            if (defined(lineDashStyle)) {
                                 DashLine.arc(context, cx, cy, radius, 0, PI2, lineDashStyle);
                             }
-                            else{
+                            else {
                                 context.arc(cx, cy, radius, 0, PI2);
                             }
                         }
@@ -365,7 +378,7 @@
                         context.strokeStyle = lineColor;
                         context.stroke();
                     }
-                    else if(name === "radiusAxis" && center){
+                    else if (name === "radiusAxis" && center) {
                         cx = center[0], cy = center[1];
                         startAngle = startAngle * PI / 180;
                         context.moveTo(cx, cy);
@@ -377,60 +390,94 @@
                 }
                 context.restore();
             };
-            tick.xAxis = function(item){
+            tick.plotLines = function () {
+                var tx = pack("number", options.x),
+                    ty = pack("number", options.y);
+                var plotLines = options.plotLines;
+                var values = axis.values;
+                var maxRange = axis.maxRange;
+                var linePixel;
+                var center = function (p0) {
+                    return p0;//isCategories && this.ticks.length ? p0 + (this.ticks[0].size - lineWidth) / 2 : p0;
+                };
+                var caller = {
+                    xAxis: [
+                        ["x", "height"],// props
+                        [0, values.length + isCategories, tx, maxRange + tx],// lerp
+                        function (p) { return p.x < maxRange + tx && p.x > tx; }, // inside bound
+                        function (p0, lineWidth) { p0 = center.call(axis, p0, lineWidth); return [p0, ty - options.height, p0, ty, lineWidth]; }
+                    ],
+                    yAxis: [
+                        ["width", "y"],
+                        [values[0], values[~-values.length], maxRange + ty, ty],
+                        function (p) { return p.y < maxRange + ty && p.y > ty; },
+                        function (p0, lineWidth) { return [tx, p0, tx + options.width, p0, lineWidth]; }
+                    ]
+                }[axis.name];
+
+                context.save();
+                if (caller && isArray(plotLines) && plotLines.length) {
+                    plotLines.forEach(function (d) {
+                        var lineWidth = pack("number", d.width, 1),
+                            value = d.value;
+                        if (lineWidth > 0 && isNumber(value, true) && values.length > 1) {
+                            linePixel = fixLinePixel.apply(null, caller[3](interpolate.apply(null, [d.value].concat(caller[1])), lineWidth));
+                            if (caller[2](linePixel)) {
+                                lineTo(context, linePixel.x, linePixel.y, linePixel[caller[0][0]], linePixel[caller[0][1]], {
+                                    lineColor: d.color,
+                                    lineWidth: lineWidth,
+                                    dashStyle: d.dashStyle
+                                });
+                            }
+                        }
+                    });
+                }
+                context.restore();
+            };
+            tick.xAxis = function (item) {
                 var tx = pack("number", options.x),
                     ty = pack("number", options.y),
                     y = ty + item.y,
                     x = tx + item.x;
-                var opposite = !!options.opposite;
+                var dashStyle = pack("string", options.gridLineDashStyle, "solid"),
+                    opposite = !!options.opposite;
                 var linePixel;
 
                 x = Math.max(0, x);
                 context.save();
                 //tick
-                if(options.tickWidth > 0){
-                    context.beginPath();
-                    context.strokeStyle = options.tickColor;
-                    context.lineWidth = tickWidth;
-                    linePixel = fixLinePixel(x, y, x, y - tickLength * (opposite || -1), tickWidth);
-                    if(!item.isFirst || options.startOnTick === true){
-                        context.moveTo(linePixel.x, linePixel.y);
-                        context.lineTo(linePixel.x, linePixel.height);
+                if (tickWidth > 0) {                    
+                    if (!item.isFirst || options.startOnTick === true) {
+                        linePixel = fixLinePixel(x, y, x, y - tickLength * (opposite || -1), tickWidth);
                     }
-                    if(item.isLast && options.endOnTick === true){
+                    if (item.isLast && options.endOnTick === true) {
                         linePixel = fixLinePixel(x + maxRange, y, x + maxRange, y + tickLength * (opposite || -1), tickWidth);
-                        context.moveTo(linePixel.x, linePixel.y);
-                        context.lineTo(linePixel.x, linePixel.height);
                     }
-                    context.stroke();
+                    if (linePixel) {
+                        lineTo(context, linePixel.x, linePixel.y, linePixel.x, linePixel.height, {
+                            lineWidth: tickWidth,
+                            lineColor: options.tickColor
+                        });
+                    }
                 }
                 //grid line
-                if(!item.isFirst && (!item.isLast || isCategories) && defined(options.height)){
-                    if(gridLineWidth > 0){
-                        var dashStyle = pack("string", options.gridLineDashStyle, "solid");
-                        context.beginPath();
-                        context.lineWidth = gridLineWidth;
-                        context.strokeStyle = options.gridLineColor;
-                        linePixel = fixLinePixel(
-                            x,
-                            ty,
-                            x,
-                            ty - (options.height * (!opposite || -1)),//Math.min(y + options.height, options.height) * (opposite || -1),
-                            gridLineWidth
-                        );
-                        DashLine[dashStyle] && DashLine[dashStyle](
-                            context,
-                            linePixel.x,
-                            linePixel.y,
-                            linePixel.x,
-                            linePixel.height
-                        );
-                        context.stroke();
-                    }
+                if (gridLineWidth > 0 && !item.isFirst && (!item.isLast || isCategories) && isNumber(options.height, true)) {
+                    linePixel = fixLinePixel(
+                        x,
+                        ty,
+                        x,
+                        ty - (options.height * (!opposite || -1)),//Math.min(y + options.height, options.height) * (opposite || -1),
+                        gridLineWidth
+                    );
+                    lineTo(context, linePixel.x, linePixel.y, linePixel.x, linePixel.height, {
+                        lineWidth: gridLineWidth,
+                        lineColor: options.gridLineColor,
+                        dashStyle: dashStyle
+                    });
                 }
                 context.restore();
             };
-            tick.yAxis = function(item){
+            tick.yAxis = function (item) {
                 var tx = pack("number", options.x, 0),
                     ty = pack("number", options.y, 0),
                     y = ty + item.y,
@@ -441,52 +488,33 @@
 
                 context.save();
                 if (tickWidth > 0) {
-                    context.beginPath();
-                    linePixel = fixLinePixel(x, y, x + tickLength * (opposite || -1), y, tickWidth);
-                    context.lineWidth = tickWidth;
-                    context.strokeStyle = options.tickColor;
-                    if(!item.isFirst || options.startOnTick === true){
-                        context.moveTo(linePixel.x, linePixel.y);
-                        context.lineTo(linePixel.width, linePixel.y);
+                    if (!item.isFirst || options.startOnTick === true) {
+                        linePixel = fixLinePixel(x, y, x + tickLength * (opposite || -1), y, tickWidth);
                     }
-                    if(item.isLast && options.endOnTick === true){
+                    if (item.isLast && options.endOnTick === true) {
                         linePixel = fixLinePixel(x, ty, x - tickLength * (opposite || -1), ty, tickWidth);
-                        context.moveTo(linePixel.x, linePixel.y);
-                        context.lineTo(linePixel.width, linePixel.y);
                     }
-                    context.stroke();
+                    linePixel && lineTo(context, linePixel.x, linePixel.y, linePixel.width, linePixel.y, {
+                        lineWidth: tickWidth,
+                        lineColor: options.tickColor
+                    });
                 }
                 //grid line
-                if(gridLineWidth > 0 && /*!item.isFirst && */defined(options.width)){
-                    var dashStyle = pack("string", options.gridLineDashStyle, "solid");
-                    //context.save();
-                    context.beginPath();
-                    context.lineWidth = gridLineWidth;
-                    context.strokeStyle = options.gridLineColor;
-                    //context.moveTo(x, y);
-                    //context.lineTo(Math.min(x + options.width, options.width) * (options.opposite ? -1 : 1), y);
-                    //context.stroke();
-                    //console.log(dashStyle)//animate draw
-
+                if (gridLineWidth > 0 && /*!item.isFirst && */defined(options.width)) {
                     linePixel = fixLinePixel(
-                        tx,
-                        y,
-                        tx + (options.width * (!opposite || -1)),
-                        y,
+                        tx, y,
+                        tx + (options.width * (!opposite || -1)), y,
                         gridLineWidth
                     );
-                    DashLine[dashStyle] && DashLine[dashStyle](
-                        context,
-                        linePixel.x,
-                        linePixel.y,
-                        linePixel.width,
-                        linePixel.y
-                    );
-                    //context.restore();
+                    lineTo(context, linePixel.x, linePixel.y, linePixel.width, linePixel.y, {
+                        lineWidth: gridLineWidth,
+                        lineColor: options.gridLineColor,
+                        dashStyle: pack("string", options.gridLineDashStyle, "solid").toLowerCase()
+                    });
                 }
                 context.restore();
             };
-            tick.colorAxis = function(item){
+            tick.colorAxis = function (item) {
                 var tx = pack("number", options.x, 0),
                     ty = pack("number", options.y, 0);
                     //y = ty + item.y,
@@ -494,8 +522,8 @@
                 var stops = options.stops,
                     linearGradient,
                     isHorizontal = options.layout === "horizontal";
-                if(item.isFirst){
-                    if(!defined(stops)){
+                if (item.isFirst) {
+                    if (!defined(stops)) {
                         stops = [
                             [0, "#EFEFFF"],
                             [1, "#102D4C"]
@@ -505,7 +533,7 @@
                         y0 = ty,//options.y,
                         x1 = tickLength,
                         y1 = Math.abs(maxRange - minRange);//vertical
-                    if(isHorizontal){
+                    if (isHorizontal) {
                         x1 = Math.abs(maxRange - minRange);
                         y1 = tickLength;
                     }
@@ -543,7 +571,7 @@
                     context.restore();
                 }
             };
-            tick.polarAxis = function(item){
+            tick.polarAxis = function (item) {
                 var gridDashStyle = options.gridLineDashStyle,
                     gridLineColor = options.gridLineColor;
                 var cx = item.cx,
@@ -551,8 +579,9 @@
                     innerRadius = item.innerRadius,
                     radius = item.radius,
                     angle = item.angle * PI / 180;
+                var x, y;
                 //tick
-                if(tickWidth > 0){
+                if (tickWidth > 0) {
                     context.save();
                     context.beginPath();
                     context.lineWidth = tickWidth;
@@ -560,7 +589,7 @@
                     context.fillStyle = options.tickColor;
                     context.translate(cx, cy);
                     context.rotate(angle);
-                    context.fillRect(item.radius, 0, tickLength, tickWidth);
+                    context.fillRect(radius, 0, tickLength, tickWidth);
                     /*context.moveTo(x, y);
                     context.lineTo(Math.cos(angle) * tickLength + x, Math.sin(angle) * tickLength + y);
                     */
@@ -569,33 +598,17 @@
                 if(innerRadius > 0 && gridLineWidth > 0/* && !item.isFirst*/){
                     //var linePixel = fixLinePixel(cx, cy, x, y, gridLineWidth);
                     context.save();
-                    context.beginPath();
-                    context.lineWidth = gridLineWidth;
-                    context.strokeStyle = gridLineColor;
-                    //context.fillStyle = gridLineColor;
-                    var x = cx + Math.cos(angle) * radius;
-                    var y = cy + Math.sin(angle) * radius;
-                    //context.translate(cx, cy);
-                    //context.rotate(angle);
-                    if(defined(gridDashStyle) && DashLine[gridDashStyle] && gridDashStyle !== "solid"){
-                        DashLine[gridDashStyle](
-                            context,
-                            cx,
-                            cy,
-                            x,
-                            y
-                        );
-                    }
-                    else{
-                        context.moveTo(cx, cy);
-                        context.lineTo(x, y);
-                        //context.fillRect(0, 0, radius, gridLineWidth);
-                    }
+                    x = cx + Math.cos(angle) * radius;
+                    y = cy + Math.sin(angle) * radius;
+                    lineTo(context, cx, cy, x, y, {
+                        lineWidth: gridLineWidth,
+                        lineColor: gridLineColor
+                    });
                     context.stroke();
                     context.restore();
                 }
             };
-            tick.radiusAxis = function(item){
+            tick.radiusAxis = function (item) {
                 var tickWidth = pack("number", options.tickWidth, 1),
                     tickColor = options.tickColor,
                     gridLineInterpolation = options.gridLineInterpolation,
@@ -632,14 +645,13 @@
                     context.stroke();
                     context.restore();
                 }
-                if(innerRadius > 0 && gridLineWidth > 0 && !item.isFirst){
+                if (innerRadius > 0 && gridLineWidth > 0 && !item.isFirst) {
                     context.save();
                     context.beginPath();
                     context.lineWidth = gridLineWidth;
                     context.strokeStyle = gridLineColor;
-                    if(gridLineInterpolation === "polygon"){
-                        //ticks.forEach(function(tick, i){
-                        for(var i = 0; i < length; i++){
+                    if (gridLineInterpolation === "polygon") {
+                        for (var i = 0; i < length; i++) {
                             var ratio = i / length,
                                 angle = (ratio * PI2) + startAngle;
                             context[i ? "lineTo" : "moveTo"](
@@ -649,11 +661,11 @@
                         }
                         context.closePath();
                     }
-                    else{
-                        if(defined(gridDashStyle) && gridDashStyle !== "solid"){
+                    else {
+                        if (defined(gridDashStyle) && gridDashStyle !== "solid") {
                             DashLine.arc(context, cx, cy, innerRadius, 0, PI2, gridDashStyle);
                         }
-                        else{
+                        else {
                             context.arc(cx, cy, innerRadius, 0, PI2);//context.setLineDash([5, 15]);
                         }
                     }
@@ -678,10 +690,10 @@
                 var angle = labels.rotation;
                 var maxLabelWidth = axis.labelWidth;
                 
-                if(opposite === true){
+                if (opposite === true) {
                     tickLength = -tickLength;
                 }
-                if(!defined(angle)){
+                if (!defined(angle)) {
                     angle = (isRotation && name === "xAxis") ? autoRotation : 0;//default angle
                 }
                 isCenter = isCenter && isCategories;
@@ -782,7 +794,7 @@
                             context.fillText(text.ellipse, 0, 0)
                         );
                     }
-                    else{
+                    else {
                         var tag = Text.HTML(Text.parseHTML(text.ellipse), context, {
                             fontFamily: style.fontFamily,
                             fontSize: style.fontSize,
@@ -806,13 +818,14 @@
                                 y += bbox.height;
                             }
                         }
-                        else if(name === "radiusAxis"){
+                        else if (name === "radiusAxis") {
                             context.translate(tick.cx, tick.cy);
                             context.rotate(tick.startAngle * PI / 180);
                             x = (tick.radius - tick.innerRadius) - text.width / 2;
                             y = tickLength + text.height;
                             angle = 0;
                         }
+
                         context.translate(tx + x + pack("number", labels.x, 0), ty + y + pack("number", labels.y, 0));
                         context.rotate(angle * PI / 180);
                         tag.toCanvas(context);
@@ -846,7 +859,7 @@
             };
             return tick;
         },
-        init: function(canvas, options){
+        init: function (canvas, options) {
             this.options = extend({}, defaultOptions);
             var axisOptions = extend(this.options, options);
 
@@ -938,7 +951,7 @@
          * Returns linear value
          * tickAmount > interval
         */
-        getLinearTicks: function(startValue, endValue){
+        getLinearTicks: function (startValue, endValue) {
             var options = this.options,
                 interval = options.interval,
                 tickAmount = options.tickAmount,
@@ -959,17 +972,16 @@
             var step = lg10ln(dm / tickInterval);
             var decimal = tickInterval / dm * step;
 
-            //console.log(interval, step, min, max);
-            if(decimal <= 0.15){
+            if (decimal <= 0.15) {
                 step *= 10;
             }
-            else if(decimal <= 0.35){
+            else if (decimal <= 0.35) {
                 step *= 5;
             }
             else if(decimal <= 0.75){
                 step *= 2;
             }
-            if(step === Infinity){
+            if (step === Infinity) {
                 return ticks;
             }
             //domain[i0] = parseFloat(toPrecision(Math.floor(min / step) * step), 10);
@@ -978,7 +990,6 @@
             if(isNumber(tickAmount)){
                 var ln10;//Math.pow(10, Math.round(Math.log(dm) / Math.LN10) - 1);
                 tickInterval = Math.max(1, tickAmount - 1);
-                //console.log(max -= max / tickAmount);
                 min *= tickAmount;
                 max *= tickAmount;
                 dm = abs(min - max) / tickInterval;
@@ -1021,35 +1032,31 @@
                     }
                 }
             }
-            if(defined(options.startValue)){
+            if (defined(options.startValue)) {
                 startValue !== ticks[0] && (ticks[0] = (parseFloat(toPrecision(startValue, 10), 10)));
             }
-            if(defined(options.endValue)){
+            if (defined(options.endValue)) {
                 endValue !== ticks[ticks.length - 1] && (ticks[ticks.length - 1] = parseFloat(toPrecision(endValue, 10), 10));
             }
             return ticks;
         },
-        getCategoriesTicks: function(startValue, endValue){
+        getCategoriesTicks: function (startValue, endValue) {
             var options =  this.options,
                 tickAmount = options.tickAmount;
+            var start = Math.max(1, startValue),
+                end = Math.max(endValue, start);
             var ticks = [];
             var i;
 
-            if(isNumber(tickAmount)){
-                tickAmount = Math.max(1, ~~tickAmount);
-                //dm = ~~((endValue - startValue) / tickAmount);
-                for(i = 0; i < tickAmount; i++){
-                    ticks.push(startValue + i);//startValue + i * dm);
-                }
+            if (isNumber(tickAmount, true) && (tickAmount = Math.max(1, ~~tickAmount))) for (i = 1; i <= tickAmount; i++) {
+                ticks.push(start + i);
             }
-            else{
-                for(i = startValue; i < endValue; i += 1){
-                    ticks.push(i);
-                }
+            else for (i = start; i <= end; i += 1) {
+                ticks.push(i);
             }
             return ticks;
         },
-        getLogTicks: function(startValue, endValue, base){
+        getLogTicks: function (startValue, endValue, base) {
             var options = this.options,
                 tickAmount = options.tickAmount;
             var ticks = [];
@@ -1065,17 +1072,17 @@
             var i;
 
             //console.log(start, end, min, max, positive)
-            if(isNumber(tickAmount)){
+            if (isNumber(tickAmount)){
                 tickAmount = Math.max(tickAmount, 1);
                 for(i = 0; i < tickAmount; i++){
                     var v = mathPow(i, base, positive);
                     ticks.push(parseFloat(toPrecision(v, 15), 10));
                 }
             }
-            else{
-                if(isFinite(start) && isFinite(end)){
+            else {
+                if (isFinite(start) && isFinite(end)) {
                     dm = 1 + Math.ceil(max);// end - start;
-                    for(i = 0; i < dm; i++){
+                    for (i = 0; i < dm; i++) {
                         ticks.push(mathPow(i, base, positive));
                     }
                     /*for(; i < interval; i++){
@@ -1085,7 +1092,7 @@
             }
             return ticks;
         },
-        getTimeTicks: function(startValue, endValue){
+        getTimeTicks: function (startValue, endValue) {
             var options = this.options,
                 tickAmount = options.tickAmount;// Math.max(1, ~~pack("number", options.tickAmount, 1));
             var min = startValue,
@@ -1176,25 +1183,25 @@
             }
             else{
                 ticks.push(time);
-                while(time < end){
+                while (time < end) {
                     ticks.push(time = getTimeInterval(time, i, startYear, month, date));
                     i++;
                 }
             }
             return ticks;
         },
-        getPolarTicks: function(){
+        getPolarTicks: function () {
             var options = this.options,
                 tickAmount = options.tickAmount;
             var startValue = 0,
                 endValue = 360;
             var step;
             var ticks = [];
-            if(!isNumber(tickAmount)){
+            if (!isNumber(tickAmount)) {
                 tickAmount = 12;
             }
             step = endValue / tickAmount;
-            for(var i = 0; i < tickAmount; i++){
+            for (var i = 0; i < tickAmount; i++) {
                 ticks.push(startValue + parseFloat(toPrecision(i * step, 10), 10));
             }
             return ticks;
@@ -1202,6 +1209,8 @@
         setTickInterval: function () {
             var options = this.options,
                 categories = options.categories,
+                tickPositions = options.tickPositions,
+                tickPositioner = options.tickPositioner,
                 tickAmount = options.tickAmount,
                 logBase = pack("number", pack("object", options.logarithmic, {}).base, 10),
                 type = this.type;
@@ -1213,6 +1222,21 @@
                 maxValue = options.maxValue,
                 startValue = options.startValue,
                 endValue = options.endValue;
+            var values = [];
+            var ticks;
+            var sorted = function (values) {
+                return values.length && values.sort(function (a, b) {
+                    return a - b;
+                }).slice(0), values;
+            };
+            var valid = function (values) {
+                var ret = [];
+                values.forEach(function (d) {
+                    isNumber(d, true) && ret.push(d);
+                });
+                return ret;
+            };
+
             startValue = Math.min(100, Math.max(0, pack("number", parseFloat(startValue, 10), 0))) / 100;
             endValue = Math.min(100, Math.max(0, pack("number", parseFloat(endValue, 10), 100))) / 100;
 
@@ -1221,47 +1245,58 @@
             startValue = minDomain + (maxDomain - minDomain) * startValue;
             endValue = minDomain + (maxDomain - minDomain) * endValue;
 
-            var values = [];
-            var ticks = type === "logarithmic"
+            if (isArray(tickPositions) && tickPositions.length) {
+                ticks = sorted(values = valid(tickPositions));
+            }
+            else if (isFunction(tickPositioner)) {
+                values = tickPositioner.call({
+                    min: minValue, max: maxValue,
+                    dataMin: minValue, dataMax: maxValue
+                });
+                if (!isArray(values)) values = [];
+                ticks = sorted(values = valid(values));
+            }
+            else {
+                ticks = type === "logarithmic"
                 ? this.getLogTicks(minValue, maxValue, logBase)
                 : type === "datetime"
                     ? this.getTimeTicks(minDomain, maxDomain)
                     /*: type === "categories"
                         ? this.getCategoriesTicks(minDomain, maxDomain)*/
                         : this.getLinearTicks(minValue, maxValue);//min & max value
-
-            if(type === "logarithmic"){
-                values = this.getLogTicks(minDomain, maxDomain, logBase);
-            }
-            else if(type === "categories" || (isArray(categories))){
-                values = this.getCategoriesTicks(minDomain, maxDomain);
-            }
-            else if(type === "datetime"){
-                values = this.getTimeTicks(startValue, endValue);
-            }
-            else if(this.name === "polarAxis"){
-                values = this.getPolarTicks();
-            }
-            else{
-                if(!isNumber(tickAmount) && this.name === "polarAxis" && options.gridLineInterpolation === "polygon"){
-                    tickAmount = options.length;
+                if (type === "logarithmic") {
+                    values = this.getLogTicks(minDomain, maxDomain, logBase);
                 }
-                values = this.getLinearTicks(minDomain, maxDomain);//startValue, endValue);
+                else if (type === "categories" || (isArray(categories))) {
+                    values = this.getCategoriesTicks(minDomain, maxDomain);
+                }
+                else if (type === "datetime") {
+                    values = this.getTimeTicks(startValue, endValue);
+                }
+                else if (this.name === "polarAxis") {
+                    values = this.getPolarTicks();
+                }
+                else {
+                    if (!isNumber(tickAmount) && this.name === "polarAxis" && options.gridLineInterpolation === "polygon") {
+                        tickAmount = options.length;
+                    }
+                    values = this.getLinearTicks(minDomain, maxDomain);//startValue, endValue);
+                }
             }
             
-            if(options.reversed === true){
+            if (options.reversed === true) {
                 values.reverse();
             }
 
-            if(values.length >= 1){
+            if (values.length >= 1) {
                 this.startValue = values[0];
                 this.endValue = values[values.length - 1];
             }
-            if(ticks.length > 1){
+            if (ticks.length > 1) {
                 this.minValue = ticks[0];
                 this.maxValue = ticks[ticks.length - 1];
             }
-            else{
+            else {
                 this.minValue = minValue;
                 this.maxValue = maxValue;
             }
@@ -1269,7 +1304,7 @@
                 this.minValue = mathLog(this.minValue, logBase);
                 this.maxValue = mathLog(this.maxValue, logBase);
             }
-            //console.log(values, type, this.name, this.minValue, this.maxValue, maxDomain);
+            //console.log(values, type, this.name, ticks, this.minValue, this.maxValue, maxDomain);
             return this.values = values;
         },
         setLabels: function () {
@@ -1300,17 +1335,17 @@
             axis.zeroAxis.hidden = type === "categories"
                     || !(startValue <= 0 && endValue > 0)
                     || (name !== "xAxis" && name !== "yAxis");
-            if(length = ticks.length){
+            if (length = ticks.length) {
                 size = Math.max(minRange, maxRange, 1) / (length);
                 ticks.forEach(function(tick, i){
                     if (name === "xAxis") {
                         size = maxRange / Math.max(1, length - 1);
                         tick.y = 0;
-                        if(type === "categories"){
+                        if (type === "categories") {
                             size = maxRange / (length - !hasCategories);
                             tick.x = hasCategories ? i * size : interpolate(tick.value, startValue, endValue, minRange, maxRange);
                         }
-                        else{/* if(type === "linear"){*/
+                        else {
                             tick.x = interpolate(tick.value, startValue, endValue, minRange, maxRange);
                         }
                         if(tick.value === 0)
@@ -1332,17 +1367,17 @@
                         if (tick.value === 0)
                             axis.zeroAxis.y = tick.y;
                     }
-                    else if(name === "colorAxis"){
-                        if(layout === "vertical"){
+                    else if (name === "colorAxis") {
+                        if (layout === "vertical") {
                             tick.x = 0;
                             tick.y = interpolate(tick.value, startValue, endValue, maxRange, minRange);
                         }
-                        else{
+                        else {
                             tick.x = interpolate(tick.value, endValue, startValue, maxRange, minRange);
                             tick.y = 0;
                         }
                     }
-                    else if(name === "polarAxis" || name === "radiusAxis"){
+                    else if (name === "polarAxis" || name === "radiusAxis") {
                         var ratio = i / Math.max(1, length - (name === "radiusAxis")),
                             innerRadius = radius - radius * ratio,
                             angle = ratio * 360 + startAngle, //(ratio * PI2) + (startAngle / 180 * PI);
@@ -1421,11 +1456,11 @@
                     tickInterval = Math.round(length / maxRange * minTickWidth);
                 }
             }
-            else{
+            else {
                 tickInterval = step;
             }
             tickInterval = Math.max(tickInterval, 1);
-            for(var i = 0, j = 0; i < length; i++){
+            for (var i = 0, j = 0; i < length; i++) {
                 var value = values[i];
                 var tick = {
                     isFirst: i === 0,
@@ -1434,16 +1469,16 @@
                     value: value,
                     gap: Math.abs(value - (values[i + 1] || value))
                 };
-                tickPositions[i] = hasCategories && categories[i] || value;
+                tickPositions[i] = hasCategories && categories[i - 1] || value;
                 if (i % tickInterval === 0) {
                     j++;
                     tick.enabled = true;
                     ticks.push(tick);
                 }
             }
-            if(length = ticks.length){
+            if (length = ticks.length) {
                 size = (maxRange - minRange) / (j);
-                ticks.forEach(function(item, i){
+                ticks.forEach(function (item, i) {
                     var text = axis.labelFormatter(item.value, {
                         isFirst: !i,
                         isLast: !(length - i - 1),
@@ -1466,17 +1501,17 @@
                         fontFamily: fontStyle.fontFamily
                     });
                     bbox = tag.getBBox();
-                    if(isNumber(maxWidth)){
+                    if (isNumber(maxWidth)) {
                         //bbox.width = maxWidth;
                     }
                     var tickSize = size - 4 * (name === "xAxis"),//margin
                         dm;
                     
-                    if(name === "xAxis" || name === "yAxis"){
-                        if(isNumber(maxWidth)){
+                    if (name === "xAxis" || name === "yAxis") {
+                        if (isNumber(maxWidth)) {
                             maxWidth < bbox.width && (ellipse = Text.multipText("" + text, maxWidth));
                         }
-                        else{
+                        else {
                             (bbox.width > tickSize) && (ellipse = Text.multipText("" + text, tickSize));
                         }
                     }
@@ -1489,9 +1524,9 @@
                     });
                     bbox = tag.getBBox();
                     //bbox.width = context.measureText(ellipse).width;
-                    if(isNumber(logarithmic.base) && defined(logarithmic.pow)){
+                    if (isNumber(logarithmic.base) && defined(logarithmic.pow)) {
                         dm = 1;
-                        if(isNumber(options.tickAmount) && options.tickAmount > 1){
+                        if (isNumber(options.tickAmount) && options.tickAmount > 1) {
                             dm = axis.maxDomain / ~-options.tickAmount;
                         }
                         bbox.width += context.measureText(mathRound(i * dm, 1)).width * 0.7;
@@ -1508,11 +1543,11 @@
                     };
                 });
                 
-                ticks.forEach(function(tick){
+                ticks.forEach(function (tick) {
                     var text = tick.text,
                         bbox,
                         tag;
-                    if(name === "xAxis"){
+                    if (name === "xAxis") {
                         //after rotate bbox
                         bbox = Text.measureText(text.ellipse, {
                             fontStyle: fontStyle.fontStyle,
@@ -1531,15 +1566,16 @@
                             fontFamily: fontStyle.fontFamily,
                             rotation: pack("number", angle, isRotation ? autoRotation : 0)
                         });
-                        //console.log(tag.getBBox(), text.ellipse)
                         bbox = tag.getBBox();
                         text.width = bbox.width;
                         text.height = bbox.height;
                     }
-                    labelWidth = Math.max(labelWidth, text.width);
-                    labelHeight = Math.max(labelHeight, text.height);
+                    if (labels.enabled !== false) {
+                        labelWidth = Math.max(labelWidth, text.width);
+                        labelHeight = Math.max(labelHeight, text.height);
+                    }
                 });
-                if(!defined(angle)){
+                if (!defined(angle)) {
                     angle = 0;//this.name !== "yAxis" ? -45 : 0;//default angle
                     if(name === "xAxis" && isRotation)
                         angle = autoRotation;
@@ -1547,24 +1583,32 @@
                 angle = angle * Math.PI / 180;
                 //labelWidth += !isRotation * options.tickLength;
                 labelHeight += /*!isRotation **/ tickLength;
-                //console.log(labelWidth, labelHeight, isRotation);
             }
-            if(name === "yAxis"){
+            if (name === "yAxis") {
                 labelWidth += tickLength;
             }
-            else if(name === "xAxis"){
-                labelHeight += tickLength;
+            else if (name === "xAxis") {
+                //labelHeight += tickLength;
             }
             this.labelWidth = labelWidth * !labels.floating;
             this.labelHeight = labelHeight * !labels.floating;
             this.isRotation = isRotation;
             this.ticks = ticks;
-            //console.log(this.labelWidth, this.labelHeight, ticks, this.name, isRotation);
+            if (name === "yAxis") {
+                this.textBoxSize = this.labelWidth + this.titleWidth;
+            }
+            else if (name === "xAxis") {
+                this.textBoxSize = this.labelHeight + this.titleWidth;
+            }
+            //console.log(this.labelWidth, this.labelHeight, ticks, this.name, isRotation, axis);
         },
-        setTitle: function(){
+        setTitle: function (rendered) {
             var options = this.options,
+                opposite = options.opposite,
                 context = this.context;
             var title = options.title || {},
+                rotation = title.rotation,
+                verticalAlign = title.verticalAlign,
                 labels = options.labels || {},
                 margin = pack("number", title.margin, 0),
                 style = title.style || {},
@@ -1577,9 +1621,108 @@
                     color: style.color
                 },
                 bbox;
-            var x = pack("number", options.x,0) + pack("number", title.x, 0),
+            var x = pack("number", options.x, 0) + pack("number", title.x, 0),
                 y = pack("number", options.y, 0) + pack("number", title.y, 0);
-            if(isObject(title) && title.enabled !== false && defined(title.text)){
+            var isRotation = defined(rotation) && isNumber(rotation, true) && rotation !== 0;
+            var angle = 270 * PI / 180;
+            var axis = this;
+
+            var swap = function (a, b) {
+                var t = a;
+                a = b;
+                b = t;
+                return { w: a, h: b};
+            };
+
+            var condExpr = [
+                [isRotation && verticalAlign === "top", function (x, y, w, h) {
+                    var box = swap(bbox.width, bbox.height + margin);
+                    x -= (axis.labelWidth + margin) * (opposite !== true || -1);
+                    y += w;
+                    return {
+                        x: x, y: y,
+                        width: box.w, height: box.h
+                    };
+                }],
+                [isRotation && verticalAlign === "bottom", function (x, y, w, h) {
+                    var box = swap(bbox.width, bbox.height + margin);
+                    y += axis.maxRange;
+                    x -= (axis.labelWidth + margin) * (opposite !== true || -1);
+                    w += axis.labelWidth + margin;
+                    
+                    return {
+                        x: x, y: y,
+                        width: box.w, height: box.h
+                    };
+                }],
+                [isRotation, function (x, y, w, h) {
+                    var box = swap(bbox.width, bbox.height + margin);
+                    y += w + (axis.maxRange - w) / 2;
+                    x -= (axis.labelWidth + margin) * (opposite !== true || -1);
+                    w += axis.labelWidth + margin;
+                    
+                    return {
+                        x: x, y: y,
+                        width: box.w, height: box.h
+                    };
+                }],
+                [!isRotation && verticalAlign === "bottom", function (x, y, w, h) {
+                    x -= w * (opposite === true);
+                    y += axis.maxRange;
+                    h = w = 0;
+                    return {
+                        x: x, y: y,
+                        width: w, height: h
+                    };
+                }],
+                [!isRotation && verticalAlign === "middle", function (x, y, w, h) {
+                    x -= w * (opposite === true);
+                    y += axis.maxRange - (axis.maxRange - h) / 2;
+                    h = w = 0;
+                    return {
+                        x: x, y: y,
+                        width: w, height: h
+                    };
+                }],
+                [!isRotation, function (x, y, w, h) {
+                    x -= w * (opposite === true);
+                    y -= margin;
+                    h += margin;// title margin top
+                    w = 0;
+                    return {
+                        x: x, y: y,
+                        width: w, height: h
+                    };
+                }]
+            ];
+
+            var position = function (name, pos, bbox, options) {
+                return ({
+                    yAxis: function (pos, bbox) {
+                        var x = pos.x, y = pos.y;
+                        var w = bbox.width, h = bbox.height;
+                        var isTrued = false, func;
+                        for (var i = 0; !isTrued && i < condExpr.length; i++) isTrued = (func = condExpr[i])[0];
+                            
+                        return func[1](x, y, w, h);
+                    },
+                    xAxis: function (pos, bbox) {
+                        var x = pos.x, y = pos.y;
+                        var w = bbox.width, h = bbox.height;
+                        y += bbox.height;
+                        y += axis.labelHeight + margin;
+                        x += (axis.maxRange - w) / 2;
+
+                        return {
+                            x: x, y: y,
+                            width: w, height: h + margin
+                        };
+                    }
+                }[name] || noop)(pos, bbox);
+            };
+            this.titleWidth = 0;
+            this.titleHeight = 0;
+            if (context && options.enabled !== false && title.enabled !== false && defined(title.text)) {
                 context.save();
                 context.textAlign = "start";
                 context.textBaseline = "alphabetic";
@@ -1591,18 +1734,27 @@
                     fontStyle.fontFamily
                 ].join(" ");
                 bbox = Text.measureText(title.text, fontStyle);
-                
-                y -= margin;
-                if(options.opposite === true){
-                    x -= bbox.width;
+
+                var box = position(this.name, {x: x, y: y}, bbox, options);
+                if (defined(box)) {
+                    x = box.x, y = box.y;
+                    if (rendered === true) {
+                        if (isRotation) {
+                            context.translate(x, y);
+                            context.rotate(angle);
+                            x = y = 0;
+                        }
+                        context.fillText(title.text, x, y);
+                    }
+
+                    this.titleWidth = box.width;
+                    this.titleHeight = box.height;
                 }
-                context.fillText(title.text, x, y);
                 context.restore();
-                this.titleWidth = bbox.width;
-                this.titleHeight = bbox.height + margin;
             }
+            this.titleRotation = isRotation;
         },
-        setPlotLine: function(x, y, props){
+        setPlotLine: function (x, y, props) {
             var options = this.options,
                 fontStyle = {
                     fontSize: "14px",
@@ -1646,18 +1798,18 @@
             context.fillText(text, x + padding, y + bbox.height + arrow);
             context.restore();
         },
-        setGrid: function(tick, i, ticks){
+        setGrid: function (tick, i, ticks) {
             var options = this.options,
                 gridLineInterpolation = options.gridLineInterpolation;
             var context = this.context,
                 name = this.name;
             var sin = Math.sin, cos = Math.cos;
 
-            var fillArea = function(x, y, w, h, color){
+            var fillArea = function (x, y, w, h, color) {
                 context.fillStyle = color;
                 context.fillRect(x, y, w, h);
             };
-            var fillRadius = function(tick, color){
+            var fillRadius = function (tick, color) {
                 var x = tick.cx,
                     y = tick.cy,
                     innerRadius = tick.innerRadius,
@@ -1702,7 +1854,7 @@
                 context.fill();
             };
             //alternate grid color
-            if(defined(options.alternateGridColor) && ticks.length > 1){
+            if (defined(options.alternateGridColor) && ticks.length > 1) {
                 context.save();
                 context.translate(options.x, options.y);
                 if(name === "xAxis"){
@@ -1714,7 +1866,7 @@
                         options.alternateGridColor
                     );
                 }
-                else if(name === "yAxis"){
+                else if (name === "yAxis") {
                     (!(i % 2) && !tick.isLast) && fillArea(
                         tick.x + 0.5,
                         tick.y - Math.abs(ticks[0].y - ticks[1].y),
@@ -1723,7 +1875,7 @@
                         options.alternateGridColor
                     );
                 }
-                else if(name === "radiusAxis"){
+                else if (name === "radiusAxis") {
                     (!(i % 2) && !tick.isLast) && fillRadius(tick, options.alternateGridColor);
                 }
                 context.restore();
@@ -1738,11 +1890,12 @@
             if (defined(range = options.range)) {
                 this.minRange = range[0];
                 this.maxRange = range[1] || range[0];
+
                 this.setLabels();
             }
             return this;
         },
-        labelFormatter: function(value, params){
+        labelFormatter: function (value, params) {
             var options = this.options,
                 numericSymbols = pack("array", options.lang.numericSymbols, []),
                 formatter = (options.labels || {}).formatter,
@@ -1751,29 +1904,30 @@
             params = params || {};
             var type = this.type;
             
-            if(type === "categories"){
-                ret = pack("array", options.categories, [])[value];
+            if (type === "categories") {
+                ret = pack("array", options.categories, [])[~-value];
                 !defined(ret) && (ret = value);
                 this.tickPositions[value] = ret;
             }
-            else if(type === "datetime"){
+            else if (type === "datetime") {
                 ret = date2value(value, options.dateType || "year");//Date.format
             }
-            else if(type === "logarithmic"){
-                if(defined(logarithmic) && isNumber(logarithmic.base) && defined(logarithmic.pow)){
+            else if (type === "logarithmic") {
+                if (defined(logarithmic) && isNumber(logarithmic.base) && defined(logarithmic.pow)) {
                     ret = "" + (logarithmic.base === Math.E ? "e" : logarithmic.base);
                 }
-                if(!defined(ret))
+                if (!defined(ret))
                     ret = numberic2value(value, numericSymbols);
             }
-            else{
+            else {
                 ret = numberic2value(value, numericSymbols);
             }
             //formatter rewrite value
-            if(isFunction(formatter)){
+            if (isFunction(formatter)) {
                 ret = formatter.call({
                     axis: this,
                     value: value,
+                    index: ~-value,
                     name: defined(ret) ? ret : value,
                     isFirst: !!params.isFirst,
                     isLast: !!params.isLast
@@ -1781,130 +1935,144 @@
             }
             return ret;
         },
-        formatter: function(callback){
+        formatter: function (callback) {
             var options = this.options,
                 labels = options.labels || {};
             var ticks = this.ticks,
                 tick;
             var axis  = this;
             tick = this.Item();
-            ticks.forEach(function(item, i){
+            ticks.forEach(function (item, i) {
                 axis.setGrid(item, i, ticks);
-                tick.adjustLabel(item, i, {
-                    isCenter: labels.align === "center" && !!ticks.length,
-                    isRotation: axis.isRotation
-                });
+                if (labels.enabled !== false) {
+                    tick.adjustLabel(item, i, {
+                        isCenter: labels.align === "center" && !!ticks.length,
+                        isRotation: axis.isRotation
+                    });
+                }
                 tick.render(item, i);
                 callback && callback.call(axis, item);
             });
             tick.line();
+            tick.plotLines();
         },
-        animateTo: function(){
+        animateTo: function () {
+            var options = this.options,
+                labels = options.labels || {},
+                gridLineWidth = pack("number", options.gridLineWidth);
             var oldData = this._ticks,
                 newData = this.ticks;
             var ticks = [];
             var animator = [];
-
-            List.diff(newData, oldData, function(a, b){
-                return a && b && (a.text.ellipse === b.text.ellipse);
-            }).add(function(newIndex){
-                var oldTick = oldData[newIndex], mergeTick;
-                if(oldTick){
-                    mergeTick = {
-                        isFirst: oldTick.isFirst,
-                        isLast: oldTick.isLast,
-                        size: oldTick.size,
-                        text: oldTick.text,
-                        angle: oldTick.angle,
-                        x: oldTick.x,
-                        y: oldTick.y,
-                        opacity: 0
-                    };
-                    ticks.push([oldTick, function(){
-                        mergeTick.x = oldTick.x;
-                        mergeTick.y = oldTick.y;// * timer;//oldTick.y;
-                        mergeTick.opacity = 0;//1 - 1 * timer;
-                    }]);
-                    //animateTo(mergeTick, newIndex);
-                    //animator.push(oldTick);
-                }
-            }).modify(function(newIndex, oldIndex){
-                var newTick = newData[newIndex],
-                    oldTick = oldData[oldIndex],
-                    mergeTick;
-                if(newTick && oldTick){
-                    mergeTick = {
-                        isFirst: newTick.isFirst,
-                        isLast: newTick.isLast,
-                        size: newTick.size,
-                        text: newTick.text,
-                        angle: newTick.angle,
-                        x: oldTick.x,
-                        y: oldTick.y
-                    };
-                    ticks.push([newTick, function(timer){
-                        var ox = oldTick.x || 0,//step missing x&y
-                            oy = pack("number", oldTick.y, newTick.y, 0);
-                        mergeTick.x = ox + (newTick.x - ox) * timer;
-                        mergeTick.y = oy + (newTick.y - oy) * timer;
-                    }]);
-                    animator.push(mergeTick);
-                }
-            }).remove(function(newIndex){
-                var newTick = newData[newIndex],
-                    mergeTick;
-                if(newTick){
-                    mergeTick = {
-                        isFirst: newTick.isFirst,
-                        isLast: newTick.isLast,
-                        size: newTick.size,
-                        text: newTick.text,
-                        angle: newTick.angle,
-                        x: newTick.x,
-                        y: newTick.y,
-                        //opacity: 0
-                    };
-                    ticks.push([newTick, function(){
-                        mergeTick.x = newTick.x;
-                        mergeTick.y = newTick.y;
-                        //mergeTick.opacity = timer;
-                    }]);
-                    animator.push(mergeTick);
-                }
-            }).each();
-            
-            this._ticks = this.ticks;
-            this.animator = animator;
+            if (labels.enabled !== false || gridLineWidth > 0) {
+                List.diff(newData, oldData, function (a, b) {
+                    return a && b && (a.text.ellipse === b.text.ellipse);
+                }).add(function (newIndex) {
+                    var oldTick = oldData[newIndex], mergeTick;
+                    if (oldTick) {
+                        mergeTick = {
+                            isFirst: oldTick.isFirst,
+                            isLast: oldTick.isLast,
+                            size: oldTick.size,
+                            text: oldTick.text,
+                            angle: oldTick.angle,
+                            x: oldTick.x,
+                            y: oldTick.y,
+                            opacity: 0
+                        };
+                        ticks.push([oldTick, function(){
+                            mergeTick.x = oldTick.x;
+                            mergeTick.y = oldTick.y;// * timer;//oldTick.y;
+                            mergeTick.opacity = 0;//1 - 1 * timer;
+                        }]);
+                        //animateTo(mergeTick, newIndex);
+                        //animator.push(oldTick);
+                    }
+                }).modify(function (newIndex, oldIndex) {
+                    var newTick = newData[newIndex],
+                        oldTick = oldData[oldIndex],
+                        mergeTick;
+                    if(newTick && oldTick){
+                        mergeTick = {
+                            isFirst: newTick.isFirst,
+                            isLast: newTick.isLast,
+                            size: newTick.size,
+                            text: newTick.text,
+                            angle: newTick.angle,
+                            x: oldTick.x,
+                            y: oldTick.y
+                        };
+                        ticks.push([newTick, function(timer){
+                            var ox = oldTick.x || 0,//step missing x&y
+                                oy = pack("number", oldTick.y, newTick.y, 0);
+                            mergeTick.x = ox + (newTick.x - ox) * timer;
+                            mergeTick.y = oy + (newTick.y - oy) * timer;
+                        }]);
+                        animator.push(mergeTick);
+                    }
+                }).remove(function (newIndex) {
+                    var newTick = newData[newIndex],
+                        mergeTick;
+                    if(newTick){
+                        mergeTick = {
+                            isFirst: newTick.isFirst,
+                            isLast: newTick.isLast,
+                            size: newTick.size,
+                            text: newTick.text,
+                            angle: newTick.angle,
+                            x: newTick.x,
+                            y: newTick.y,
+                            //opacity: 0
+                        };
+                        ticks.push([newTick, function () {
+                            mergeTick.x = newTick.x;
+                            mergeTick.y = newTick.y;
+                            //mergeTick.opacity = timer;
+                        }]);
+                        animator.push(mergeTick);
+                    }
+                }).each();
+                
+                this._ticks = this.ticks;
+                this.animator = animator;
+            }
             return ticks;
         },
-        onFrame: function(){
-            var labels = this.options.labels || {};
+        onFrame: function () {
+            var options = this.options,
+                labels = this.options.labels || {},
+                gridLineWidth = pack("number", options.gridLineWidth, 0);
             var tick = this.Item();
             var axis = this;
             var oldData = this._ticks,
                 newData = this.ticks;
-            var animateTo = function(mergeTick, i){
-                axis.setGrid(mergeTick, i, newData);
-                tick.render(mergeTick);
-                tick.adjustLabel(mergeTick, i, {
-                    isCenter: labels.align === "center" && !!oldData.length,
-                    isRotation: axis.isRotation
+            if (labels.enabled !== false || gridLineWidth > 0) {
+                var animateTo = function (mergeTick, i) {
+                    axis.setGrid(mergeTick, i, newData);
+                    tick.render(mergeTick);
+                    if (labels.enabled !== false) {
+                        tick.adjustLabel(mergeTick, i, {
+                            isCenter: labels.align === "center" && !!oldData.length,
+                            isRotation: axis.isRotation
+                        });
+                    }
+                };
+                this.animator.forEach(function(tick, i){
+                    animateTo(tick, i);
                 });
-            };
-            this.animator.forEach(function(tick, i){
-                animateTo(tick, i);
-            });
+            }
             tick.line();
-            axis.setTitle();
+            tick.plotLines();
+            axis.setTitle(true);
         },
         draw: function() {
             this.formatter();
-            this.setTitle();
+            this.setTitle(true);
         },
-        redraw: function(callback){
+        redraw: function (callback) {
             this.draw(callback);
         },
-        addTooltip: function(x, y, callback) {
+        addTooltip: function (x, y, callback) {
             var options = this.options,
                 stops = pack("array", options.stops, []),
                 isHorizontal = options.layout === "horizontal",

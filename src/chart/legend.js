@@ -1,8 +1,8 @@
-(function(global, Chart){
+(function (global, Chart) {
     var Symbol = {
-        circle: function(x, y, w, h) {
+        circle: function (x, y, w, h) {
             var PI2 = Math.PI * 2;
-            return function(context){
+            return function (context){
                 context.beginPath();
                 context.arc(x + w / 2, y + w / 2, w / 2 - 0.5, 0, PI2, true);
                 //context.arc(x, y, h * 0.4, 0, PI2, false);
@@ -14,38 +14,10 @@
                 };
             };
         },
-        rect: function(x, y, w, h, r){
-            r = r || 0;
-            var linePixel = fixLinePixel(x, y, w - 1, h - 1);
-            x  = linePixel.x, y = linePixel.y;
-            w = linePixel.width, h = linePixel.height;
-            return function(context){
-                context.beginPath();
-                context.moveTo(x + r, y);
-                //top-right
-                context.lineTo(x + w - r, y);
-                context.bezierCurveTo(x + w, y, x + w, y, x + w, y + r);//top-right corner
-                //bottom-right
-                context.lineTo(x + w, y + h - r);
-                context.bezierCurveTo(x + w, y + h, x + w, y + h, x + w - r, y + h);//bottom-right corner
-                //bottom-left
-                context.lineTo(x + r, y + h);
-                context.bezierCurveTo(x, y + h, x, y + h, x, y + h - r);//bottom-left corner
-                //top-left
-                context.lineTo(x, y + r);
-                context.bezierCurveTo(x, y, x, y, x + r, y);//top-left corner
-                //context.closePath();
-                return {
-                    x: x - 1,
-                    y: y - 1,
-                    width: w,
-                    height: h
-                };
-            };
-        },
-        ellipse: function(x, y, w, h){
+        rect: Geometry.Symbol.rect,
+        ellipse: function (x, y, w, h) {
             var cpw = 0.166 * w;
-            return function(context){
+            return function (context) {
                 context.beginPath();
                 context.moveTo(x + w / 2, y);
                 context.bezierCurveTo(x + w + cpw, y, x + w + cpw, y + h, x + w / 2, y + h);
@@ -53,9 +25,8 @@
                 context.closePath();
             };
         },
-        line: function(x, y, w, h){
-            var PI2 = Math.PI * 2;
-            return function(context){
+        line: function (x, y, w, h) {
+            return function (context) {
                 //Symbol.rect(x - r, y + h / 2, w + r * 2, 3)(context);
                 //context.fill();
                 context.save();
@@ -121,26 +92,17 @@
         useHTML: false
     };
 
-    var setStyle = function (context, attr) {
-        for(var p in attr) if(attr.hasOwnProperty(p)){
-            context.style[p.replace(/\-(\w)/g, function(all, s){
-                return s.toUpperCase();
-            })] = attr[p];
-        }
-        return context;
-    };
-
-    function Legend(){
+    function Legend () {
         this.init.apply(this, arguments);
     }
     Legend.prototype = {
-        Item: function(x, y, options){
+        Item: function (x, y, options) {
             this.x = x;
             this.y = y;
             this.node = null;
             this.selected = options.selected;
         },//new this.Element
-        init: function(canvas, series, options){
+        init: function (canvas, series, options) {
             this.options = extend({}, defaultOptions);
             options = extend(this.options, options);
 
@@ -151,7 +113,7 @@
             this.context = this.canvas.getContext("2d");
 
             if (options.useHTML === true) {
-                this.canvas = setStyle(canvas.parentNode.appendChild(document.createElement("div")), {
+                setStyle(this.canvas = canvas.parentNode.appendChild(document.createElement("div")), {
                     position: "absolute",
                     border: (options.borderWidth | 0) + "px solid " + options.borderColor,
                     "background-color": options.backgroundColor,
@@ -173,7 +135,7 @@
                 current: 0
             };
         },
-        translate: function(){
+        translate: function () {
             var options = this.options,
                 x = options.x,
                 y = options.y,
@@ -222,7 +184,7 @@
             this.width = width;
             this.setLabels();
         },
-        setLabels: function(){
+        setLabels: function () {
             var options = this.options,
                 style = options.style,
                 padding = options.padding,
@@ -234,7 +196,7 @@
                 bbox = {width: 0, height: 0},
                 symbolWidth = options.symbolWidth,
                 useHTML = options.useHTML,
-                formatter = options.formatter,
+                formatter = options.formatter || options.labelFormatter,
                 fontStyle = {
                     fontStyle: style.fontStyle || "normal",
                     fontWeight: style.fontWeight || "normal",
@@ -260,7 +222,7 @@
             var legend = this;
             var isFormatter = isFunction(formatter);
 
-            this.data.forEach(function(item, i){
+            this.data.forEach(function (item, i) {
                 var text = item.name,
                     selected = item.selected !== false,//默认显示
                     disabled = item.showInLegend !== false;
@@ -269,7 +231,7 @@
                 var legendItem;
                 var legendFormatter;
                 var nowrap = false;
-                if (disabled) {
+                if (disabled && context) {
                     context.font = [
                         fontStyle.fontStyle,
                         fontStyle.fontWeight,
@@ -363,7 +325,7 @@
             });
             //sumHeight += bbox.height + padding / 2;
             sumHeight += symbolWidth;// + padding / 2;
-            if(!defined(options.height)){
+            if (!defined(options.height)) {
                 this.height = (sumHeight + padding) * (length !== 0);
             }
             this.width = (sumWidth + padding * 2 - itemDistance * (layout === "horizontal")) * (length !== 0);//fix width
@@ -384,14 +346,18 @@
             linePixel = fixLinePixel(0, 0, this.width + (this.height > this.maxHeight) * 15, this.maxHeight - borderWidth, borderWidth);
 
             if (useHTML === true && itemHTML.length) {
+                var bbox;
+                canvas.innerHTML = itemHTML;
+                bbox = canvas.getBoundingClientRect();
+                this.height = bbox.height;
+                this.width = bbox.width;
                 setStyle(canvas, {
-                    left: this.x + linePixel.x + "px",
-                    top: this.y + linePixel.y + "px",
-                    height: linePixel.height + "px",
-                    width: linePixel.width + "px",
+                    left: (this.x - bbox.width + linePixel.width) + linePixel.x + "px",
+                    top: (this.y - bbox.height + linePixel.height) + linePixel.y + "px",
+                    height: bbox.height + "px",
+                    width: bbox.width + "px",
                     overflow: "auto"
                 });
-                canvas.innerHTML = itemHTML;
             }
         },
         scrollTop: function(y){
@@ -492,7 +458,7 @@
             });
             context.restore();
         },
-        draw: function(){
+        draw: function () {
             var maxHeight = this.maxHeight,
                 options = this.options,
                 //padding = pack("number", options.padding, 0),
@@ -511,7 +477,7 @@
                 context.fillStyle = defined(options.backgroundColor) ? options.backgroundColor : "none";
                 Symbol.rect(linePixel.x, linePixel.y, linePixel.width, linePixel.height)(context);
                 
-                if(defined(options.backgroundColor)){
+                if (defined(options.backgroundColor)) {
                     context.fill();
                 }
                 (context.lineWidth = borderWidth) > 0 && (
@@ -713,16 +679,16 @@
             return this;
         }
     };
-    (function(Legend) {
+    (function (Legend) {
         var useCapture = false;
 
-        var isInside = function(y, bounds){
+        var isInside = function (y, bounds) {
             return !(
                 y < bounds.y ||
                 y > bounds.height + bounds.y
             );
         };
-        var filter = function(legend, item, x, y){
+        var filter = function (legend, item, x, y) {
             var options = legend.options,
                 padding = pack("number", options.padding, 0),
                 borderWidth = pack("number", options.borderWidth, 0),
@@ -741,17 +707,17 @@
             context.isPointInPath(x, y);
         };
 
-        var onAction = function(x, y, callback){
+        var onAction = function (x, y, callback) {
             var clicked = false;
             var items = this.items,
                 item;
             var that = this;
 
-            var flag = x === true ? function(item) {
+            var flag = x === true ? function (item) {
                 while (y && y.getAttribute && y.getAttribute("data-legend-index") === null) y = y.parentNode;
                 return (y && y.getAttribute && parseInt(y.getAttribute("data-legend-index"), 10)) === item.index;
             } : function(item) {
-                return filter(that, item, x, y);
+                return that.context && filter(that, item, x, y);
             };
             for(var i = 0; i < items.length; i++){
                 item = items[i];
@@ -762,7 +728,7 @@
             }
             callback.call(item, clicked, items);
         };
-        var getXY = function(e, el){
+        var getXY = function (e, el) {
             var evt = Event.normalize(e, el),
                 x = evt.x,
                 y = evt.y;
@@ -805,7 +771,7 @@
                 //onClick = null;
                 return this;
             },
-            onState: function(callback){
+            onState: function (callback) {
                 var canvas = this.canvas,
                     legend = this;
                 var flag;
@@ -815,7 +781,7 @@
                     callback = arguments[1];
                 }
                 
-                var onState = function(e){
+                var onState = function (e) {
                     var x = getXY(e, this),
                         y = x[1];
                     x = x[0];
@@ -830,7 +796,7 @@
                         }
                     });
                 };
-                if(canvas.nodeType === 1){
+                if(canvas.nodeType === 1) {
                     canvas.removeEventListener("mousemove", onState, useCapture);
                     canvas.addEventListener("mousemove", onState, useCapture);
                 }
@@ -842,10 +808,10 @@
 
     Chart.Legend = Legend;
 
-    if(typeof module === "object" && module.exports) {
+    if (typeof module === "object" && module.exports) {
         module.exports = Legend;
     }
-    else if(typeof define === "function" && define.amd)
+    else if (typeof define === "function" && define.amd)
         define(function(){
             return Legend;
         });

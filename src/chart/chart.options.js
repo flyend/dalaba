@@ -55,7 +55,9 @@
         useHTML: true
     },
     yAxis: {
-        //enabled: true,
+        title: {
+            enabled: true
+        },
         type: "linear",
         lineColor: "#d3d0cb",
         lineWidth: 1,
@@ -65,7 +67,6 @@
         gridLineWidth: 1
     },
     xAxis: {
-        //enabled: true,
         type: "categories",
         title: {
             enabled: false
@@ -114,10 +115,7 @@
     },
     plotOptions: {
         series: {
-            /*left: 0,
-            right: 0,
-            top: 20,
-            bottom: 0*/
+            allowOverlap: false
         },
         line: {
             lineWidth: 2,
@@ -299,7 +297,7 @@
     },
     credits: {
         enabled: true,
-        text: "MChart",
+        text: "Dalaba",
         style: {
             cursor: "pointer",
             color: "#909090",

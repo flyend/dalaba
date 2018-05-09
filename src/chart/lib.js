@@ -1,4 +1,4 @@
-(function(Dalaba) {
+(function (Dalaba) {
     var defined = Dalaba.defined,
         extend = Dalaba.extend,
         pack = Dalaba.pack;
@@ -11,7 +11,7 @@
      * @param height{Number}
      * @param ratio{Number}
     */
-    function rescale(g, width, height, ratio, tx, ty) {
+    function rescale (g, width, height, ratio, tx, ty) {
         var canvas = g.canvas;
         tx = pack("number", tx, 0);
         ty = pack("number", ty, 0);
@@ -19,7 +19,7 @@
         canvas.width = width * ratio;
         canvas.height = height * ratio;
         
-        if(ratio !== 1){
+        if (ratio !== 1) {
             canvas.style.width = width + "px";
             canvas.style.height = height + "px";
         }
@@ -31,7 +31,7 @@
         );
     }
 
-    var fixLinePixel = function(x, y, w, h, borderWidth) {
+    var fixLinePixel = function (x, y, w, h, borderWidth) {
         var xBorder = -((borderWidth = isNaN(+borderWidth) ? 1 : borderWidth) % 2 ? 0.5 : 0),
             yBorder = borderWidth % 2 ? 0.5 : 1;
         //horizontal
@@ -43,7 +43,7 @@
         y = Math.round(y) + yBorder;
         h = bottom - y;
 
-        if(isTop){
+        if (isTop) {
             y -= 1;
             h += 1;
         }
@@ -56,7 +56,7 @@
         };
     };
 
-    var fixPixelHalf = function() {
+    var fixPixelHalf = function () {
         var args = [].slice.call(arguments, 0),
             sub = args.pop(),
             lineWidth = sub;
@@ -90,7 +90,7 @@
      *
     */
     Chart.LineSegment = {
-        none: function(context, points, options){
+        none: function (context, points, options) {
             var dashStyle = pack("string", (options = options || {}).dashStyle, "solid");
             var DashLine = Geometry.Line.Dash;
             var length = (points || []).length, i, j;
@@ -137,7 +137,7 @@
     var Arc = require("./arc");
     var Event = require("./event").deps(Dalaba);
     Chart.Event = Event;
-    Chart.Event.Handler = require("./eventHandler").deps(Dalaba, Event);
+    Chart.Event.Handler = require("./eventhandler").deps(Dalaba, Event);
     Chart.angleInQuadrant = require("./angleInQuadrant");
     Chart.angle2arc = Arc.angle2arc;
     Chart.arc = Arc.arc;

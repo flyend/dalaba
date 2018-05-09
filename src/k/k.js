@@ -21,7 +21,7 @@
         }
     };
 
-    function K(canvas, options){
+    function K (canvas, options) {
         this.canvas = canvas;
         this.context = canvas.getContext("2d");
         this.type = "candlestick";
@@ -31,7 +31,7 @@
     }
     K.prototype = {
         constructor: K,
-        init: function(options){
+        init: function (options) {
             var canvas = this.canvas,
                 type = this.type,
                 chart = this;
@@ -79,7 +79,7 @@
             Layout.shapes(this.type, this.options);
             this.draw();
         },
-        drawShape: function(context, shape, series){
+        drawShape: function (context, shape, series) {
             var x = shape.x, y = shape.y,
                 x1 = shape.x1, y1 = shape.y1,
                 x2, y2 = shape.y2,

@@ -1,5 +1,5 @@
 "use strict";
-!(function(global) {
+!(function (global) {
 
     var Dalaba = require("lib/dalaba");
 
@@ -33,11 +33,11 @@
         module.exports = Dalaba;
     }
     else if (typeof define === "function" && define.amd) {
-        define(function() {
+        define(function () {
             return Dalaba;
         });
     }
     else {
         global.Dalaba = Dalaba;
     }
-})(typeof window !== "undefined" ? window : this);
+})(typeof window !== "undefined" ? window : typeof this !== "undefined" ? this : global);

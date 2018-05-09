@@ -1,8 +1,8 @@
-(function(global, Chart){
+(function (global, Chart) {
 
     var SQRT3 = Math.sqrt(3);
 
-    var lineSlope = function(p1, p2){
+    var lineSlope = function (p1, p2) {
         var slope = p2.x - p1.x ? (p2.y - p1.y) / (p2.x - p1.x) : 0;//斜率
         return {
             slope: slope,
@@ -14,7 +14,7 @@
      * Class Funnel
     */
 
-    function Funnel(canvas, options){
+    function Funnel (canvas, options) {
         this.type = "funnel";
         this.canvas = canvas;
         this.context = canvas.getContext("2d");
@@ -26,7 +26,7 @@
     }
     Funnel.prototype = {
         constructor: Funnel,
-        init: function(options){
+        init: function (options) {
             var type = this.type;
             var seriesColors;
             this.options = extend({}, options);
@@ -63,6 +63,16 @@
             var funnel = new Funnel.Layout(type, this.series, this.options);
             this.shapes = funnel.shapes;
             this.layout = funnel;
+            this.reflow();
+        },
+        reflow: function () {
+            var context = this.context;
+            var chart = this;
+            this.shapes.forEach(function (series ){
+                series.shapes.forEach(function (shape) {
+                    chart.dataLabels(context, shape, series);
+                });
+            });
         },
         draw: function(){
             var context = this.context,
@@ -76,11 +86,12 @@
                 });
             });
         },
-        redraw: function(){
+        redraw: function () {
             this.layout.subgroup();
+            this.reflow();
             this.draw();
         },
-        animateTo: function(){
+        animateTo: function () {
             var shapes = [];
             this.shapes.forEach(function(series){
                 var newData = series.shapes,
@@ -202,7 +213,7 @@
                 context.restore();
             }
         },
-        getShape: function(x, y){
+        getShape: function(x, y) {
             var ret = [];
             var series = this.shapes,
                 length = series.length;
@@ -233,8 +244,9 @@
             }
             return ret;
         },
-        drawLabels: function(context, shape, series){
-            dataLabels.align(function(type, bbox){
+        dataLabels: function (context, shape, series) {
+            var labelAttr = {};
+            shape.dataLabel = DataLabels.align(function (type, bbox) {
                 var t = pack("string", type, "center");
                 var points = shape.points,
                     textArgs = shape.textArgs,
@@ -243,20 +255,13 @@
                     w = bbox.width,
                     x = textArgs.x,
                     y = textArgs.y;
-                if(this.inside === true){
+                labelAttr.distance = this.distance;
+                labelAttr.inside = this.inside;
+                if (this.inside === true) {
                     x = points[0].x;
                 }
-                else{
-                    if(this.distance > 0){
-                        context.save();
-                        context.beginPath();
-                        context.moveTo(x, y);
-                        context.lineTo(x += this.distance, y);
-                        context.strokeStyle = shape.color;
-                        context.stroke();
-                        context.restore();
-                    }
-                    return x;
+                else {
+                    return x + this.distance;
                 }
                 ls = lineSlope(points[4], points[3]);
                 return {
@@ -264,14 +269,15 @@
                     center: x  + (w2 - w) / 2,
                     right: textArgs.x - w
                 }[t];
-            }).vertical(function(type, bbox){
+            }).vertical(function (type, bbox) {
                 var points = shape.points,
                     shapeArgs = shape.shapeArgs;
                 var h = bbox.height,
                     h2 = shapeArgs.height,
                     y = points[0].y;
                 var t = pack("string", type, "top");
-                if(this.inside !== true)
+                labelAttr.inside = this.inside;
+                if (this.inside !== true)
                     return shape.textArgs.y + h / 2;
                 return {
                     top: y + h,
@@ -279,6 +285,23 @@
                     bottom: y + h2
                 }[t];
             }).call(shape, series, context);
+            extend(shape.dataLabel, labelAttr)
+        },
+        drawLabels: function (context, shape, series) {
+            var dataLabel = shape.dataLabel;
+            var x = shape.textArgs.x,
+                y = shape.textArgs.y;
+            var distance = dataLabel.distance;
+            if (!shape.isNULL && distance > 0) {
+                context.save();
+                context.beginPath();
+                context.moveTo(x, y);
+                context.lineTo(x += distance, y);
+                context.strokeStyle = shape.color;
+                context.stroke();
+                context.restore();
+            }
+            DataLabels.render(context, shape, series);
         }
     };
     

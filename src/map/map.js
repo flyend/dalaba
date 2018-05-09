@@ -1,10 +1,10 @@
-(function(global, Chart){
+(function (global, Chart) {
     
     var relayout = require("./layout").deps(Dalaba.geo, Color);
     /*
      * Class Map
     */
-    function Map(canvas, options) {
+    function Map (canvas, options) {
         this.type = "map";
 
         this.series = [];
@@ -16,14 +16,14 @@
     }
     Map.prototype = {
         constructor: Map,
-        init: function(options) {
+        init: function (options) {
             var type = this.type;
             this.options = extend({}, options);
 
-            this.series = arrayFilter(pack("array", this.options.series, []), function(item){
+            this.series = arrayFilter(pack("array", this.options.series, []), function (item) {
                 var f = item.selected !== false
                     && (item.type === type);
-                if(f){
+                if (f) {
                     var mapKey = {};
                     item.data.forEach(function(d){
                         if(defined(d.name)){
@@ -35,31 +35,47 @@
                 return f;
             });
             relayout(type, this.options);
+            this.reflow();
         },
-        draw: function(){
+        reflow: function () {
             var context = this.context,
                 chart = this;
               
-            this.series.forEach(function(series){
+            this.series.forEach(function (series) {
                 var shapes = series.shapes;
-                if(defined(series.mapData)){
-                    shapes.forEach(function(shape){
-                        chart.drawShape(context, shape, series);
-                    });
-                    shapes.forEach(function(shape){
+                if (defined(series.mapData)) {
+                    shapes.forEach(function (shape) {
                         chart.drawLabels(context, shape, series);
                     });
                 }
             });
         },
-        redraw: function(){
+        draw: function () {
+            var context = this.context,
+                chart = this;
+              
+            this.series.forEach(function (series) {
+                var shapes = series.shapes;
+                if(defined(series.mapData)){
+                    shapes.forEach(function (shape) {
+                        chart.drawShape(context, shape, series);
+                    });
+                    shapes.forEach(function (shape) {
+                        DataLabels.render(context, shape, series);
+                    });
+                }
+            });
+        },
+        redraw: function () {
             relayout(this.type, this.options);
+            this.reflow();
             this.draw();
         },
-        drawShape: function(context, shape, series) {
+        drawShape: function (context, shape, series) {
             var borderWidth = pack("number", series.borderWidth, 0),
                 borderColor = pack("string", series.borderColor, "#FFFFFF"),
-                fillColor = series.fillColor || shape.color || "#f7f7f7";
+                fillColor = shape.color || series.fillColor || "#f7f7f7";
+            var tooltip = series.tooltip;
             var points = shape.points;
             var shapeArgs = shape.shapeArgs;
             var gradient;
@@ -73,7 +89,7 @@
                     : gradient.linear(0, 0, s0, s1);
             }
 
-            if (isNumber(shape.current) && shape.current !== -1) {
+            if (tooltip.enabled !== false && isNumber(shape.current) && shape.current !== -1) {
                 !shape.isNULL
                     ? (fillColor = Color.parse(fillColor).alpha(0.75).rgba())
                     : (fillColor = "rgb(79, 134, 189)");
@@ -82,45 +98,47 @@
             context.save();
             context.beginPath();
             points.forEach(function(point, i){
-                context[i && !point.isNext ? "lineTo" : "moveTo"](point.x, point.y);
+                context[i && !point.isNext ? "lineTo" : "moveTo"](point.x - borderWidth / 2, point.y - borderWidth / 2);
             });
             context.closePath();
             context.fillStyle = fillColor;
-
             if (defined(series.shadowColor)) {
                 context.shadowColor = series.shadowColor;
                 isNumber(series.shadowBlur) && (context.shadowBlur = series.shadowBlur);
                 isNumber(series.shadowOffsetX) && (context.shadowOffsetX = series.shadowOffsetX);
                 isNumber(series.shadowOffsetY) && (context.shadowOffsetY = series.shadowOffsetY);
             }
-
             context.fill();
-            (context.lineWidth = borderWidth) > 0 && (
-                context.strokeStyle = borderColor,
-                context.stroke()
-            );
+
+            if (defined(series.borderShadowColor)) {
+                context.shadowColor = series.borderShadowColor;
+                isNumber(series.borderShadowBlur) && (context.shadowBlur = series.borderShadowBlur);
+                isNumber(series.borderShadowOffsetX) && (context.shadowOffsetX = series.borderShadowOffsetX);
+                isNumber(series.borderShadowOffsetY) && (context.shadowOffsetY = series.borderShadowOffsetY);
+            }
+            ((context.lineWidth = borderWidth) > 0 && (context.strokeStyle = borderColor, 1) || defined(series.borderShadowColor)) && (context.stroke());
             context.restore();
         },
-        getShape: function(x, y){
+        getShape: function (x, y) {
             var series,
                 shapes,
                 shape;
             var ret = [];
 
-            function reset(shapes){
-                shapes.forEach(function(item){
+            function reset (shapes) {
+                shapes.forEach(function (item) {
                     delete item.current;
                 });
             }
 
-            for(var i = 0, n = this.series.length; i < n; i++){
+            for (var i = 0, n = this.series.length; i < n; i++) {
                 reset(shapes = (series = this.series[i]).shapes);
-                for(var j = 0; j < shapes.length; j++){
+                for (var j = 0; series.tooltip.enabled !== false && j < shapes.length; j++) {
                     shape = shapes[j];
-                    if(Intersection.polygon({
+                    if (Intersection.polygon({
                         x: x,
                         y: y
-                    }, shape.points)){
+                    }, shape.points)) {
                         shape.$value = shape.isNULL ? "--" : "" + shape.value;
                         ret.push({shape: shape, series: series});
                         shape.current = j;
@@ -130,21 +148,21 @@
             }
             var diffData = [],
                 diffMaps = {};
-            ret.forEach(function(item){
+            ret.forEach(function (item) {
                 var key = item.shape.name;
-                if(!diffMaps.hasOwnProperty(key)){
+                if (!diffMaps.hasOwnProperty(key)) {
                     diffMaps[key] = !0;
                     diffData.push(item);
                 }
             });
             return diffData;
         },
-        drawLabels: function(context, shape, series) {
-            dataLabels.value(shape.name).align(function(type, bbox) {
+        drawLabels: function (context, shape, series) {
+            shape.dataLabel = DataLabels.value(shape.name).align(function (type, bbox) {
                 var x = shape.shapeArgs.x,
                     w = bbox.width;
                 return x - w / 2;
-            }).vertical(function(type, bbox) {
+            }).vertical(function (type, bbox) {
                 var y = shape.shapeArgs.y,
                     h = bbox.height;
                 return y + h / 2;

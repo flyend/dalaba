@@ -1,8 +1,10 @@
-(function(global, Chart) {
+(function (global, Chart) {
+
+    var Symbol = Geometry.Symbol;
 
     var addLayout = require("./layout").deps(Numeric);
 
-    var extent = function(series) {
+    var extent = function (series) {
         var a, b;
         var n = series.length,
             i = 0;
@@ -33,7 +35,7 @@
 	}
 	Column.prototype = {
         constructor: Column,
-		init: function(options) {
+		init: function (options) {
             var panels = [],
                 panel = options.panel;
             var n = panel.length, i = -1, j, nn;
@@ -59,38 +61,54 @@
             this.panels = panels;
 
             addLayout(panels);
+            this.reflow();
+        },
+        reflow: function () {
+            var context = this.context;
+            var chart = this;
+            this.series.forEach(function (series) {
+                series.shapes.forEach(function (shape) {
+                    chart.dataLabels(context, shape, series);
+                });
+            });
         },
         draw: function () {
             var context = this.context,
                 chart = this;
             //only render
-            this.series.forEach(function(series){
-                series.shapes.forEach(function(shape){
+            this.series.forEach(function (series) {
+                context.save();
+                Symbol.rect(series.plotX, series.plotY - 1, series.plotWidth, series.plotHeight + 2)(context);
+                //context.stroke();
+                context.clip();
+            
+                series.shapes.forEach(function (shape) {
                     chart.drawShape(series.context || context, shape, series);
                     delete shape.current;
                 });
+                context.restore();
             });
 
-            this.series.forEach(function(series){
-                if(series.state){
+            this.series.forEach(function (series) {
+                if (series.state) {
                     chart.drawState(context, series);
                 }
-                series.shapes.forEach(function(shape){
-                    chart.dataLabels(series.context || context, shape, series);
+                series.shapes.forEach(function (shape) {
+                    DataLabels.render(series.context || context, shape);
                 });
             });
         },
         redraw: function () {
             addLayout(this.panels, 1);
-            this.draw();
+            this.reflow();
         },
-        animateTo: function(){
+        animateTo: function () {
             var shapes = [];
-            this.series.forEach(function(series){
+            this.series.forEach(function (series) {
                 var newData = series.shapes,
                     oldData = series._shapes || [];
                 var animators = [];
-                series._diffValues.remove(function(newIndex){
+                series._diffValues.remove(function (newIndex) {
                     var newShape = newData[newIndex],
                         mergeShape = {
                             /*x0: newShape.x0,
@@ -101,7 +119,8 @@
                             _value: newShape._value,
                             value: newShape.value,
                             percentage: newShape.percentage,
-                            shape: newShape
+                            shape: newShape,
+                            dataLabel: newShape.dataLabel
                         };
                     shapes.push([newShape, function(timer){
                         mergeShape.x0 = newShape.x0;
@@ -136,7 +155,8 @@
                             _value: oldShape._value,
                             value: oldShape.value,
                             percentage: oldShape.percentage,
-                            shape: oldShape
+                            shape: oldShape,
+                            dataLabel: oldShape.dataLabel
                         };
                     shapes.push([oldShape, function(timer){
                         mergeShape.y1 = oldShape.y1 - (oldShape.y1 - oldShape.y0) * timer;
@@ -157,7 +177,8 @@
                             _value: newShape._value,
                             value: newShape.value,
                             percentage: newShape.percentage,
-                            shape: newShape
+                            shape: newShape,
+                            dataLabel: newShape.dataLabel
                         };
                         shapes.push([newShape, function(timer){
                             x0 = oldShape.x0 + (newShape.x0 - oldShape.x0) * timer;
@@ -192,13 +213,15 @@
             });
             return shapes;
         },
-        onFrame: function(context){
+        onFrame: function (context) {
             var chart = this;
-            this.series.forEach(function(series){
+            this.series.forEach(function (series) {
                 var animators = series._animators;
-                animators.forEach(function(shape){
+                animators.forEach(function (shape) {
                     chart.drawShape(context, shape, series);
-                    chart.dataLabels(context, shape.shape, series);
+                });
+                animators.forEach(function (shape) {
+                    DataLabels.render(context, shape);
                 });
             });
         },
@@ -215,29 +238,27 @@
                 borderRadius = series.borderRadius;
             var rotation = pack("number", shape.rotation, 0);
             var color = shape.color;
-            if(series.selected === false){
+            if (series.selected === false) {
                 borderWidth = borderRadius = 0;
             }
-            if(isObject(color) && defined(color.stops) && isArray(color.stops)){
+            if (isObject(color) && defined(color.stops) && isArray(color.stops)){
                 var linearGradient = context.createLinearGradient(Math.abs(x1 - x0), y1, Math.abs(x1 - x0), y0);
-                color.stops.forEach(function(item){
+                color.stops.forEach(function (item) {
                     if(isNumber(item[0]) && typeof item[1] === "string")
                         linearGradient.addColorStop(item[0], item[1]);
                 });
                 color = linearGradient;
             }
-            else{
+            else {
                 color = Color.parse(color);
-                if(defined(shape.current)){
+                if (defined(shape.current)) {
                     color.a = 0.55;
                 }
                 color = Color.rgba(color);
             }
 
             context.save();
-            !isArray(borderRadius) && (borderRadius = isNumber(borderRadius) && borderRadius > 0
-                ? [borderRadius, borderRadius, borderRadius, borderRadius]
-                : [0, 0, 0, 0]);//top, right, bottom and left
+            borderRadius = TRouBLe(borderRadius).map(function (d) { return d * 2; });
             context.beginPath();
             context.moveTo(x0 + pack("number", borderRadius[0], 0), y1);//left-top
             context.lineTo(x1 - pack("number", borderRadius[1], 0), y1);//right-top
@@ -255,7 +276,7 @@
             }
             context.fillStyle = color;
             context.fill();
-            if(borderWidth > 0){
+            if (borderWidth > 0) {
                 context.beginPath();
                 context.lineWidth = borderWidth;
                 context.strokeStyle = borderColor;
@@ -268,9 +289,9 @@
             }
             context.restore();
         },
-        dataLabels: function(context, shape, series) {
+        dataLabels: function (context, shape, series) {
             var isColumn = series.type === "column";
-            dataLabels.align(function(type, bbox) {
+            shape.dataLabel = DataLabels.align(function (type, bbox) {
                 var w = bbox.width,
                     w2 = Math.abs(shape.x1 - shape.x0);
                 var offset = 0;
@@ -298,7 +319,7 @@
                 }[t];
             }).call(shape, series, context);
         },
-        getShape: function(x, y, shared) {
+        getShape: function (x, y, shared) {
             var series = this.series,
                 length = series.length;
             var plotY, plotHeight;
@@ -308,55 +329,67 @@
                 last;
             var results = [], result;
 
-            function reset(shapes){
-                shapes.forEach(function(item){
+            function reset (shapes) {
+                /*shapes.forEach(function (item) {
                     delete item.current;
-                });
+                });*/
             }
-            var isInside = function(series){
+            var isInside = function (series) {
                 return !(
-                    x < pack("number", series.plotX, 0) ||
-                    x > series.plotWidth + pack("number", series.plotX, 0) ||
-                    y < pack("number", series.plotY, 0) ||
-                    y > series.plotHeight + pack("number", series.plotY, 0)
+                    x < series.plotX ||
+                    x > series.plotWidth + series.plotX ||
+                    y < series.plotY ||
+                    y > series.plotHeight + series.plotY
                 );
             };
-            item = extent(series);
-            first = item[0];
-            last  = item[1];
+            var groups = partition(this.series, function (a, b) {
+                return a.panelIndex === b.panelIndex;
+            });
 
-            for(var i = 0; i < length; i++){
-                item = series[i];
-                if(item.selected === false)
-                   continue;
-                plotY = item.plotY;
-                plotHeight = item.plotHeight;
-                
-                if(!isInside(item)){
-                    return results;
-                }
-                reset(shapes = item.shapes);
+            for (var k = 0; k < groups.length; k++) {
+                var group = groups[k];
+                var parent = extent(group);
+                first = parent[0];
+                last = parent[1];
 
-                for(var j = 0; j < shapes.length; j++){
-                    shape = shapes[j] || {};
-                    if(shape.value === null){
-                        continue;
+                for (var i = 0; i < groups[k].length; i++) if ((item = group[i]).selected !== false) {
+                    plotY = item.plotY;
+                    plotHeight = item.plotHeight;
+                    
+                    if (!isInside(item)) {
+                        //return results;
                     }
-                    area = {
-                        x: shape.x0 - shape.margin,
-                        y: shape.y0,
-                        width: shape.x1 + shape.margin,
-                        height: shape.y1
-                    };
-                    if (Intersection.rect({x: x, y: y}, area)) {
-                        result = {shape: shape, series: item};
-                        result.shape.$value = "" + shape._value;
-                        results.push(result);
-                        shape.current = j;
-                        if(!shared){
-                            return results;
+                    reset(shapes = item.shapes);
+
+                    for (var j = 0; j < shapes.length; j++) {
+                        shape = shapes[j] || {};
+                        if (shape.isNULL) {
+                            continue;
                         }
-                        break;
+                        area = {
+                            x: shape.x0,
+                            y: shape.y0,
+                            width: shape.x1,
+                            height: shape.y1
+                        };
+                        
+                        if (shared) {
+                            area = {
+                                x: first.shapes[j].x0,// - shape.margin,
+                                y: plotY,// shape.y0,
+                                width: last.shapes[j].x1,// + shape.margin,
+                                height: plotY + plotHeight// shape.y1
+                            };
+                        }
+                        if (Intersection.rect({x: x, y: y}, area)) {
+                            result = {shape: shape, series: item};
+                            result.shape.$value = "" + shape._value;
+                            results.push(result);
+                            shape.current = j;
+                            if (!shared) {
+                                return results;
+                            }
+                        }
                     }
                 }
             }
