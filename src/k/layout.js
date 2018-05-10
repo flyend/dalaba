@@ -1,15 +1,15 @@
-(function(global){
+(function (global) {
 
-    function factoy(){
+    function factoy () {
         var Layout = {};
 
         Layout = {
-            shapes: function(type, options){
-                options.panel.forEach(function(pane){
-                    var series = arrayFilter(pane.series, function(series){
+            shapes: function (type, options) {
+                options.panel.forEach(function (pane) {
+                    var series = arrayFilter(pane.series, function (series) {
                         return series.type === type;
                     });
-                    series.forEach(function(series){
+                    series.forEach(function (series) {
                         var plotX = pack("number", series.plotX, 0),
                             plotY = pack("number", series.plotY, 0),
                             plotWidth = pack("number", series.plotWidth),
@@ -30,13 +30,13 @@
                        
                         var x, y, x1, y1, x2, y2, y3;
                         var open, close, high, low;//open, close, high, low
-                        for(j = 0; j < length; j++){
+                        for (j = 0; j < length; j++) {
                             shape = shapes[j];
                             color = shape.color;
                             x = plotX + j * tickWidth + center;
                             x1 = x + pointWidth;
                             x2 = x1 - pointWidth / 2;
-                            if(isArray(shape.source)){
+                            if (isArray(shape.source)) {
                                 open = shape.source[0], close = shape.source[1];
                                 high = shape.source[2], low = shape.source[3];
                             }
@@ -50,7 +50,7 @@
                             y1 = interpolate(close, yminValue, ymaxValue, plotHeight, 0) + plotY;//close
                             y2 = interpolate(high, yminValue, ymaxValue, plotHeight, 0) + plotY;//high
                             y3 = interpolate(low, yminValue, ymaxValue, plotHeight, 0) + plotY;//low
-                            if(series.selected === false){
+                            if (series.selected === false) {
                                 y = y1 = y2 = y3 = -9999;
                             }
                             extend(shape, {

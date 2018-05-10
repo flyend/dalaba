@@ -394,7 +394,6 @@ require("./define");
                 start: "0%",
                 end: "100%",
                 minAxisZero: !!~arrayIndexOf(["column", "bar"], type),
-                color: newData.color || seriesColors[index % seriesColors.length],
                 animationDuration: animation.duration,
                 animationDelay: animation.delay,
                 animationEasing: animation.easing,
@@ -410,10 +409,11 @@ require("./define");
                 newSeries.canvas = this.addLayer(newData.layer);
                 newSeries.context = newSeries.canvas.getContext("2d");
             }
-            mergeOptions = extend({},
+            mergeOptions = extend({color: seriesColors[index % seriesColors.length]},
                 plotOptions.series || {},
                 plotOptions[type] || {},
-                newSeries
+                newSeries,
+                {color: newData.color}
             );
             newSeries = new Series(mergeOptions);
             newSeries.shapes = newSeries.addShape();
@@ -1963,6 +1963,10 @@ require("./define");
         },
         translateAxis: function () {
             var panel = this.panel;
+            var viewportLeft = 0,
+                viewportRight = 0,
+                viewportTop = 0,
+                viewportBottom = 0;
             this.yAxis.forEach(function (axis) {
                 var axisOptions = axis.options;
                 var pane = panel[Math.min(axisOptions.panelIndex | 0, panel.length - 1)],
@@ -1984,8 +1988,9 @@ require("./define");
                             top += pack("number", axis.titleHeight, 0);
                     }
                 }
-                pane.viewportLeft = left, pane.viewportRight = right, pane.viewportTop = top;
-
+                viewportLeft += left;
+                viewportRight += right;
+                pane.viewportLeft = viewportLeft, pane.viewportRight = viewportRight, pane.viewportTop = top;
             });
             this.xAxis.forEach(function (axis) {
                 var axisOptions = axis.options;
@@ -2005,7 +2010,9 @@ require("./define");
                         bottom += pack("number", axis.titleHeight, 0);
                     }
                 }
-                pane.viewportTop = top, pane.viewportBottom = bottom;
+                viewportTop += top;
+                viewportBottom += bottom;
+                pane.viewportTop = viewportTop, pane.viewportBottom = viewportBottom;
             });
             panel.forEach(function (item) {
                 var xLeftWidth = 0,
@@ -2016,11 +2023,12 @@ require("./define");
                 var startX;
                 item.yAxis.forEach(function (axis) {
                     var pane = panel[Math.min(axis.options.panelIndex | 0, panel.length - 1)];
-                    var plotHeight = pane.height - pane.viewportTop - pane.viewportBottom,
+                    var plotHeight = pane.height - pane.viewportTop - pack("number", pane.viewportBottom),
                         plotWidth = pane.width - pane.viewportLeft - pane.viewportRight,
                         plotY = pane.y + pane.viewportTop;
                     var x = pane.x,
                         y = plotY;
+
                     //startX = x;
                     if (axis.options.enabled !== false) {
                         if (axis.options.opposite === true) {
@@ -2049,7 +2057,6 @@ require("./define");
                     var pane = panel[Math.min(axisOptions.panelIndex | 0, panel.length - 1)];
                     var plotHeight = pane.height - pane.viewportTop - pane.viewportBottom,
                         plotWidth = pane.width - pane.viewportLeft - pane.viewportRight;
-
                     var y = 0;
                     if (axisOptions.enabled !== false) {
                         if (axisOptions.opposite === true) {

@@ -38,14 +38,14 @@
                 });
             });
         },
-        draw: function(){
+        draw: function () {
             var context = this.context,
                 chart = this;
-            this.series.forEach(function(series){
-                series.shapes.forEach(function(shape){
+            this.series.forEach(function (series) {
+                series.shapes.forEach(function (shape) {
                     chart.drawShape(context, shape, series);
                 });
-                series.shapes.forEach(function(shape){
+                series.shapes.forEach(function (shape) {
                     if (isNumber(shape.current) && shape.current > -1) {
                         chart.drawShape(context, shape, series);
                     }
@@ -53,7 +53,7 @@
                 });
             });
         },
-        redraw: function(){
+        redraw: function () {
             relayout(this.type, this.options);
             this.reflow();
             this.draw();
@@ -68,7 +68,7 @@
             var results = [],
                 shapes;
 
-            var isInside = function(series){
+            var isInside = function (series) {
                 return !(
                     x < pack("number", series.plotX, 0) ||
                     x > series.plotWidth + pack("number", series.plotX, 0) ||
@@ -76,27 +76,27 @@
                     y > series.plotHeight + pack("number", series.plotY, 0)
                 );
             };
-            var resetShape = function(shapes){
+            var resetShape = function (shapes) {
                 for(var j = 0, l = shapes.length; j < l;  j++){
                     delete shapes[j].current;
                 }
             };
 
-            for(i = 0; i < sl; i++){
+            for (i = 0; i < sl; i++) {
                 shapes = (series = this.series[i]).shapes;
                 resetShape(shapes);
-                if(!isInside(series)){
+                if (!isInside(series)) {
                     return results;
                 }
-                for(j = 0, dl = shapes.length; j < dl; j++){
+                for (j = 0, dl = shapes.length; series.enableMouseTracking !== false && j < dl; j++) {
                     shape = shapes[j];
-                    if(series.selected === false){
+                    if (series.selected === false) {
                         continue;
                     }
-                    if(Intersection.line(
+                    if (Intersection.line(
                         {x: x, y: y},
                         {x: shape.cx, y: shape.cy, width: shape.radius}
-                    )){
+                    )) {
                         shape.current = j;
                         results.push({shape: shape, series: series});
                         break;
@@ -233,7 +233,7 @@
                                 shape: newShape,
                                 dataLabel: newShape.dataLabel
                             };
-                            shapes.push([newShape, function(timer){
+                            shapes.push([newShape, function (timer) {
                                 mergeShape.cx = oldShape.cx + (newShape.cx - oldShape.cx) * timer;
                                 mergeShape.cy = oldShape.cy + (newShape.cy - oldShape.cy) * timer;
                                 mergeShape.radius = oldShape.radius + (newShape.radius - oldShape.radius) * timer;

@@ -6,9 +6,6 @@
             j,
             label1,
             label2,
-            isIntersecting,
-            pos1,
-            pos2,
             padding;
 
         for (i = 0; i < len; i++) {
@@ -25,25 +22,14 @@
 
         for (i = 0; i < len; i++) {
             label1 = labels[i];
-
             for (j = i + 1; j < len; ++j) {
                 label2 = labels[j];
                 if (label1 && label2 && label1.placed && label2.placed && label1.newOpacity !== 0 && label2.newOpacity !== 0) {
-                    pos1 = {x: label1.translateX, y: label1.translateY};
-                    pos2 = {x: label2.translateX, y: label2.translateY};
                     padding = 0;
-                    isIntersecting = Intersection.aabb(
-                        pos1.x,
-                        pos1.y,
-                        label1.width - padding,
-                        label1.height - padding,
-                        pos2.x,
-                        pos2.y,
-                        label2.width - padding,
-                        label2.height - padding
-                    );
-
-                    if (isIntersecting) {
+                    if (Intersection.aabb(
+                        label1.translateX, label1.translateY, label1.width - padding, label1.height - padding,
+                        label2.translateX, label2.translateY, label2.width - padding, label2.height - padding
+                    )) {
                         (label1.labelrank < label2.labelrank ? label1 : label2).newOpacity = 0;
                     }
                 }

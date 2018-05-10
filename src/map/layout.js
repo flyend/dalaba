@@ -80,7 +80,7 @@
                         var centerX = 0,
                             centerY = 0;
                         //Path.size([chartWidth, chartHeight]).scale(scale).translate(translate).projection(projection).parse(geoJson, function (groups, feature) {
-                        var projected = new Dalaba.geo.Projection({
+                        var projected = new Projection({
                             //scale: 450,
                             //center: [137, 38]
                         });

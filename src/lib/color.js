@@ -1,40 +1,40 @@
-(function(){
+(function () {
 	var toString = Object.prototype.toString;
 
-	var defined = function(a) {
+	var defined = function (a) {
         return typeof a !== "undefined" && a !== null;
     };
-    var isObject = function(a){
+    var isObject = function (a) {
         return toString.call(a) === "[object Object]";
     };
-    var isArray = function(a){
+    var isArray = function (a) {
         return toString.call(a) === "[object Array]";
     };
-    var isNumber = function(a){
+    var isNumber = function (a) {
         return toString.call(a) === "[object Number]";
     };
 
-	var extend = function(a, b){
+	var extend = function (a, b) {
         var n;
-        if(!isObject(a) && !(toString.call(a) === "[object Function]")){
+        if (!isObject(a) && !(toString.call(a) === "[object Function]")) {
             a = {};
         }
-        for(n in b){
+        for (n in b){
             var src = a[n],
                 copy = b[n];
-            if(src === copy)
+            if (src === copy)
                 continue;
-            if(copy && isObject(copy)){
+            if (copy && isObject(copy)) {
                 a[n] = extend(src, copy);
             }
-            else if(copy !== undefined){
+            else if (copy !== undefined) {
                 a[n] = copy;
             }
         }
         return a;
     };
 
-    var clamp = function(v, min, max){
+    var clamp = function (v, min, max) {
         return v < min ? min : v > max ? max : v;
     };
 
@@ -42,12 +42,12 @@
         rRGBA = /(rgba?)\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d\.]+))?\)/,
         rHSL = /(hsl?)\((\d+),\s*(\d+)%,\s*(\d+)%\)/;
 
-    var parse = function(color){
+    var parse = function (color) {
         var rgba = rHEX.exec(color), value, table;
         if((table = Color2.LOOKUP_TABLE).hasOwnProperty(color)){
             value = defined(table.a) ? table : extend({a: 1}, table[color]);
         }
-        if(rgba){
+        if (rgba) {
             value = rgba[5] ? rgba[1] : [rgba[2], rgba[2], rgba[3], rgba[3], rgba[4], rgba[4]].join("");//#000 to #0000000
             value = parseInt(value, 16);
             value = {
@@ -58,7 +58,7 @@
             };
         }
         rgba = rRGBA.exec(color);
-        if(rgba){
+        if (rgba) {
             value = {
                 r: rgba[2] | 0,
                 g: rgba[3] | 0,
@@ -68,7 +68,7 @@
             isNumber(value.a) || (value.a = 1);
         }
         rgba = rHSL.exec(color);
-        if(rgba){
+        if (rgba) {
             var hue2rgb = function(p, q, t){
                 //linear interpolate a + (b - a) * t
                 t < 0 && t++;
@@ -103,7 +103,7 @@
                 a: 1
             };
         }
-        if(!value){
+        if (!value) {
             value = {r: 0, g: 0, b: 0, a: 1};
         }
         return value;
@@ -137,38 +137,38 @@
         cyan: {r: 0, g: 255, b: 255, a: 1},
         transparent: {r: 255, g: 255, b: 255, a: 0}
     };
-    Color2.red = function(value){
+    Color2.red = function (value) {
         return ((value & Color2.RED_MASK) >>> 16);
     };
-    Color2.green = function(value){
+    Color2.green = function (value) {
         return ((value & Color2.GREEN_MASK) >>> 8);
     };
-    Color2.blue = function(value){
+    Color2.blue = function (value) {
         return (value & Color2.BLUE_MASK);
     };
-    Color2.alpha = function(value){
+    Color2.alpha = function (value) {
         return ((value & Color2.ALPHA_MASK) >>> 24);
     };
     extend(Color2, {
-        isColor: function(color){
+        isColor: function (color) {
             return Color2.LOOKUP_TABLE.hasOwnProperty(color)
                 || rHEX.exec(color)
                 || rRGBA.exec(color);
         },
-        rgb: function(rgb){
-            return "rgba(" + rgb.r + "," + rgb.g + "," + rgb.b + ")";
+        rgb: function (rgb) {
+            return "rgb(" + rgb.r + "," + rgb.g + "," + rgb.b + ")";
         },
-        rgba: function(rgba){
+        rgba: function (rgba) {
             return "rgba(" + rgba.r + "," + rgba.g + "," + rgba.b + "," + rgba.a + ")";
         },
-        hex: function(rgba){
+        hex: function (rgba) {
             var f;
             return "#" + 
-                (f = function(c){
+                (f = function (c) {
                     return (c = Math.max(0, Math.min(c, 0xff)).toString(16), c.length < 2 ? "0" + c : c);
                 }, f(rgba.r)) + f(rgba.g) + f(rgba.b);
         },
-        toString: function(c){
+        toString: function (c) {
             return "rgba("
                 + ((c & Color2.RED_MASK) >>> 16) + ","
                 + ((c & Color2.GREEN_MASK) >>> 8) + ","
@@ -176,11 +176,11 @@
                 + ((c & Color2.ALPHA_MASK) >>> 24) / 255 +
             ")";
         },
-        interpolate: function(a, b){
+        interpolate: function (a, b) {
             var ar, ag, ab, br, bg, bb;
             a = parse(a), b = parse(b);
             br = b.r - (ar = a.r), bg = b.g - (ag = a.g), bb = b.b - (ab = a.b);
-            return function(t){
+            return function (t) {
                 return Color2.hex({
                     r: Math.round(ar + br * t),//at + b
                     g: Math.round(ag + bg * t),
@@ -188,28 +188,28 @@
                 });
             };
         },
-        lerp: (function(){
-            var uninterpolateNumber = function(a, b){
+        lerp: (function () {
+            var uninterpolateNumber = function (a, b) {
                 b = b - (a = +a) ? 1 / (b - a) : 0;
                 return function(x){
                     return (x - a) * b;
                 };
             };
             //uninterpolateNumber
-            return function(domain, range, interpolateRGB){
+            return function (domain, range, interpolateRGB) {
                 var numberFns = [],
                     colorFns = [];
                 var length = Math.min(domain.length, range.length) - 1,
                     i = 1;
-                if(domain[length] < domain[0]){
+                if (domain[length] < domain[0]) {
                     domain = domain.slice().reverse();
                     range = range.slice().reverse();
                 }
-                for(; i <= length; i++){
+                for (; i <= length; i++) {
                     numberFns.push(uninterpolateNumber(domain[i - 1], domain[i]));//prev & current
                     colorFns.push(interpolateRGB(range[i - 1], range[i]));
                 }
-                return function(x){
+                return function (x) {
                     var l = 1, r = length, m;
                     while(l < r){
                         m = l + r >> 1;
@@ -227,32 +227,32 @@
 
     var Color = extend({}, Color2);
 
-    Color.parse = function(color){
+    Color.parse = function (color) {
         return new Color.prototype.init(color);// {r: 0, g: 0, b: 0, a: 1};//default black
     };
     Color.prototype = {
-        init: function(color){
+        init: function (color) {
             var rgba;
             this.a = +!(this.r = this.g = this.b = 0);
-            if(Color2.isColor(color)){
+            if (Color2.isColor(color)) {
                 rgba = parse(color);
                 this.r = rgba.r;
                 this.g = rgba.g;
                 this.b = rgba.b;
                 this.a = rgba.a;
             }
-            else if(isObject(color) && (color.hasOwnProperty("radialGradient") || color.hasOwnProperty("linearGradient"))){
+            else if (isObject(color) && (color.hasOwnProperty("radialGradient") || color.hasOwnProperty("linearGradient"))) { 
                 Color.Gradient.parse.call(this, color);
             }
             return this;
         },
-        add: function(c1, c2){
+        add: function (c1, c2) {
             //return c1 + c2 & 0xff;
             //return Math.min(0xff, c1 + c2);
             //return (c2 < 128) ? (2 * c1 * c2 / 255) : (255 - 2 * (255 - c1) * (255 - c2) / 255);
             return (c1 < 128) ? (2 * c1 * c2 / 255) : (255 - 2 * (255 - c1) * (255 - c2) / 255);
         },
-        linear: function(x1, y1, x2, y2){
+        linear: function (x1, y1, x2, y2) {
             var context = Color.GRADIENT_CONTEXT;
             if(defined(context)){
                 var gradient = context.createLinearGradient(
@@ -266,7 +266,7 @@
             }
             return null;
         },
-        radial: function(cx, cy, cr){
+        radial: function (cx, cy, cr) {
             var context = Color.GRADIENT_CONTEXT;
             if(defined(context)){
                 cx = isNumber(cx) ? cx : 0;
@@ -296,29 +296,29 @@
     extend(Color.prototype, Color2);
 
     extend(Color.prototype, {
-        rgba: function(){
+        rgba: function () {
             return Color2.rgba(this);
         },
-        rgb: function(){
+        rgb: function () {
             return Color2.rgb(this);
         },
-        alpha: function(a){
+        alpha: function (a) {
             if(!arguments.length){
                 return this.a;
             }
             this.a = Math.max(0, Math.min(1, a));
             return this;
         },
-        hex: function(){
+        hex: function () {
             return Color2.hex(this);
         },
-        hsl: function(){
+        hsl: function () {
 
         },
-        interpolate: function(b){
+        interpolate: function (b) {
             return Color2.interpolate(this, b);
         },
-        value: function(){
+        value: function () {
             return this.a << 24 | this.r << 16 | this.g << 8 | this.b;
         }
     });
@@ -326,22 +326,22 @@
     //Color.RadialGradient.parse(fillColor.radialGradient).context(context);
     Color.GRADIENT_CONTEXT = null;
     Color.Gradient = {
-        parse: function(color){
+        parse: function (color) {
             var radialGradient, cx0, cy0, cr0;
             var linearGradient, x1, y1, x2, y2;
             var stops = [];
-            if(defined(radialGradient = color.radialGradient)){
+            if (defined(radialGradient = color.radialGradient)) {
                 this.cx0 = cx0 = clamp(isNumber(cx0 = (radialGradient = radialGradient || {}).cx) ? cx0 : 1, 0, 1);
                 this.cy0 = cy0 = clamp(isNumber(cy0 = radialGradient.cy) ? cy0 : 1, 0, 1);
                 this.cr0 = cr0 = clamp(isNumber(cr0 = radialGradient.r) ? cr0 : 0, 0, 1);
             }
-            if(defined(linearGradient = color.linearGradient)){
+            if (defined(linearGradient = color.linearGradient)) {
                 this.x1 = x1 = clamp(isNumber(x1 = (linearGradient = linearGradient || {}).x1) ? x1 : 0, 0, 1);
                 this.y1 = y1 = clamp(isNumber(y1 = linearGradient.y1) ? y1 : 0, 0, 1);
                 this.x2 = x2 = clamp(isNumber(x2 = linearGradient.x2) ? x2 : 0, 0, 1);
                 this.y2 = y2 = clamp(isNumber(y2 = linearGradient.y2) ? y2 : 0, 0, 1);
             }
-            if(isArray(color.stops)){
+            if (isArray(color.stops)) {
                 color.stops.forEach(function(item){
                     var r = isNumber(item[0]) ? item[0] : 1,
                         c = Color2.isColor(item[1]) ? item[1] : "#000";
@@ -353,11 +353,11 @@
         }
     };
 
-    if(typeof module === "object" && module.exports){
+    if (typeof module === "object" && module.exports) {
         module.exports = Color;
     }
-    else if(typeof define === "function" && define.amd){
-        define([], function(){
+    else if (typeof define === "function" && define.amd){
+        define([], function () {
             return Color;
         });
     }

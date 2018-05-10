@@ -330,22 +330,22 @@
                     for (i = 0; i < n; i++) {
                         series = item[i];
                         isSelected = isSelected || series.selected !== false;
-                        if(series.selected !== false){
+                        if (series.selected !== false) {
                             isHigh = !!~(indexOf(["arearange", "candlestick"], series.type));
 
                             data = series.shapes[j] || {};
                             source = series.data[~~(startIndex + j)];
                             value = data.value;
 
-                            if(isArray(source)){
+                            if (isArray(source)) {
                                 isNumber(source[0]) && (x = source[0], isX = isX || !isX);
                                 isNumber(source[1]) && (lowValue = value = y = source[1], isY = isY || !isY);
                                 isNumber(source[2]) && (highValue = source[2]);
-                                if(isHigh){
+                                if (isHigh) {
                                     isY = false;//arearange use value
                                 }
                             }
-                            else if(isObject(source)){
+                            else if (isObject(source)) {
                                 isNumber(source.x) && (x = source.x, isX = isX || !isX);
                                 isNumber(source.y) && (value = y = source.y, isY = isY || !isY);
                                 isNumber(source.value) && (value = source.value);
@@ -359,38 +359,38 @@
                             isNegativeY = isNegativeY || y < 0;
                             isPositiveY = isPositiveY || y >= 0;
                             isNULL = isNULL || isNumber(value) || (isNumber(lowValue) && isNumber(highValue));
-                            if(isHigh){
+                            if (isHigh) {
                                 positive += highValue;
                                 negative += lowValue;
                                 isPositive = isNegative = true;
                             }
                             else{
                                 if (isNumber(value)) {
-                                    if(value < 0){
+                                    if (value < 0) {
                                         negative += value;
                                         positiveValue = mathMax(positiveValue, value);
                                     }
-                                    else{
+                                    else {
                                         positive += value;
                                         negativeValue = mathMin(negativeValue, value);
                                     }
                                 }
                                 if (isNumber(x)) {
-                                    if(x < 0){
+                                    if (x < 0) {
                                         negativeXSum += x;
                                         positiveX = mathMax(positiveX, x);
                                     }
-                                    else{
+                                    else {
                                         positiveXSum += x;
                                         negativeX = mathMin(negativeX, x);
                                     }
                                 }
                                 if (isNumber(y)) {
-                                    if(y < 0){
+                                    if (y < 0) {
                                         negativeYSum += y;
                                         positiveY = mathMax(positiveY, y);
                                     }
-                                    else{
+                                    else {
                                         positiveYSum += y;
                                         negativeY = mathMin(negativeY, y);
                                     }

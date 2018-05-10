@@ -1048,7 +1048,7 @@
             var ticks = [];
             var i;
 
-            if (isNumber(tickAmount, true) && (tickAmount = Math.max(1, ~~tickAmount))) for (i = 1; i <= tickAmount; i++) {
+            if (isNumber(tickAmount, true) && (tickAmount = Math.max(1, ~~tickAmount))) for (i = 0; i < tickAmount; i++) {
                 ticks.push(start + i);
             }
             else for (i = start; i <= end; i += 1) {
@@ -1358,7 +1358,7 @@
                             tick.y = (length - i - 1) * size;
                         }
                         else if (type === "categories"){
-                            size =  maxRange / (length - !hasCategories);
+                            size = maxRange / (length - !hasCategories);
                             tick.y = (length - i - !hasCategories) * size;
                         }
                         else {

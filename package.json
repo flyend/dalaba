@@ -41,7 +41,9 @@
     "gulp-jsbeautifier": "2.1.0"
   },
   "dependencies": {
+    "canny-edge-detector": "^1.0.0",
     "canvas": "^1.6.10",
+    "image-js": "^0.21.0",
     "proj4": "^2.4.4"
   }
 }

@@ -97,7 +97,7 @@
 
             context.save();
             context.beginPath();
-            points.forEach(function(point, i){
+            points.forEach(function (point, i) {
                 context[i && !point.isNext ? "lineTo" : "moveTo"](point.x - borderWidth / 2, point.y - borderWidth / 2);
             });
             context.closePath();
@@ -116,7 +116,15 @@
                 isNumber(series.borderShadowOffsetX) && (context.shadowOffsetX = series.borderShadowOffsetX);
                 isNumber(series.borderShadowOffsetY) && (context.shadowOffsetY = series.borderShadowOffsetY);
             }
-            ((context.lineWidth = borderWidth) > 0 && (context.strokeStyle = borderColor, 1) || defined(series.borderShadowColor)) && (context.stroke());
+            if (borderWidth > 0) {
+                context.lineWidth = borderWidth;
+                context.strokeStyle = borderColor;
+            }
+            else {
+                context.strokeStyle = fillColor;
+            }
+            //((context.lineWidth = borderWidth) > 0 && (context.strokeStyle = borderColor, 1) || defined(series.borderShadowColor)) && (context.stroke());
+            context.stroke();
             context.restore();
         },
         getShape: function (x, y) {
@@ -124,6 +132,7 @@
                 shapes,
                 shape;
             var ret = [];
+            var enableMouseTracking = true;
 
             function reset (shapes) {
                 shapes.forEach(function (item) {
@@ -133,7 +142,8 @@
 
             for (var i = 0, n = this.series.length; i < n; i++) {
                 reset(shapes = (series = this.series[i]).shapes);
-                for (var j = 0; series.tooltip.enabled !== false && j < shapes.length; j++) {
+                enableMouseTracking = !(series.tooltip.enabled === false || series.enableMouseTracking === false);
+                for (var j = 0; enableMouseTracking && j < shapes.length; j++) {
                     shape = shapes[j];
                     if (Intersection.polygon({
                         x: x,

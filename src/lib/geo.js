@@ -127,14 +127,14 @@
             function transform (center, scale, translate) {
                 var cx = pack("number", center && center[0]) % 360 * PI / 180,
                     cy = pack("number", center && center[1]) % 360 * PI / 180;
-                var x = translate[0],
-                    y = translate[1];
+                var x = pack("number", translate && translate[0], 480),
+                    y = pack("number", translate && translate[1], 250);
                 var point = Projection.mercator(cx, cy);
                 return [x - point[0] * scale, y + point[1] * scale];
             }
             Parse.parse = function (params) {
                 this._translate = [480, 250];
-                this._scale = 0;
+                this._scale = null;//auto
                 this._center = null;//auto center [0, 0];
 
                 defined(params.scale) && (this.scale(params.scale));
@@ -232,21 +232,25 @@
                         this.centerX = this.celler[0];
                         this.centerY = this.celler[1];
                     }
-                    new Dalaba.geo.Projection({
-                        center: center,
-                        scale: 1,
-                        translate: [0, 0]
-                    }).feature(geoJson, null, function (p, point) {
-                        var x = point[0],
-                            y = point[1];
-                        if (x < bounds[0][0]) bounds[0][0] = x;
-                        if (x > bounds[1][0]) bounds[1][0] = x;
-                        if (y < bounds[0][1]) bounds[0][1] = y;
-                        if (y > bounds[1][1]) bounds[1][1] = y;
-                    });
+                    if (!isNumber(this._scale)) {
+                        new Dalaba.geo.Projection({
+                            center: center,
+                            scale: 1,
+                            translate: [0, 0]
+                        }).feature(geoJson, null, function (p, point) {
+                            var x = point[0],
+                                y = point[1];
+                            if (x < bounds[0][0]) bounds[0][0] = x;
+                            if (x > bounds[1][0]) bounds[1][0] = x;
+                            if (y < bounds[0][1]) bounds[0][1] = y;
+                            if (y > bounds[1][1]) bounds[1][1] = y;
+                        });
 
-                    this._center = center;
-                    this._scale = rescale(bounds, width, height);
+                        this._center = center;
+                        this.scale(this._scale = rescale(bounds, width, height));
+                        this.centerX = this.celler[0];
+                        this.centerY = this.celler[1];
+                    }
                 },
                 projection: function (point) {
                     var centerX = this.centerX,

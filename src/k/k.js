@@ -1,7 +1,7 @@
-(function(global, Chart){
+(function (global, Chart) {
     var Layout = require("./layout").deps(Dalaba);
 
-    var isInside = function(x, y, series){
+    var isInside = function (x, y, series) {
         return !(
             x < pack("number", series.plotX, 0) ||
             x > series.plotWidth + pack("number", series.plotX, 0) ||
@@ -9,8 +9,8 @@
             y > series.plotHeight + pack("number", series.plotY, 0)
         );
     };
-    var xClip = function(t, context, canvas, x, y){
-        if(0 !== t){
+    var xClip = function (t, context, canvas, x, y) {
+        if (0 !== t) {
             context.save();
             t > 0 && context.drawImage(
                 canvas,
@@ -36,7 +36,7 @@
                 type = this.type,
                 chart = this;
             this.options = extend({}, options);
-            this.series = arrayFilter(pack("array", options.series, []), function(series){
+            this.series = arrayFilter(pack("array", options.series, []), function (series) {
                 var filter = series.type === type;
                 return filter && (
                     series._diffValues = List.diff(series.shapes, series._shapes || [], function(a, b){
@@ -93,7 +93,7 @@
                 linePixel;
 
             x2 = x + w / 2;
-            if(isNumber(shape.current) && shape.current > -1){
+            if (isNumber(shape.current) && shape.current > -1) {
                 lineWidth = Math.max(1, Math.min(lineWidth, 1) * 2);
             }
             delete shape.current;
@@ -103,13 +103,13 @@
             x1 = linePixel[2], y1 = linePixel[3];
             x2 = fixPixelHalf(x2, lineWidth || 1)[0];
 
-            var addStroke = function(lineWidth, color){
+            var addStroke = function (lineWidth, color) {
                 (context.lineWidth = lineWidth) > 0 && (
                     context.strokeStyle = Color.isColor(color) ? color : isUP ? color[0] : color[1],
                     context.stroke()
                 );
             };
-            if(series.selected !== false && !lineWidth && y === y1){
+            if (series.selected !== false && !lineWidth && y === y1) {
                 y1 += 1;
             }
 
