@@ -36,7 +36,7 @@
         var cols = 0,
             rows = 0;
 
-        new Dalaba.Layout.Grid(shapes, {
+        new Layout.Grid(shapes, {
             width: pwidth,
             height: pheight,
             size: TRouBLe(series.symbol === "circle" ?  series.radius || 60 : [series.width || 25, series.height || 20]),
@@ -47,7 +47,7 @@
     }
 
     function radialTreeLayout(px, py, pwidth, pheight, shapes) {
-        new Dalaba.Layout.RadialTree(shapes, {
+        new Layout.RadialTree(shapes, {
             width: pwidth,
             height: pheight,
             margin: TRouBLe(py, 0, 0, px)

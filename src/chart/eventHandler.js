@@ -108,8 +108,8 @@
                 if (item && linked === true  && panels.length) {// if exists link to panel
                     curIndex = item.shape.index;
                     panels.forEach(function (pane) {
-                        var shapes = pane.series[0].shapes;
-                        if (isNumber(curIndex, true) && defined(shapes = shapes[curIndex])) {
+                        var shapes = pane.series;
+                        if (shapes.length && (shapes = shapes[0].shapes) && isNumber(curIndex, true) && defined(shapes = shapes[curIndex])) {
                             pane.tooltip.move(shapes.x, shapes.y, true);
                         }
                     });
@@ -156,7 +156,7 @@
             if (pos) {
                 chart.rangeSlider.forEach(function (slider) {
                     if(slider !== null){
-                        cursor = slider.getCursor(pos.x, pos.y, e);
+                        cursor = slider.getCursor(pos.x, pos.y);
                         canvas.style.cursor = cursor !== null ? cursor : "default";
                     }
                 });
@@ -175,14 +175,6 @@
 
                 tooltipMoved(chart, layoutLinked, pos, tooltipOptions.show);
                 getAllCursor(chart, pos);
-                //moving = tooltip.itemLength !== 0;
-                
-                if (tooltipOptions.show === true) {
-                    //!moving && tooltipEnd(chart, e);
-                }
-                else {
-                    //tooltipEnd(chart, e);
-                }
             },
             hide: function (e, chart) {
                 moving = false;
@@ -201,16 +193,16 @@
         var plotOptions, click;
 
         if (isClicking && chart.globalAnimation.isReady === true) {
-            chart.charts.forEach(function(item){
+            chart.charts.forEach(function (item) {
                 var shapes = [];
-                (item.series || []).forEach(function(series){
+                (item.series || []).forEach(function (series) {
                     shapes = [];
                     plotOptions = (options.plotOptions || {})[series.type] || {};
                     click = (click = (click = series.events || {}).click || (plotOptions.events || {}).click);
                     if (isFunction(click)) {
                         shapes = (item.getShape && item.getShape(x, y)) || [];
                         plotOptions = (options.plotOptions || {})[item.type] || {};
-                        shapes.forEach(function(item){
+                        shapes.forEach(function (item) {
                             var shape = item.shape;
                             click = (click = (item.series.events || {}).click || (plotOptions.events || {}).click);
                             click && click.call({
@@ -227,7 +219,7 @@
                     }
                 });
                 shapes = (item.getShape && item.getShape(x, y)) || [];
-                if(shapes.length && item.setSliced){
+                if (shapes.length && item.setSliced) {
                     item.setSliced(shapes);
                     chart.render("click");
                 }
@@ -236,7 +228,7 @@
         }
     };
 
-    var onStart = function(e, chart){
+    var onStart = function (e, chart) {
         draggable = Event.draggable();
         var panel = chart.panel;
         var sx, sy;
@@ -245,7 +237,7 @@
         dragging = true;
         isClicking = true;
         
-        chart.rangeSlider.forEach(function(slider, i){
+        chart.rangeSlider.forEach(function (slider, i) {
             var pane = panel[Math.min(panel.length - 1, slider.panelIndex | 0)];
             var rangeSelector = chart.rangeSelector[i];
             rangeSelector.maxWidth = pane.plotWidth * (1 + (1 - (rangeSelector.to - rangeSelector.from) / 100));
@@ -261,7 +253,7 @@
         document.addEventListener("mousemove", chart.globalEvent.drag, false);
     };
 
-    var onDrag = function(e, chart){
+    var onDrag = function (e, chart) {
         var container = this;
         var dx, dy, dir;
 
@@ -274,13 +266,13 @@
         isClicking = 0.1 * 0.1 - dx * dx - dy * dy > 0.001;
         
         chart.globalEvent.isDragging = true;
-        chart.series.forEach(function(series) {
-            if(series.type === "sankey" || series.type === "node") {
+        chart.series.forEach(function (series) {
+            if (series.type === "sankey" || series.type === "node") {
                 chart.globalEvent.isDragging = false;
             }
         });
         
-        chart.rangeSlider.forEach(function(slider, i) {
+        chart.rangeSlider.forEach(function (slider, i) {
             var rangeSelector = chart.rangeSelector[i],
                 p = Event.normalize(e, container);
             //drag plot
@@ -308,34 +300,34 @@
                 chart.globalEvent.isDragging = chart.globalEvent.isDragging || !chart.globalEvent.isDragging;
                 fetchData(chart, start, end);
             }
-            slider && slider.onDrag(p.x, p.y, function(sv, ev, start, end){
+            slider && slider.onDrag(p.x, p.y, function (sv, ev, start, end) {
                 chart.globalEvent.isDragging = chart.globalEvent.isDragging || !chart.globalEvent.isDragging;
                 rangeSelector.from = parseFloat(start, 10);
                 rangeSelector.to = parseFloat(end, 10);
                 fetchData(chart, start, end);
             });
         });
-        chart.charts.forEach(function(item){
-            if(isFunction(item.onDrag)){
+        chart.charts.forEach(function (item) {
+            if (isFunction(item.onDrag)) {
                 //chart.globalEvent.isDragging = false;
                 item.onDrag(dx, dy, e);
             }
         });
-        if(!chart.globalEvent.isDragging){
+        if (!chart.globalEvent.isDragging) {
             chart.render("drag");//not dragging
         }
     };
 
-    var onDrop = function(e, chart){
-        chart.rangeSlider.forEach(function(slider, i){
+    var onDrop = function (e, chart) {
+        chart.rangeSlider.forEach(function (slider, i) {
             var rangeSelector = chart.rangeSelector[i];
             rangeSelector._start = rangeSelector.from;
             rangeSelector._end = rangeSelector.to;
-            slider && slider.onDrop(0, 0, function(){
+            slider && slider.onDrop(0, 0, function () {
                 //var start = this.start, end = this.end;
             });
         });
-        chart.charts.forEach(function(item){
+        chart.charts.forEach(function (item) {
             isFunction(item.onDrop) && item.onDrop();
         });
         chart.globalEvent.isDragging = false;
@@ -343,18 +335,18 @@
         document.removeEventListener("mousemove", chart.globalEvent.drag, false);
     };
 
-    var onZoom = function(chart){
-        var getZoom = function(e){
+    var onZoom = function (chart) {
+        var getZoom = function (e) {
             var deltaX, deltaY, delta;
             var vector;
             var scale = {};
-            if(hasTouch){
+            if (hasTouch) {
                 vector = e.originEvent.vector;
                 scale.disabled = false;
                 scale.length = vector.length;
                 scale.scale = vector.scale;
             }
-            else{
+            else {
                 deltaX = -e.wheelDeltaX;
                 deltaY = pack("number", -e.detail, e.wheelDelta, e.wheelDeltaY, 0);
                 delta = deltaY === 0 ? deltaX : deltaY;

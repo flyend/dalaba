@@ -177,17 +177,17 @@
      * Grid Layout
      */
 
-    var Grid = function() {
+    var Grid = function () {
         this.options = {};
         this.init.apply(this, arguments);
     }, grid = function(Grid) {
         var grid;
 
-        var gridInterpolate = function(a, b, t) {
+        var gridInterpolate = function (a, b, t) {
             return a + (b - a) * t;
         };
 
-        var gridItem = function(d, x, y, width, height) {
+        var gridItem = function (d, x, y, width, height) {
             d.x = x;
             d.y = y;
             d.width = width;
@@ -195,7 +195,7 @@
         };
 
         grid = Grid.prototype = {
-            init: function(data, options) {
+            init: function (data, options) {
                 var args = arguments,
                     n = args.length;
                 var width = 1,
@@ -223,8 +223,8 @@
                 if (isArray(size = settings.size)) {
                     size.length && size.length < 2 && (size = [size[0], size[0]]);
                     this.options.size = settings.size = [
-                        pack("number", Math.max(1, size[0], 1)),
-                        pack("number", Math.max(1, size[1], 1))
+                        pack("number", Math.max(1, size[0]), 1),
+                        pack("number", Math.max(1, size[1]), 1)
                     ];
                 }
 
@@ -242,7 +242,7 @@
 
                 isArray(settings.nodes) && settings.nodes.length && this.setLayout();
             },
-            setLayout: function() {
+            setLayout: function () {
                 var options = this.options,
                     width = options.width,
                     height = options.height,
@@ -250,21 +250,21 @@
                 var nodes = options.nodes,
                     row = options.row,
                     col = options.col;
-                var margin = options.margin;
+                var margin = TRouBLe(options.margin);
 
                 var nodePaddingLeft, nodePaddingTop;
 
-                var groups = partition(nodes, function(a, b) {
+                var groups = partition(nodes, function (a, b) {
                     return pack("number", a.group) === pack("number", b.group);
                 });
                 row = Math.max(groups.length, row);
-                col = Math.max.apply(Math, groups.map(function(group) { return group.length; }));
+                col = Math.max.apply(Math, groups.map(function (group) { return group.length; }));
                 nodePaddingLeft = width / col;
                 nodePaddingTop = height / row;
 
-                groups.forEach(function(group, i) {
+                groups.forEach(function (group, i) {
                     var sumWidth = 0;
-                    group.forEach(function(d, j) {
+                    group.forEach(function (d, j) {
                         var w = pack("number", d.width, size[0]),
                             h = pack("number", d.height, size[1]);
                         gridItem(d,
@@ -273,7 +273,7 @@
                             w, h
                         );
                     });
-                    group.forEach(function(d) {
+                    group.forEach(function (d) {
                         gridItem(d, d.x + (width - sumWidth - d.width) / 2, d.y + (nodePaddingTop - margin[0]) / 2, d.width, d.height);
                     });
                 });

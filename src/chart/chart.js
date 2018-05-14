@@ -7,10 +7,44 @@ require("./define");
 
 (function (global, Dalaba) {
     var Series = Dalaba.Chart.Series;
+
     var hasOwnProperty = ({}).hasOwnProperty;
 
     //default chart options
     var defaultOptions = require("./chart.options");
+
+    var setChartLayout = require("./chart.layout");
+
+    var Comparative = function (newData, oldData) {
+        var remove = function (newData, oldData, removed) {
+            var data = oldData.splice(Math.abs(oldData.length - newData.length));
+            data.forEach(function (pane, i) {
+                removed && removed(d, newData[i], i);
+            });
+        };
+        var modify = function (newData, oldData, modified) {
+            oldData.forEach(function (d, i) {
+                modified && modified(d, newData[i], i);
+            });
+        };
+        var add = function (newData, oldData, added) {
+            for (var i = Math.max(0, ~-oldData.length); i < newData.length; i++) {
+                added && added(newData[i], oldData[i], i);
+            }
+        };
+        var updated = function (added, removed, modified) {
+            newData.length ^ oldData.length
+                ? newData.length < oldData.length
+                    ? (remove(newData, oldData, removed), modify(oldData, newData, modified))
+                    : (modify(newData, oldData, modified), add(newData, oldData, added))
+                : modify(newData, oldData, modified);
+        };
+        return {
+            update: function (added, removed, modified) {
+                updated(added, removed, modified);
+            }
+        };
+    };
 
     /*
      * OffScreen Canvas
@@ -703,27 +737,22 @@ require("./define");
                 spacing = TRouBLe(chartOptions.spacing || []);
             var legendHeight = this.legend ? this.legend.viewport.height : 0;
             var chart = this;
-            var getAxis = function(rangeSelectorOptions){
+            var getAxis = function (rangeSelectorOptions) {
                 var mapAxis = chart.mapAxis;
                 var rsp = rangeSelectorOptions,
                     axisIndex, axis;
                 var minValue = Number.MAX_VALUE, maxValue = -minValue;
                 var startValue, endValue;
-                var data = [];
+                var rangeSeries = [];
                 var p;
 
-                if(!rangeSelectorOptions.hasOwnProperty("xAxis")){
+                if (!rangeSelectorOptions.hasOwnProperty("xAxis")) {
                     rsp = extend({xAxis: 0}, rangeSelectorOptions);//default axis
                 }
-                for(p in rsp) if(mapAxis.hasOwnProperty(p) && isNumber(axisIndex = rsp[p])){
-                    data = [];
-                    (mapAxis[p][axisIndex] || []).forEach(function(series){
-                        series.selected !== false && (
-                            data = series.data,
-                            series.type === "candlestick" && (data = data.map(function(d){ return d.close; }))
-                        );
-                    });
-                    if(defined(axis = chart[p][axisIndex])){
+
+                for (p in rsp) if (mapAxis.hasOwnProperty(p) && isNumber(axisIndex = rsp[p])) {
+                    rangeSeries = (mapAxis[p][axisIndex] || []);
+                    if (defined(axis = chart[p][axisIndex])) {
                         minValue = Math.min(minValue, axis.minValue);
                         maxValue = Math.max(maxValue, axis.maxValue);
                         startValue = "" + axis.startValue;
@@ -731,19 +760,19 @@ require("./define");
                     }
                 }
                 return {
-                    data: data,
+                    series: rangeSeries,
                     minValue: minValue,
                     maxValue: maxValue,
                     startValue: startValue,
                     endValue: endValue
                 };
             };
-            this.rangeSlider.forEach(function(slider){
-                if(slider !== null){
+            this.rangeSlider.forEach(function (slider) {
+                if (slider !== null) {
                     var rangeSelectorOptions = slider.options,
                         axisOptions = getAxis(slider.options);
                     slider.setOptions({
-                        data: axisOptions.data,
+                        series: axisOptions.series,
                         y: pack("number",
                             rangeSelectorOptions.y,
                             Numeric.percentage(slider.height, rangeSelectorOptions.y),
@@ -755,14 +784,14 @@ require("./define");
         },
         linkLegend: function () {
             var options = this.options;
-            if(this.legend !== null/* && this.globalAnimation.initialize*/){
+            if (this.legend !== null/* && this.globalAnimation.initialize*/) {
                 var legendHeight = 0,
                     legendX = 0,
                     legendY = 0;
                 var seriesData = [],
                     seriesColors = options.colors || [];
-                if(options.legend.enabled !== false){
-                    this.series.forEach(function(series, i){
+                if (options.legend.enabled !== false) {
+                    this.series.forEach(function (series, i) {
                         var data = series.data;
                         if((series.type === "pie" || series.type === "funnel") && series.showInLegend === true){
                             data.forEach(function(item, j){
@@ -775,12 +804,12 @@ require("./define");
                                 }
                             });
                         }
-                        else{
+                        else {
                             series.showInLegend !== false && seriesData.push(series);
                         }
                     });
 
-                    if(seriesData.length){
+                    if (seriesData.length) {
                         this.legend.setData(seriesData);
                         legendHeight = this.legend.maxHeight;
                     }
@@ -797,80 +826,18 @@ require("./define");
         setLayout: function () {
             var options = this.options,
                 layout = options.layout,
-                grid = layout.grid || {},
-                margin = TRouBLe(grid.margin);
+                grid = layout.grid || {};
+                
             var viewport = this.getViewport().getView(),
                 width = viewport.width,
                 height = viewport.height;
-
-            var dx = viewport.left,
-                dy = viewport.top;
-            var row = pack("number", grid.row, 1),
-                col = pack("number", grid.col, 1),
-                n = row * col;
-            var ml, mt;
-            var panel = [];
+            var margin = TRouBLe(grid.margin).map(function (d, i) {
+                return [viewport.top, 0, 0, viewport.left][i];
+            });
             var chart = this;
-
-            if (defined(layout.panel) && isArray(layout.panel)) {
-                n = layout.panel.length;
-                layout.panel.forEach(function (pane) {
-                    var px = pack("number", Numeric.percentage(width, pane.x), pane.x) + dx,
-                        py = pack("number", Numeric.percentage(height, pane.y), pane.y) + dy,
-                        pw = pack("number", Numeric.percentage(width, pane.width), pane.width, width - dx),
-                        ph = pack("number", Numeric.percentage(height, pane.height), pane.height, height - dy);
-                    panel.push({
-                        x: px, y: py,
-                        width: pw, height: ph,
-                        plotX: px,
-                        plotY: py,
-                        plotWidth: pw,
-                        plotHeight: ph,
-                        viewport: { left: 0, right: 0, top: 0, bottom: 0},
-                        yAxis: [],
-                        xAxis: [],
-                        polarAxis: [],
-                        radiusAxis: [],
-                        colorAxis: [],
-                        series: [],
-                        borderWidth: pane.borderWidth,
-                        borderColor: pane.borderColor,
-                        backgroundColor: pane.backgroundColor
-                    });
-                });
-            }
-            else {
-                ml = margin[3];
-                mt = margin[0];
-
-                for (var i = 0; i < n; i++) {
-                    var ri = i % col,
-                        ci = ~~(i / col);
-                    var w = width,
-                        h = height;
-                    var px = ri * (w / col) + dx + ml,
-                        py = ci * (h / row) + dy + mt,
-                        pw = w / col - margin[1] - ml,
-                        ph = h / row - margin[2] - mt;
-                    panel.push({
-                        x: px,
-                        y: py,
-                        width: pw,
-                        height: ph,
-                        yAxis: [],
-                        xAxis: [],
-                        polarAxis: [],
-                        radiusAxis: [],
-                        colorAxis: [],
-                        series: [],
-                        plotX: px,
-                        plotY: py,
-                        plotWidth: pw,
-                        plotHeight: ph,
-                        viewport: { left: 0, right: 0, top: 0, bottom: 0}
-                    });
-                }
-            }
+            var panel = setChartLayout(layout.panel, pack("number", grid.row, 1), pack("number", grid.col, 1), width, height, margin);
+            var n = panel.length;
+            
             var index = function (i, n) {
                 return isNumber(i) && (Math.min(i, n));
             };
@@ -911,40 +878,20 @@ require("./define");
             split(this.colorAxis);
 
             var tooltipOptions = this.options.tooltip;
-            var Tooltip = Dalaba.Chart.Tooltip,
-                tooltip = null;
-
-            var remove = function (newData, oldData) {
-                var data = oldData.splice(Math.abs(oldData.length - newData.length));
-                data.forEach(function (pane) {
-                    if (pane.tooltip) {
-                        pane.tooltip.destroy(true);
-                    }
-                });
-            };
-            var modify = function (newData, oldData) {
-                oldData.forEach(function (pane, i) {
-                    if (defined(chart.series[i])) {
-                        newData[i].tooltip = pane.tooltip;
-                    }
-                });
-            };
-            var add = function (newData, oldData) {
-                for (var i = Math.max(0, ~-oldData.length); i < newData.length; i++) {
-                    //if (defined(chart.series[i])) {
-                    newData[i].tooltip = new Tooltip(chart.addLayer(tooltipOptions.layer), tooltipOptions);
-                }
-            };
-            var updated = function (newData, oldData) {
-                newData.length ^ oldData.length
-                    ? newData.length < oldData.length
-                        ? (remove(newData, oldData), modify(oldData, newData))
-                        : (modify(newData, oldData), add(newData, oldData))
-                    : modify(newData, oldData);
-            };
+            var Tooltip = Dalaba.Chart.Tooltip;
 
             if (defined(Tooltip) && tooltipOptions.enabled !== false) {
-                updated(panel, this.panel);
+                Comparative(panel, this.panel).update(function (d, oldData) {
+                    d.tooltip = new Tooltip(chart.addLayer(tooltipOptions.layer), tooltipOptions);
+                }, function (d) {
+                    if (d.tooltip) {
+                        d.tooltip.destroy(true);
+                    }
+                }, function (d, newData, i) {
+                    if (defined(chart.series[i])) {
+                        newData.tooltip = d.tooltip;
+                    }
+                });
                 this.tooltip = panel[0].tooltip;
             }
             return this.panel = panel;
@@ -1963,57 +1910,60 @@ require("./define");
         },
         translateAxis: function () {
             var panel = this.panel;
-            var viewportLeft = 0,
-                viewportRight = 0,
-                viewportTop = 0,
-                viewportBottom = 0;
-            this.yAxis.forEach(function (axis) {
-                var axisOptions = axis.options;
-                var pane = panel[Math.min(axisOptions.panelIndex | 0, panel.length - 1)],
-                    viewport = pane.viewport;
-                var left = viewport.left,
-                    right = viewport.right,
-                    top = viewport.top;
-                
-                if (axisOptions.enabled === true) {
-                    axis.scale(0, pane.height);
-                    if (axisOptions.opposite === true) {
-                        right += axis.labelWidth;
+            panel.forEach(function (item) {
+                var viewportLeft = 0,
+                    viewportRight = 0,
+                    viewportTop = 0,
+                    viewportBottom = 0;
+                item.yAxis.forEach(function (axis) {
+                    var axisOptions = axis.options;
+                    var pane = panel[Math.min(axisOptions.panelIndex | 0, panel.length - 1)],
+                        viewport = pane.viewport;
+                    var left = viewport.left,
+                        right = viewport.right,
+                        top = viewport.top;
+                    
+                    if (axisOptions.enabled === true) {
+                        axis.scale(0, pane.height);
+                        if (axisOptions.opposite === true) {
+                            right += axis.labelWidth;
+                        }
+                        else {
+                            left += axis.textBoxSize;
+                        }
+                        if (!pane.yAxisTitleFirst && (pane.yAxisTitleFirst = true)) {
+                            if (!axis.titleRotation)
+                                top += pack("number", axis.titleHeight, 0);
+                        }
                     }
-                    else {
-                        left += axis.textBoxSize;
+                    viewportLeft += left;
+                    viewportRight += right;
+                    pane.viewportLeft = viewportLeft, pane.viewportRight = viewportRight, pane.viewportTop = top;
+                });
+                item.xAxis.forEach(function (axis) {
+                    var axisOptions = axis.options;
+                    var pane = panel[Math.min(axisOptions.panelIndex | 0, panel.length - 1)],
+                        viewport = pane.viewport;
+                    var top = viewport.top,
+                        bottom = viewport.bottom;
+                    if (axisOptions.enabled === true) {
+                        axis.scale(0, pane.width);
+                        if (axisOptions.opposite === true) {
+                            top += axis.labelHeight;
+                        }
+                        else {
+                            bottom += axis.labelHeight;
+                        }
+                        if (!pane.xAxisTitleFirst && (pane.xAxisTitleFirst = true)) {
+                            bottom += pack("number", axis.titleHeight, 0);
+                        }
                     }
-                    if (!pane.yAxisTitleFirst && (pane.yAxisTitleFirst = true)) {
-                        if (!axis.titleRotation)
-                            top += pack("number", axis.titleHeight, 0);
-                    }
-                }
-                viewportLeft += left;
-                viewportRight += right;
-                pane.viewportLeft = viewportLeft, pane.viewportRight = viewportRight, pane.viewportTop = top;
+                    viewportTop += top;
+                    viewportBottom += bottom;
+                    pane.viewportTop = viewportTop, pane.viewportBottom = viewportBottom;
+                });
             });
-            this.xAxis.forEach(function (axis) {
-                var axisOptions = axis.options;
-                var pane = panel[Math.min(axisOptions.panelIndex | 0, panel.length - 1)],
-                    viewport = pane.viewport;
-                var top = viewport.top,
-                    bottom = viewport.bottom;
-                if (axisOptions.enabled === true) {
-                    axis.scale(0, pane.width);
-                    if (axisOptions.opposite === true) {
-                        top += axis.labelHeight;
-                    }
-                    else {
-                        bottom += axis.labelHeight;
-                    }
-                    if (!pane.xAxisTitleFirst && (pane.xAxisTitleFirst = true)) {
-                        bottom += pack("number", axis.titleHeight, 0);
-                    }
-                }
-                viewportTop += top;
-                viewportBottom += bottom;
-                pane.viewportTop = viewportTop, pane.viewportBottom = viewportBottom;
-            });
+            
             panel.forEach(function (item) {
                 var xLeftWidth = 0,
                     xRightWidth = 0,
@@ -2261,14 +2211,14 @@ require("./define");
                         (shape = shapes[pack("number", item.dataIndex, -1)] || {}).state = !0;
                     }
                     else{
-                        series.forEach(function(series){
+                        series.forEach(function (series) {
                             delete series.state;
                         });
                         shape.state = !0;
                     }
                     chart.render("hover");
                     delete shape.state;
-                }).onScroll(chart.container, function(){
+                }).onScroll(chart.container, function () {
                     chart.render("click");
                 });
                 this.legend = legend;
@@ -2283,11 +2233,9 @@ require("./define");
                         yAxisIndex = rangeSelectorOptions.yAxis,
                         polarAxisIndex = rangeSelectorOptions.polarAxis;
                     if(chart.xAxis[xAxisIndex] || chart.yAxis[yAxisIndex] || chart.polarAxis[polarAxisIndex]){
-                        var width = pack("number",
-                                rangeSelectorOptions.width,
-                                Numeric.percentage(chart.width, rangeSelectorOptions.width),
-                                chart.width - spacing[1] - spacing[3]
-                            ),
+                        var width = rangeSelectorOptions.width ||
+                                Numeric.percentage(chart.width, rangeSelectorOptions.width) ||
+                                chart.width - spacing[1] - spacing[3],
                             height = pack("number",
                                 rangeSelectorOptions.height,
                                 Numeric.percentage(chart.height, rangeSelectorOptions.height),
@@ -2298,7 +2246,7 @@ require("./define");
                             height: height,
                             x: pack("number", rangeSelectorOptions.x, Numeric.percentage(width, rangeSelectorOptions.x), spacing[3])
                         });
-                        if(defined(RangeSelector) && rangeSelectorOptions.enabled === true){
+                        if (defined(RangeSelector) && rangeSelectorOptions.enabled === true) {
                             rangeSlider = new RangeSelector(chart.canvas, rangeSelectorOptions);
                             rangeSlider._options = item || {};
                         }

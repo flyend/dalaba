@@ -79,6 +79,13 @@
             var points = shape.points;
             var shapeArgs = shape.shapeArgs;
             var gradient;
+            var render = function () {
+                context.beginPath();
+                points.forEach(function (point, i) {
+                    context[i && !point.isNext ? "lineTo" : "moveTo"](point.x - borderWidth / 2, point.y - borderWidth / 2);
+                });
+                context.closePath();
+            };
 
             if (fillColor.linearGradient || fillColor.radialGradient) {
                 var s0 = (shapeArgs.maxX - shapeArgs.x) / 2,
@@ -96,11 +103,7 @@
             }
 
             context.save();
-            context.beginPath();
-            points.forEach(function (point, i) {
-                context[i && !point.isNext ? "lineTo" : "moveTo"](point.x - borderWidth / 2, point.y - borderWidth / 2);
-            });
-            context.closePath();
+            render();
             context.fillStyle = fillColor;
             if (defined(series.shadowColor)) {
                 context.shadowColor = series.shadowColor;
@@ -108,8 +111,11 @@
                 isNumber(series.shadowOffsetX) && (context.shadowOffsetX = series.shadowOffsetX);
                 isNumber(series.shadowOffsetY) && (context.shadowOffsetY = series.shadowOffsetY);
             }
+            //if (borderWidth <= 0) context.lineWidth = 0, context.strokeStyle = fillColor, context.stroke();
             context.fill();
+            context.restore();
 
+            context.save();
             if (defined(series.borderShadowColor)) {
                 context.shadowColor = series.borderShadowColor;
                 isNumber(series.borderShadowBlur) && (context.shadowBlur = series.borderShadowBlur);
@@ -119,12 +125,12 @@
             if (borderWidth > 0) {
                 context.lineWidth = borderWidth;
                 context.strokeStyle = borderColor;
+                render();
+                context.stroke();
             }
             else {
-                context.strokeStyle = fillColor;
+                //context.strokeStyle = fillColor;
             }
-            //((context.lineWidth = borderWidth) > 0 && (context.strokeStyle = borderColor, 1) || defined(series.borderShadowColor)) && (context.stroke());
-            context.stroke();
             context.restore();
         },
         getShape: function (x, y) {

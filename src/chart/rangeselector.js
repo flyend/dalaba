@@ -1,13 +1,11 @@
-(function(global, Dalaba){
+(function (global, Dalaba) {
     var Chart = Dalaba.Chart || {};
 
     var interpolate = Numeric.interpolate;
 
     var mathRound = Mathematics.round;
 
-    var fixLinePixel = Chart.fixLinePixel;
-
-    var Event = Chart.Event;
+    var hasOwnProperty = Object.prototype.hasOwnProperty;
 
     var defaultOptions = {
         style: {
@@ -46,7 +44,7 @@
             shadowOffsetY: 0
         }]
     };
-    var setShadow = function(context, options){
+    var setShadow = function (context, options) {
         defined(options.shadowColor) && (context.shadowColor = options.shadowColor);
         isNumber(options.shadowBlur) && (context.shadowBlur = options.shadowBlur);
         isNumber(options.shadowOffsetX) && (context.shadowOffsetX = options.shadowOffsetX);
@@ -54,7 +52,7 @@
     };
 
     var Symbol = {
-        rect: function(x, y, size, height, options){
+        rect: function (x, y, size, height, options) {
             var color = options.borderColor,
                 w = size,
                 h = 15;
@@ -99,11 +97,11 @@
         }
     };
 
-    function RangeSelector(){
+    function RangeSelector () {
         this.init.apply(this, arguments);
     }
     RangeSelector.prototype = {
-        init: function(canvas, options){
+        init: function (canvas, options) {
             this.options = extend({}, defaultOptions);
             extend(this.options, options);
 
@@ -117,7 +115,7 @@
             
             this.start = pack("number", Math.max(0, Math.min(100, parseFloat(options.start, 10)), 0), 0);
             this.end = pack("number", Math.max(0, Math.min(100, parseFloat(options.end, 10))), 100);
-            if(this.start > this.end){
+            if (this.start > this.end) {
                 var t = this.start;
                 this.start = this.end;
                 this.end = t;
@@ -138,12 +136,12 @@
 
             //this.setValue();
         },
-        setWidth: function(width){
+        setWidth: function (width) {
             this.width = pack("number", width, 0);
             this.from = Numeric.percentage(this.width, this.start) + this.x;
             this.to = Numeric.percentage(this.width, this.end) + this.x;
         },
-        setValue: function(){
+        setValue: function () {
             var width = this.width,
                 x =  this.x;
             var minValue = this.minValue,
@@ -162,17 +160,16 @@
             this.startValue = startValue;
             this.endValue = endValue;
         },
-        startToEnd: function(start, end){
+        startToEnd: function (start, end) {
             this.start = start;
             this.end = end;
             this.setWidth(this.width);
             this.draw();
         },
-        setOptions: function(options){
-            var hasOwnProperty = Object.prototype.hasOwnProperty;
+        setOptions: function (options) {
             extend(this.options, options);
 
-            switch(true){
+            switch (true) {
                 case hasOwnProperty.call(options, "min"):
                 case hasOwnProperty.call(options, "max"):
                 case hasOwnProperty.call(options, "width"):
@@ -188,12 +185,12 @@
                     
                 break;
             }
-            if(hasOwnProperty.call(options, "start") && hasOwnProperty.call(options, "end")){
+            if (hasOwnProperty.call(options, "start") && hasOwnProperty.call(options, "end")) {
                 this.startToEnd(options.start, options.end);
             }
             return this;
         },
-        drawPlot: function(){
+        drawPlot: function () {
             var options = this.options,
                 borderWidth = pack("number", options.borderWidth, 1),
                 borderColor = options.borderColor;
@@ -213,19 +210,19 @@
             context.lineTo(linePixel.x, linePixel.y + linePixel.height);
             context.closePath();
                 
-            if(borderWidth > 0){
+            if (borderWidth > 0) {
                 context.strokeStyle = borderColor;
                 context.lineWidth = borderWidth;
                 context.stroke();
             }
-            if(defined(options.backgroundColor)){
+            if (defined(options.backgroundColor)) {
                 context.fill();
             }
             context.fillRect(linePixel.x, linePixel.y, 0, height);
             context.clip();
             context.restore();
         },
-        drawNavigator: function(){
+        drawNavigator: function () {
             var options = this.options,
                 borderWidth = pack("number", options.borderWidth, 1),
                 handles = (isArray(handles = options.handles) ? handles : [handles]),
@@ -256,79 +253,94 @@
             context.restore();
             this.range = [z0, z1];
         },
-        drawSeries: function(){
-            var options = this.options,
-                data = pack("array", options.data, []),
-                length = data.length,
-                i = 0,
-                j;
-
-            var width = this.width,
-                height = this.height,// - pack("number", options.borderWidth, 1),
-                tx = this.x,
-                ty = this.y,
-                x, y;
-            var minValue,
-                maxValue;
-            var startX, startY, isNull = false;
-            var size = width / ~-length,
-                value;
+        drawSeries: function() {
+            var options = this.options;
             var context = this.context;
-
-            var getDataValue = function(item){
+            var tx,
+                ty = this.y,
+                width,
+                height = this.height;
+            var getDataValue = function (item) {
                 var value = item;
-                if(isObject(item) && (isNumber(item.value) || isNumber(item.y))){
+                if (isObject(item) && (isNumber(item.value) || isNumber(item.y))) {
                     value = item.value;
                     isNumber(item.y) && (value = item.y);
                 }
-                else if(isArray(item)){
+                else if (isArray(item)) {
                     value = item[1];
                 }
                 return isNumber(value) ? value : null;
             };
+            var plotX = -Number.MAX_VALUE,
+                plotWidth = plotX;
 
-            while(value = getDataValue(data[i]), !isNumber(value) && ++i < length);
-            while(value = getDataValue(data[length - 1]), !isNumber(value) && --length >= 0);
-            //console.log(i, length);
-            minValue = maxValue = value = getDataValue(data[j = i]);
-            for(j = i + 1; j < length; j++){
-                value = getDataValue(data[j]);
-                isNumber(value) && (minValue > value && (minValue = value), maxValue < value && (maxValue = value));
+            if (hasOwnProperty.call(options, "series")) {
+                options.series.forEach(function (series) {
+                    plotX = Math.max(plotX, series.plotX);
+                    plotWidth = Math.max(plotWidth, series.plotWidth);
+                });
+                this.x = plotX;
+                this.setWidth(plotWidth);
             }
-            if(maxValue - minValue === 0)
-                return;
-            context.save();            
-            context.beginPath();
-            context.moveTo(
-                startX = tx + i * size,
-                startY = ty + interpolate(getDataValue(data[i]), minValue, maxValue, height, 0)
-            );
-            for(; i < length; i++){
-                value = getDataValue(data[i]);
-                x = i * size + tx;
-                if(!isNumber(value)){
-                    isNull = isNull || !isNull;
-                    j = i + 1;
-                    do{
-                        value = getDataValue(data[j]);
-                    }while(!isNumber(value) && j++ < length);
-                    context.moveTo(j * size + tx, ty + interpolate(value, minValue, maxValue, height, 0));
+            tx = this.x;
+            width = this.width / (options.series.length || 1);
+            options.series.forEach(function (series, index) {
+                var x, y;
+                var data = series.shapes;
+                var length = data.length,
+                    i = 0, j;
+                var dx = index * width;
+                var minValue,
+                    maxValue;
+                var startX, startY, isNull = false;
+                var size = width / ~-length,
+                    value;
+
+                while(value = getDataValue(data[i]), !isNumber(value) && ++i < length);
+                while(value = getDataValue(data[length - 1]), !isNumber(value) && --length >= 0);
+                //console.log(i, length);
+                minValue = maxValue = value = getDataValue(data[j = i]);
+                for(j = i + 1; j < length; j++){
+                    value = getDataValue(data[j]);
+                    isNumber(value) && (minValue > value && (minValue = value), maxValue < value && (maxValue = value));
                 }
-                y = ty + interpolate(value, minValue, maxValue, height, 0);
-                context.lineTo(x, y);
-            }
-            context.lineWidth = 1;
-            context.strokeStyle = "#afb8bc";
-            context.stroke();
-            isNull || (
-                context.lineTo(x, ty + height),
-                context.lineTo(startX, ty + height),
-                context.lineTo(startX, startY),
-                context.fillStyle = "#e2e4e5",
-                context.fill()
-            );
+                if(maxValue - minValue === 0)
+                    return;
+                context.save();            
+                context.beginPath();
+                context.moveTo(
+                    startX = tx + dx + i * size,
+                    startY = ty + interpolate(getDataValue(data[i]), minValue, maxValue, height, 0)
+                );
+                for(; i < length; i++){
+                    value = getDataValue(data[i]);
+                    x = i * size + dx + tx;
+                    if (!isNumber(value)) {
+                        isNull = isNull || !isNull;
+                        j = i + 1;
+                        do {
+                            value = getDataValue(data[j]);
+                        } while (!isNumber(value) && j++ < length);
+                        context.moveTo(j * size + dx + tx, ty + interpolate(value, minValue, maxValue, height, 0));
+                    }
+                    y = ty + interpolate(value, minValue, maxValue, height, 0);
+                    context.lineTo(x, y);
+                }
+                context.lineWidth = 1;
+                context.strokeStyle = "#afb8bc";
+                context.stroke();
+                isNull || (
+                    context.lineTo(x, ty + height),
+                    context.lineTo(startX, ty + height),
+                    context.lineTo(startX, startY),
+                    context.fillStyle = "#e2e4e5",
+                    context.fill()
+                );
 
-            context.restore();
+                context.restore();
+            });
+
+            
         },
         getTarget: function(x, y){
             var range = this.range,
@@ -503,7 +515,7 @@
 
             target > -1 && target < 3 && callback && callback.call(this, this.startValue, this.endValue, start + "%", end + "%");
         },
-        onDrop: function(x, y, callback){
+        onDrop: function (x, y, callback) {
             this.target >-1 && this.target < 3 && callback && callback.call(this);
             this.dragging = false;
             this.target = -1;
@@ -512,18 +524,18 @@
         }
     };
 
-    if(defined(Chart)){
+    if (defined(Chart)) {
         Chart.RangeSelector = RangeSelector;
     }
 
-    if(typeof module === "object" && module.exports){
+    if (typeof module === "object" && module.exports) {
         module.exports = RangeSelector;
     }
-    else if(typeof define === "function" && define.amd)
-        define(function(){
+    else if (typeof define === "function" && define.amd)
+        define(function() {
             return RangeSelector;
         });
-    else{
+    else {
         (typeof Chart !== "undefined" ? Chart : global).RangeSelector = RangeSelector;
     }
 })(typeof window !== "undefined" ? window : typeof global !== "undefined" ? global : this, Dalaba);
