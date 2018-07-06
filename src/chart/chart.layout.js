@@ -15,6 +15,7 @@
                 py = ci * (height / row) + top,
                 pw = width / col - right - left,
                 ph = height / row - bottom - top;
+
             panel.push({
                 x: px,
                 y: py,
@@ -24,7 +25,7 @@
         }
         return panel;
     }
-    return function (panel, row, col, width, height, margin) {
+    return function (panel, row, col, width, height, margin, viewport) {
         var grid = [];
         if (defined(panel) && isArray(panel)) {
             panel.forEach(function (pane) {
@@ -48,6 +49,8 @@
         }
 
         grid.forEach(function (pane) {
+            pane.x += viewport.left;
+            pane.y += viewport.top;
             pane.plotX = pane.x;
             pane.plotY = pane.y;
             pane.plotWidth = pane.width;

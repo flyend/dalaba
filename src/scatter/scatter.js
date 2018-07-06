@@ -14,19 +14,27 @@
     Scatter.prototype = {
         constructor: Scatter,
         init: function (options) {
-            var type = this.type;
-            this.options = extend({}, options);
+            var panels = [],
+                panel = options.panel;
+            var n = panel.length, i = -1, j, nn;
 
-            this.series = arrayFilter(options.series, function (series) {
-                var filter = series.type === type;
-                if(filter){
-                    series._diffValues = List.diff(series.shapes, series._shapes || [],  function(a, b){
-                        return a && b && a.value === b.value;
-                    });
+            var newSeries = [],
+                series;
+            this.series = [];
+
+            while (++i < n) {
+                newSeries = [];
+                for (j = 0, nn = panel[i].series.length; j < nn; j++) if ((series = panel[i].series[j]).type === this.type) {
+                    newSeries.push(series);
+                    this.series = this.series.concat(series);
                 }
-                return filter;
-            });
-            relayout(type, this.options);
+                panels.push({
+                    series: newSeries
+                });
+            }
+            this.options = options;//update
+            this.panels = panels;
+            relayout(panels, false, options.series);
             this.reflow();
         },
         reflow: function () {
@@ -49,76 +57,45 @@
                     if (isNumber(shape.current) && shape.current > -1) {
                         chart.drawShape(context, shape, series);
                     }
-                    DataLabels.render(context, shape, series);
+                    DataLabels.render(context, shape.dataLabel, series);
                 });
             });
         },
         redraw: function () {
-            relayout(this.type, this.options);
+            relayout(this.panels, true, this.options.series);
             this.reflow();
             this.draw();
-        },
-        getShape: function (x, y) {
-            var series,
-                shape,
-                sl = this.series.length,
-                dl,
-                i,
-                j;
-            var results = [],
-                shapes;
-
-            var isInside = function (series) {
-                return !(
-                    x < pack("number", series.plotX, 0) ||
-                    x > series.plotWidth + pack("number", series.plotX, 0) ||
-                    y < pack("number", series.plotY, 0) ||
-                    y > series.plotHeight + pack("number", series.plotY, 0)
-                );
-            };
-            var resetShape = function (shapes) {
-                for(var j = 0, l = shapes.length; j < l;  j++){
-                    delete shapes[j].current;
-                }
-            };
-
-            for (i = 0; i < sl; i++) {
-                shapes = (series = this.series[i]).shapes;
-                resetShape(shapes);
-                if (!isInside(series)) {
-                    return results;
-                }
-                for (j = 0, dl = shapes.length; series.enableMouseTracking !== false && j < dl; j++) {
-                    shape = shapes[j];
-                    if (series.selected === false) {
-                        continue;
-                    }
-                    if (Intersection.line(
-                        {x: x, y: y},
-                        {x: shape.cx, y: shape.cy, width: shape.radius}
-                    )) {
-                        shape.current = j;
-                        results.push({shape: shape, series: series});
-                        break;
-                    }
-                }
-            }
-            return results;
         },
         drawShape: function (context, shape, series) {
             var borderWidth = pack("number", series.borderWidth, 0),
                 borderColor = series.borderColor,
                 fillColor = shape.color || series.color,
-                radius = shape.radius,
                 opacity = Numeric.clamp(pack("number", shape.opacity, series.opacity, 1), 0, 1),
                 shadowBlur = pack("number", shape.shadowBlur, series.shadowBlur, 0),
                 shadowOffsetX = pack("number", shape.shadowOffsetX, series.shadowOffsetX, 0),
                 shadowOffsetY = pack("number", shape.shadowOffsetY, series.shadowOffsetY, 0),
-                shadowColor = shape.shadowColor || series.shadowColor;
-            var cx = shape.cx, cy = shape.cy;
-            var color = fillColor;
+                shadowColor = shape.shadowColor || series.shadowColor,
+                marker = shape.marker || series.marker || {},
+                states = (series.states || {}).hover;
+            var radius = shape.radius,
+                cx = shape.x,
+                cy = shape.y,
+                width, height;
+            var symbol = "circle";
 
-            if(defined(fillColor.radialGradient)){
+            var color = fillColor;
+            //cy += radius
+            width = radius;
+            height = radius;
+
+            if (defined(marker) && marker.symbol) {
+                symbol = marker.symbol;
+            }
+            if (shape.isNULL) {
+                return this;
+            }
+
+            if (defined(fillColor.radialGradient)) {
                 color = Color.parse(fillColor);
                 fillColor = color.radial(cx, cy, radius);
                 color = color.color;
@@ -128,19 +105,22 @@
             }
             
             if (isNumber(shape.current) && shape.current > -1) {
-                var cr = radius + 3;
                 context.save();
-                context.fillStyle = Color.parse(color).alpha(0.25).rgba();
-                context.beginPath();
-                context.arc(cx, cy, cr, 0, PI * 2, true);
+                context.fillStyle = (states || {}).color || Color.parse(color).alpha(0.25).rgba();
+                width += mathMin(2, width * 0.1);
+                height += mathMin(2, height * 0.1);
+                Geometry.Symbol[symbol]
+                ? Geometry.Symbol[symbol](cx, cy, width, height)(context)
+                : (context.beginPath(), context.arc(cx, cy, width, 0, PI2, true));
                 context.fill();
                 context.restore();
             }
             
             context.save();
             context.fillStyle = fillColor;
-            context.beginPath();
-            radius > 0 && context.arc(cx, cy, radius, 0, PI2, true);
+            Geometry.Symbol[symbol]
+                ? Geometry.Symbol[symbol](cx, cy, width, height)(context)
+                : (context.beginPath(), context.arc(cx, cy, width, 0, PI2, true));
             borderWidth > 0 && (context.lineWidth = borderWidth, context.strokeStyle = borderColor, context.stroke());
             if (shadowBlur > 0) {
                 context.shadowColor = shadowColor;
@@ -154,7 +134,7 @@
         dataLabels: function (context, shape, series) {
             var radius = shape.radius;
             shape.dataLabel = DataLabels.align(function (type, bbox) {
-                var x = shape.cx;
+                var x = shape.x;
                 var t = pack("string", type, "center");
                 return {
                     left: x - bbox.width,
@@ -162,100 +142,108 @@
                     right: x
                 }[t];
             }).vertical(function (type, bbox) {
-                var y = shape.cy;
-                var t = pack("string", type, "top");
+                var y = shape.y;
+                var t = pack("string", "top", type, "top");
                 return {
-                    top: y - radius,
-                    middle: y + radius,
-                    bottom: y + bbox.height * 2 + radius
+                    top: y,
+                    middle: y - bbox.height / 2,// start center
+                    bottom: y + radius
                 }[t];
             }).call(shape, series, context);
         },
-        animateTo: function (context, initialize) {
+        animateTo: function (initialize) {
             var shapes = [];
-            this.series.forEach(function (series){
+            this.series.forEach(function (series) {
                 var newData = series.shapes,
                     oldData = series._shapes || [];
-                var animators = [];
-                if(initialize === true){
-                    newData.forEach(function (shape) {
-                        var mergeShape = {
-                            cx: shape.cx,
-                            cy: shape.cy,
-                            color: shape.color,
-                            shape: shape
-                        };
-                        shapes.push([shape, function (timer) {
-                            mergeShape.radius = shape.radius * timer;
-                        }]);
-                        animators.push(mergeShape);
-                    });
-                }
-                else {
-                    series._diffValues.remove(function (newIndex) {
-                        var newShape = newData[newIndex],
-                            mergeShape;
+                var previous = [];
 
-                        mergeShape = {
-                            cx: newShape.cx,
-                            cy: newShape.cy,
-                            value: newShape.radius,
-                            shape: newShape,
-                            dataLabel: newShape.dataLabel
-                        };
-                        shapes.push([newShape, function (timer) {
-                            mergeShape.radius = newShape.radius * timer;
-                        }]);
-                        animators.push(mergeShape);
-                    }).add(function(newIndex){
-                        var oldShape = oldData[newIndex],
-                            mergeShape;
-                        mergeShape = {
-                            cx: oldShape.cx,
-                            cy: oldShape.cy,
-                            color: oldShape.color,
-                            value: oldShape.value,
-                            shape: oldShape,
-                            dataLabel: oldShape.dataLabel
-                        };
-                        shapes.push([oldShape, function (timer) {
-                            mergeShape.radius = oldShape.radius - oldShape.radius * timer;
-                        }]);
-                        animators.push(mergeShape);
-                    }).modify(function (newIndex, oldIndex) {
-                        var newShape = newData[newIndex],
-                            oldShape = oldData[oldIndex],
-                            mergeShape;
-                        if(oldShape && newShape){
-                            mergeShape = {
-                                color: newShape.color,
-                                value: newShape.value,
-                                shape: newShape,
-                                dataLabel: newShape.dataLabel
-                            };
-                            shapes.push([newShape, function (timer) {
-                                mergeShape.cx = oldShape.cx + (newShape.cx - oldShape.cx) * timer;
-                                mergeShape.cy = oldShape.cy + (newShape.cy - oldShape.cy) * timer;
-                                mergeShape.radius = oldShape.radius + (newShape.radius - oldShape.radius) * timer;
-                            }]);
-                            animators.push(mergeShape);
-                        }
-                    }).each();
-                }
-                series._shapes = series.shapes;
-                series._animators = animators;
+                List.diff(newData, oldData, function (a, b) {
+                    return a && b && a.value === b.value;
+                }).remove(function (newIndex) {
+                    var newShape = newData[newIndex],
+                        to;
+                    newShape.animate({
+                        radius: initialize ? 0 : newShape.radius
+                    }, to = {
+                        value: newShape.value,
+                        radius: newShape.radius,
+                        x: newShape.x,
+                        y: newShape.y
+                    });
+                    
+                    previous.push(to);
+                    shapes.push(newShape);
+                }).add(function (newIndex) {
+                    var oldShape = oldData[newIndex],
+                        to;
+                    oldShape.animate({
+                        radius: oldShape.radius
+                    }, to = {
+                        value: oldShape.value,
+                        radius: 0
+                    });
+                    shapes.push(oldShape);
+                    previous.push(to);
+                }).modify(function (newIndex, oldIndex) {
+                    var newShape = newData[newIndex],
+                        oldShape = oldData[oldIndex];
+                    var from = {
+                        x: oldShape.x,
+                        y: oldShape.y,
+                        radius: oldShape.radius
+                    }, to = {
+                        value: newShape.value,
+                        x: newShape.x,
+                        y: newShape.y,
+                        radius: newShape.radius
+                    };
+                    newShape.animate(from, to);
+
+                    previous.push(to);
+                    shapes.push(newShape);
+                }).each();
+                series._shapes = previous;
             });
             return shapes;
         },
-        onFrame: function (context) {
-            var chart = this;
-            this.series.forEach(function (series ){
-                var animators = series._animators;
-                animators.forEach(function (shape) {
-                    chart.drawShape(context, shape, series);
-                    DataLabels.render(context, shape.shape, series);
-                });
-            });
+        getShape: function (x, y, shared) {
+            var series,
+                shape,
+                sl = this.series.length,
+                dl,
+                i,
+                j;
+            var results = [],
+                shapes;
+            var resetShape = function (shapes) {
+                for(var j = 0, l = shapes.length; j < l;  j++){
+                    delete shapes[j].current;
+                }
+            };
+
+            for (i = 0; i < sl; i++) {
+                shapes = (series = this.series[i]).shapes;
+                resetShape(shapes);
+                /*if (!isInside(series)) {
+                    return results;
+                }*/
+                for (j = 0, dl = shapes.length; series.enableMouseTracking !== false && j < dl; j++) {
+                    shape = shapes[j];
+                    if (series.selected === false) {
+                        continue;
+                    }
+                    if (Intersection.line(
+                        {x: x, y: y},
+                        {x: shape.x, y: shape.y, width: shape.radius}
+                    )) {
+                        shape.current = j;
+                        results.push({shape: shape, series: series});
+                        break;
+                    }
+                }
+            }
+            return results;
         }
     };
 

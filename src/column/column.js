@@ -49,9 +49,6 @@
                 for (j = 0, nn = panel[i].series.length; j < nn; j++) if ((series = panel[i].series[j]).type === this.type) {
                     newSeries.push(series);
                     this.series = this.series.concat(series);
-                    series._diffValues = List.diff(series.shapes, series._shapes || [], function(a, b){
-                        return a && b && a.value === b.value;
-                    });
                 }
                 panels.push({
                     series: newSeries
@@ -94,7 +91,7 @@
                     chart.drawState(context, series);
                 }
                 series.shapes.forEach(function (shape) {
-                    DataLabels.render(series.context || context, shape);
+                    DataLabels.render(series.context || context, shape.dataLabel);
                 });
             });
         },
@@ -107,137 +104,75 @@
             this.series.forEach(function (series) {
                 var newData = series.shapes,
                     oldData = series._shapes || [];
-                var animators = [];
-                series._diffValues.remove(function (newIndex) {
-                    var newShape = newData[newIndex],
-                        mergeShape = {
-                            /*x0: newShape.x0,
-                            y0: newShape.y0,
-                            x1: newShape.x1,
-                            y1: newShape.y1,*/
-                            color: newShape.color,
-                            _value: newShape._value,
-                            value: newShape.value,
-                            percentage: newShape.percentage,
-                            shape: newShape,
-                            dataLabel: newShape.dataLabel
-                        };
-                    shapes.push([newShape, function(timer){
-                        mergeShape.x0 = newShape.x0;
-                        mergeShape.y0 = newShape.y0;
-                        mergeShape.x1 = newShape.x1;
-                        mergeShape.y1 = newShape.y1;
-                        if(series.type === "bar"){
-                            mergeShape.x1 = newShape.x0 + (newShape.x1 - newShape.x0) * timer;
-                        }
-                        else{
-                            mergeShape.y1 = newShape.y0 + (newShape.y1 - newShape.y0) * timer;
-                        }
-                    }]);
-                    
-                    /*if(oldShape){
-                        var y0 = oldShape.y0 + (newShape.y0 - oldShape.y0) * timer;
-                        var y1 = oldShape.y1 + (newShape.y1 - oldShape.y1) * timer;
-                        //console.log(newShape, oldShape);
-                        
-                        mergeShape.y0 = y0;
-                        mergeShape.y1 = y1;
-                    }*/
-                    return mergeShape;
-                }).add(function(newIndex){
-                    var oldShape = oldData[newIndex],
-                        mergeShape = {
-                            x0: oldShape.x0,
-                            y0: oldShape.y0,
-                            x1: oldShape.x1,
-                            y1: oldShape.y1,
-                            color: oldShape.color,
-                            _value: oldShape._value,
-                            value: oldShape.value,
-                            percentage: oldShape.percentage,
-                            shape: oldShape,
-                            dataLabel: oldShape.dataLabel
-                        };
-                    shapes.push([oldShape, function(timer){
-                        mergeShape.y1 = oldShape.y1 - (oldShape.y1 - oldShape.y0) * timer;
-                        mergeShape.x1 = oldShape.x1 - (oldShape.x1 - oldShape.x0) * timer;
-                    }]);
-                    return mergeShape;
-                }).modify(function(newIndex, oldIndex){
-                    var newShape = newData[newIndex], oldShape = oldData[oldIndex],
-                        mergeShape;
-                    var x0, x1, y0, y1;
-                    if(oldShape && newShape){
-                        mergeShape = {
-                            x0: oldShape.x0,
-                            y0: oldShape.y0,
-                            x1: oldShape.x1,
-                            y1: oldShape.y1,
-                            color: newShape.color,
-                            _value: newShape._value,
-                            value: newShape.value,
-                            percentage: newShape.percentage,
-                            shape: newShape,
-                            dataLabel: newShape.dataLabel
-                        };
-                        shapes.push([newShape, function(timer){
-                            x0 = oldShape.x0 + (newShape.x0 - oldShape.x0) * timer;
-                            x1 = oldShape.x1 + (newShape.x1 - oldShape.x1) * timer;
-                            if(series.selected === false){
-                                x0 = oldShape.x0 + (newShape.x0 - oldShape.x0) * timer;
-                                x1 = oldShape.x1 + (newShape.x1 - oldShape.x1) * timer;
-                                y0 = oldShape.y0;
-                                y1 = oldShape.y1;
-                            }
-                            else{
-                                x0 = oldShape.x0 + (newShape.x0 - oldShape.x0) * timer;
-                                x1 = oldShape.x1 + (newShape.x1 - oldShape.x1) * timer;
-                                y0 = oldShape.y0 + (newShape.y0 - oldShape.y0) * timer;
-                                y1 = oldShape.y1 + (newShape.y1 - oldShape.y1) * timer;
-                            }
-                            //y0 = oldShape.y0 + (newShape.y0 - oldShape.y0) * timer;
-                            //y1 = oldShape.y1 + (newShape.y1 - oldShape.y1) * timer;
-
-                            mergeShape.x0 = x0;
-                            mergeShape.x1 = x1;
-                            mergeShape.y0 = y0;
-                            mergeShape.y1 = y1;
-                        }]);
+                var previous = [];
+                List.diff(series.shapes, series._shapes || [], function (a, b) {
+                    return a && b && a.value === b.value;
+                }).remove(function (newIndex) {
+                    var newShape = newData[newIndex];
+                    var to = { value: newShape.value, x0: newShape.x0, y0: newShape.y0, x1: newShape.x1, y1: newShape.y1 },
+                        from = {};
+                    if (series.type === "bar") {
+                        from.x1 = newShape.x0;
+                        to.x1 = newShape.x1, to.y1 = newShape.y1;
                     }
-                    return mergeShape;
-                }).each(function(mergeShape){
-                    mergeShape && animators.push(mergeShape);
-                });
-                series._animators = animators;
-                series._shapes = series.shapes;
+                    else {
+                        from.y1 = newShape.y0;
+                        to.y1 = newShape.y1;
+                    }
+                    newShape.animate(from, to);
+                    previous.push(to);
+                    shapes.push(newShape);
+                }).add(function (newIndex) {
+                    var oldShape = oldData[newIndex],
+                        to;
+                    oldShape.animate({
+                        x1: oldShape.x0,// - (oldShape.x1 - oldShape.x0),
+                        y1: oldShape.y0// - (oldShape.y1 - oldShape.y0)
+                    }, to = {
+                        value: oldShape.value,
+                        x1: oldShape.x1,
+                        y1: oldShape.y1
+                    });
+                    shapes.push(oldShape);
+                    previous.push(to);
+                }).modify(function (newIndex, oldIndex) {
+                    var newShape = newData[newIndex], oldShape = oldData[oldIndex],
+                        to = { value: newShape.value };
+                    var from = {};
+                    from = { x0: oldShape.x0, x1: oldShape.x1, y0: oldShape.y0, y1: oldShape.y1 };
+                    if (series.selected === false) {
+                        from.x0 = oldShape.x0;
+                        to.x0 = newShape.x0;
+                        from.x1 = oldShape.x1;
+                        to.x1 = newShape.x1;
+                        to.y0 = oldShape.y0;
+                        to.y1 = oldShape.y1;
+                    }
+                    else {
+                        to = { value: newShape.value, x0: newShape.x0, x1: newShape.x1, y0: newShape.y0, y1: newShape.y1 };
+                    }
+                    if (!newShape.isNULL && oldShape.value !== null) {
+                        newShape.animate(from, to);
+                    }
+                    previous.push(to);
+                    shapes.push(newShape);
+                }).each();
+                series._shapes = previous;
             });
             return shapes;
         },
-        onFrame: function (context) {
-            var chart = this;
-            this.series.forEach(function (series) {
-                var animators = series._animators;
-                animators.forEach(function (shape) {
-                    chart.drawShape(context, shape, series);
-                });
-                animators.forEach(function (shape) {
-                    DataLabels.render(context, shape);
-                });
-            });
-        },
-        drawState: function(){},
+        drawState: function () { },
         drawShape: function (context, shape, series) {
             var x0 = shape.x0,
                 y0 = shape.y0,
                 x1 = shape.x1,
                 y1 = shape.y1;
-            var width = Math.abs(x1 - x0),
-                height = Math.abs(y0 - y1);
             var borderWidth = pack("number", series.borderWidth, 0),
                 borderColor = pack("string", series.borderColor, "#FFFFFF"),
                 borderRadius = series.borderRadius;
             var rotation = pack("number", shape.rotation, 0);
             var color = shape.color;
+
             if (series.selected === false) {
                 borderWidth = borderRadius = 0;
             }

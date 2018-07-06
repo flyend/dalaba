@@ -40,7 +40,7 @@
         },
         circle: function(x, y, w, h){
             //var cpw = 0.166 * w;
-            return function(context){
+            return function (context) {
                 context.beginPath();
                 /*context.moveTo(x + w / 2, y);
                 context.bezierCurveTo(x + w + cpw, y, x + w + cpw, y + h, x + w / 2, y + h);
@@ -49,15 +49,17 @@
                 context.closePath();
             };
         },
-        hexagon: function(x, y, w, h){
+        hexagon: function (x, y, w, h) {
             var r = Math.max(w, h);
-            return function(context){
+            x -= w;
+
+            return function (context) {
                 var i = -1, n = 6, a;
                 var sin = Math.sin, cos = Math.cos;
                 r /= 2;
                 context.beginPath();
                 context.moveTo(x + cos(0) * r + r, y + sin(0) * r + r);
-                while(++i < n){
+                while (++i < n) {
                     context.lineTo(
                         x + cos(a = i / n * PI2) * r + r,
                         y + sin(a) * r + r

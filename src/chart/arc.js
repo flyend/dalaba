@@ -1,4 +1,4 @@
-(function() {
+(function () {
     var cos = Math.cos,
         sin = Math.sin,
         PI = Math.PI;
@@ -19,14 +19,14 @@
      * y = current[7];//next move
      * g.stroke();
     */
-    var arc = (function() {
+    var arc = (function () {
         var arcToSegmentsCache = {},
             segmentToBezierCache = {},
             join = Array.prototype.join,
             argsStr;
 
         // Copied from Inkscape svgtopdf, thanks!
-        function arcToSegments(x, y, rx, ry, large, sweep, rotateX, ox, oy) {
+        function arcToSegments (x, y, rx, ry, large, sweep, rotateX, ox, oy) {
             argsStr = join.call(arguments);
             //console.log(argsStr, arcToSegmentsCache)
             if (arcToSegmentsCache[argsStr]) {
@@ -68,7 +68,7 @@
             var th1 = Math.atan2(y1 - yc, x1 - xc);
 
             var th_arc = th1-th0;
-            if (th_arc < 0 && sweep == 1){
+            if (th_arc < 0 && sweep == 1) {
                 th_arc += 2*PI;
             } else if (th_arc > 0 && sweep === 0) {
                 th_arc -= 2 * PI;
@@ -85,7 +85,7 @@
             return (arcToSegmentsCache[argsStr] = result);
         }
 
-        function segmentToBezier(cx, cy, th0, th1, rx, ry, sin_th, cos_th) {
+        function segmentToBezier (cx, cy, th0, th1, rx, ry, sin_th, cos_th) {
             argsStr = join.call(arguments);
             if(segmentToBezierCache[argsStr]){
                 return segmentToBezierCache[argsStr];
@@ -119,7 +119,7 @@
         }
 
         //<path d="A100{rx}, 100{ry}, 0{rotate}, 1{large}, 0{sweep}, 100{x}, 100{y}"></path>
-        return function(g, x, y, coords){
+        return function (g, x, y, coords) {
             //x, y => g.moveTo(x, y)
             //var segs = arcToSegments(ex, ey, rx, ry, large, sweep, rot, x, y);
             //console.log(x, y, coords);
@@ -133,20 +133,20 @@
                 coords[2],//rotation
                 x,
                 y
-            ) || []).forEach(function(item){
+            ) || []).forEach(function (item) {
                 g.bezierCurveTo.apply(g, segmentToBezier.apply(null, item));
             });
         };
     })();
 
-    var angle2arc = function(cx, cy, radius, innerRadius, startAngle, endAngle, open) {
+    var angle2arc = function (cx, cy, radius, innerRadius, startAngle, endAngle, open) {
         var cosStart = cos(startAngle),
             sinStart = sin(startAngle),
             cosEnd = cos(endAngle = endAngle - 0.00000001),
             sinEnd = sin(endAngle),
             longArc = +(endAngle - startAngle > PI);
 
-        return function(context) {
+        return function (context) {
             var moveX, moveY;
             //outerRadius
             context.beginPath();

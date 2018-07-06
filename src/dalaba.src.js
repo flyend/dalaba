@@ -19,6 +19,7 @@
     require("venn/venn");
     require("heatmap/heatmap");
     require("k/k");
+    require("boxplot/boxplot");
     require("sankey/sankey");
     require("diagram/diagram");
 

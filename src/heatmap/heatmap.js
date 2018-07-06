@@ -1,21 +1,21 @@
-(function(global, Chart){
+(function (global, Chart) {
     var listFilter = List.filter,
         listFill = List.fill;
-    var relayout = require("./layout").deps(Numeric);
+    var relayout = require("./layout").deps();
 
     var Renderer = {
-        gradient: function(fillColor){
+        gradient: function (fillColor) {
             var canvas = document.createElement("canvas"),
                 context = canvas.getContext("2d");
             var color, linearGradient;
             canvas.width = 256;
             canvas.height = 1;
             //Chart.scale(context, width, height, 1);
-            if(defined(fillColor)){
-                if(Color.isColor(fillColor)){
+            if (defined(fillColor)) {
+                if (Color.isColor(fillColor)) {
                     color = fillColor;
                 }
-                else if(defined(linearGradient = fillColor.linearGradient)){
+                else if (defined(linearGradient = fillColor.linearGradient)) {
                     var x1 = (linearGradient.x1 | 0),
                         y1 = (linearGradient.y1 | 0),
                         x2 = (linearGradient.x2 | 0),
@@ -30,7 +30,7 @@
             context.fillRect(0, 0, 256, 1);
             return context.getImageData(0, 0, 256, 1).data;
         },
-        node: function(radius, blur){
+        node: function (radius, blur) {
             //var r2 = radius + radius * blur;
             var canvas = document.createElement("canvas");
             var context = canvas.getContext("2d");
@@ -129,7 +129,7 @@
         }
     };
 
-    function Heatmap(canvas, options){
+    function Heatmap (canvas, options) {
         this.type = "heatmap";
 
         this.canvas = canvas;
@@ -140,17 +140,46 @@
     }
     Heatmap.prototype = {
         constructor: Heatmap,
-        init: function(options){
+        init: function (options) {
             var type = this.type;
             this.options = extend({}, options);
-            this.series = listFilter(pack("array", options.series, []), function(series){
-                return series.selected !== false && series.type === type;
-            });
+
+            var panels = [],
+                panel = options.panel;
+            var n = panel.length, i = -1, j, nn;
+
+            var newSeries = [],
+                series;
+            this.series = [];
+
+            while (++i < n) {
+                newSeries = [];
+                for (j = 0, nn = panel[i].series.length; j < nn; j++) if ((series = panel[i].series[j]).type === this.type) {
+                    newSeries.push(series);
+                    this.series = this.series.concat(series);
+                }
+                panels.push({
+                    series: newSeries
+                });
+            }
+            this.options = options;//update
+            this.panels = panels;
             this.tables = new Array(listFill(Math.ceil(options.chart.width), []));
             
-            relayout(type, this.options);
+            relayout(panels);
+            this.reflow();
         },
-        draw: function(){
+        reflow: function () {
+            var chart = this;
+              
+            this.series.forEach(function (series) {
+                var shapes = series.shapes;
+                shapes.forEach(function (shape) {
+                    chart.drawLabels(chart.context, shape, series);
+                });
+            });
+        },
+        draw: function () {
             var context = this.context,
                 chart = this;
             var options = this.options;
@@ -159,9 +188,9 @@
                 left = options.chart.spacing[3],
                 top = options.chart.spacing[0];
 
-            this.series.forEach(function(series){
+            this.series.forEach(function (series) {
                 var shapes = series.shapes;
-                if(defined(series.coordinate) || isObject(shapes[0].source)){
+                if (defined(series.coordinate) || isObject(shapes[0].source)) {
                     var shadow = Renderer.buffer(
                         Renderer.shadow(shapes, series, width + left, height + top),
                         series
@@ -176,21 +205,22 @@
                     );
                     context.restore();
                 }
-                else{
-                    shapes.forEach(function(shape){
+                else {
+                    shapes.forEach(function (shape) {
                         chart.drawShape(context, shape, series);
                     });
-                    shapes.forEach(function(shape){
-                        chart.dataLabels(context, shape, series);
+                    shapes.forEach(function (shape) {
+                        DataLabels.render(context, shape.dataLabel, series);
                     });
                 }
             });
         },
-        redraw: function(){
-            relayout(this.type, this.options);
+        redraw: function () {
+            relayout(this.panels, true);
+            this.reflow();
             this.draw();
         },
-        drawShape: function(context, shape, series){
+        drawShape: function (context, shape, series) {
             var x0 = shape.x0,
                 y0 = shape.y0,
                 x1 = shape.x1,
@@ -237,20 +267,20 @@
             }
             context.restore();
         },
-        dataLabels: function(context, shape, series){
-            dataLabels.align(function(type, bbox){
+        drawLabels: function (context, shape, series) {
+            shape.dataLabel = DataLabels.align(function (type, bbox) {
                 var t = pack("string", type, "center");
                 var w = bbox.width,
-                    w2 = Math.abs(shape.x1 - shape.x0);
+                    w2 = mathAbs(shape.x1 - shape.x0);
                 return {
                     left: shape.x0,
                     center: shape.x0 + (w2 / 2) - w / 2,
                     right: shape.x1 - w
                 }[t];
-            }).vertical(function(type, bbox){
+            }).vertical(function (type, bbox) {
                 var t = pack("string", type, "middle");
                 var h = bbox.height,
-                    h2 = Math.abs(shape.y1 - shape.y0);
+                    h2 = mathAbs(shape.y1 - shape.y0);
                 return {
                     top: shape.y0 + h,
                     middle: shape.y0 + h + (h2 - h) / 2,

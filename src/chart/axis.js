@@ -1,14 +1,14 @@
 (function (global, Dalaba) {
+
     var Chart = Dalaba.Chart;
+
+    var Animate = Chart.Animate;
 
     var angle2arc = Chart.angle2arc;
 
     var stringPad = Formatter.String.padding;
 
     var numberFormat = Formatter.String.numberFormat;
-
-    var mathRound = Mathematics.round,
-        mathPow = Mathematics.pow;
 
     var ONE_DAY = 864E5;
     /*millisecond:"%A, %b %e, %H:%M:%S.%L",
@@ -159,7 +159,7 @@
             {x: x, y: y + h / 2 - arrow},//triangle left top(1/3)
             {x: x, y: y}//left(O)
         ];
-        if(anchor === "top"){
+        if (anchor === "top") {
             path.splice(1, path.length, 
                 {x: x + w / 2 - arrow, y: y},//triangle top left
                 {x: x + w / 2, y: y - arrow},//triangle top middle
@@ -170,7 +170,7 @@
                 {x: x, y: y}
             );
         }
-        else if(anchor === "bottom"){
+        else if (anchor === "bottom") {
             path.splice(3, path.length,
                 {x: x + w / 2 + arrow, y: y + h},
                 {x: x + w / 2, y: y + h + arrow},
@@ -179,10 +179,10 @@
                 {x: x, y: y}
             );
         }
-        return function(context){
+        return function (context) {
             context.beginPath();
             context.moveTo((path[0].x), (path[0].y));
-            path.forEach(function(p){
+            path.forEach(function (p) {
                 context.lineTo((p.x), (p.y));
             });
         };
@@ -266,6 +266,7 @@
                 gridLineWidth = pack("number", options.gridLineWidth, 0),
                 gridLineInterpolation = options.gridLineInterpolation,
                 opposite = !!options.opposite,
+                crosshair = options.crosshair,
                 style = pack("object", labels.style, {}),
                 fontStyle = {
                     fontStyle: style.fontStyle || "normal",
@@ -275,12 +276,17 @@
                     lineHeight: style.lineHeight || "normal",
                     color: style.color
                 };
-            var isCategories = defined(options.categories) && !!options.categories.length;
+            var isCategories = this.type !== "linear" && defined(options.categories) && !!options.categories.length;
+            if (fontStyle.fontFamily === "inherit") {
+                fontStyle.fontFamily = getStyle(this.canvas, "font-family") || "Arial";
+            }
 
             var context = this.context,
                 name = this.name;
             var minRange = this.minRange,
                 maxRange = this.maxRange;
+            var tx = pack("number", options.x),
+                ty = pack("number", options.y);
             var axis = this;
 
             var setAlign = function (x, maxLabelWidth, width) {
@@ -360,8 +366,8 @@
                         if (gridLineInterpolation === "polygon") {
                             axis.ticks.forEach(function (tick, i) {
                                 context[i ? "lineTo" : "moveTo"](
-                                    Math.cos(tick.angle * PI / 180) * radius + cx,
-                                    Math.sin(tick.angle * PI / 180) * radius + cy
+                                    MathCos(tick.angle * PI / 180) * radius + cx,
+                                    MathSin(tick.angle * PI / 180) * radius + cy
                                 );
                             });
                             context.closePath();
@@ -390,45 +396,167 @@
                 }
                 context.restore();
             };
+            tick.crosshair = function (tick) {
+                var x, x1, y, y1, size;
+                var width = options.width,
+                    height = options.height;
+                var color, margin;
+                if (defined(crosshair) && tick) {
+                    x = tick.x + tx, y = tick.y + ty, y1 = y - (size = tick.size), x1 = x - size;
+                    color = crosshair.color || "rgba(41, 121, 255, 0.08)";
+                    margin = mathMin(size, mathMax(0, pack("number", crosshair.margin, Numeric.percentage(size, crosshair.margin), 0)));
+                    context.save();
+                    context.beginPath();
+                    ({
+                        "xAxis": [[x - margin, ty], [x - margin, ty - height], [x1 + margin, ty - height], [x1 + margin, ty]],
+                        "yAxis": [[x, y - margin], [x + width, y - margin], [x + width, y1 + margin], [x, y1 + margin]]
+                    }[axis.name] || []).forEach(function (point, i) {
+                        context[i ? "lineTo" : "moveTo"].apply(context, point);
+                    });
+                    context.closePath();
+                    context.fillStyle = color;
+                    context.fill();
+                    //context.stroke()
+                    context.restore();
+                }
+            };
             tick.plotLines = function () {
-                var tx = pack("number", options.x),
-                    ty = pack("number", options.y);
-                var plotLines = options.plotLines;
+                var plotLines = isArray(options.plotLines) ? options.plotLines : [];
                 var values = axis.values;
                 var maxRange = axis.maxRange;
                 var linePixel;
+                var labelHTML = "";
                 var center = function (p0) {
                     return p0;//isCategories && this.ticks.length ? p0 + (this.ticks[0].size - lineWidth) / 2 : p0;
                 };
+                var setAlign = function (type, x, bbox) {
+                    var w2 = options.width,
+                        w = bbox.width;
+                    if (axis.name === "xAxis") {
+                        w2 = bbox.width;
+                        w *= 2;
+                    }
+                    return {
+                        left: x,
+                        center: x + (w2 - w) / 2,
+                        right: x + w2 - w
+                    }[type] || x;
+                };
+                var setVAlign = function (type, y, bbox) {
+                    var h2 = pack("number", options.height, bbox.height * 2),
+                        h = bbox.height;
+                    if (axis.name === "xAxis") {
+                        h2 = options.height;
+                        h = -h;
+                    }
+                    return {
+                        top: y,
+                        middle: y + (h2 - h) / 2,
+                        bottom: y + h2 - h
+                    }[type] || y;
+                };
+
+                var filterPlotlines = function (plotLines, notValues) {
+                    return arrayFilter(plotLines, function (line) {
+                        var f;
+                        return !(f = isNumber(line.value, true) || line.defaultZero === true) && notValues.push(line), f;
+                    });
+                };
+
+                var addPlotline = function (d, linePixel) {
+                    var lineWidth = pack("number", d.width, 1),
+                        label = d.label,
+                        value = d.value;
+                    var style, fontStyle;
+                    var x, y;
+                    var bbox;
+                    
+                    x = linePixel.x, y = linePixel.y;
+
+                    if (lineWidth > 0 && caller[2](linePixel)) {
+                        lineTo(context, x, y, linePixel[caller[0][0]], linePixel[caller[0][1]], {
+                            lineColor: d.color,
+                            lineWidth: lineWidth,
+                            dashStyle: d.dashStyle
+                        });
+                    }
+                    if (label && defined(label.text)) {
+                        style = label.style || {};
+                        fontStyle = {
+                            fontStyle: style.fontStyle || "normal",
+                            fontWeight: style.fontWeight || "normal",
+                            fontSize: style.fontSize || "12px",
+                            fontFamily: style.fontFamily || "Arial",
+                            lineHeight: style.lineHeight || "normal",
+                            color: style.color
+                        };
+                        if (label.useHTML === true) {
+                            if (label.dom) {
+                                label.dom.innerHTML = label.text;
+                                setStyle(label.dom, label.style || {});
+                                bbox = label.dom.getBoundingClientRect();
+                                setStyle(label.dom, {
+                                    position: "absolute",
+                                    left: setAlign(label.align, x, bbox) + pack("number", label.x) + "px",
+                                    top: setVAlign(label.verticalAlign, y - bbox.height, bbox) + pack("number", label.y) + "px"
+                                });
+                            }
+                        }
+                        else {
+                            context.font = [
+                                fontStyle.fontStyle,
+                                fontStyle.fontWeight,
+                                fontStyle.fontSize + "/" + fontStyle.lineHeight,
+                                fontStyle.fontFamily
+                            ].join(" ");
+                            bbox = Text.measureText(label.text, fontStyle);
+                            context.fillStyle = fontStyle.color;
+                            context.fillText(
+                                label.text,
+                                setAlign(label.align, x, bbox) + pack("number", label.x),
+                                setVAlign(label.verticalAlign, y, bbox) + pack("number", label.y)
+                            );
+                        }
+                    }
+                };
+
+                var notPlotlines, plotlines = filterPlotlines(plotLines, notPlotlines = []);
+
                 var caller = {
                     xAxis: [
                         ["x", "height"],// props
-                        [0, values.length + isCategories, tx, maxRange + tx],// lerp
-                        function (p) { return p.x < maxRange + tx && p.x > tx; }, // inside bound
-                        function (p0, lineWidth) { p0 = center.call(axis, p0, lineWidth); return [p0, ty - options.height, p0, ty, lineWidth]; }
+                        axis.type === "linear"
+                            ? [values[0], values[~-values.length], tx, tx + maxRange]
+                            : [0, plotLines.length, tx, maxRange + tx],// lerp
+                        function (p) { return mathFloor(p.x - 0.5) <= mathCeil(maxRange + tx) && mathCeil(p.x + 0.5) >= mathFloor(tx); }, // inside bound
+                        function (p0, lineWidth) { p0 = center.call(axis, p0, lineWidth); return [p0, ty - options.height, p0, ty, lineWidth]; },
+                        [tx, tx + maxRange]
                     ],
                     yAxis: [
                         ["width", "y"],
-                        [values[0], values[~-values.length], maxRange + ty, ty],
-                        function (p) { return p.y < maxRange + ty && p.y > ty; },
-                        function (p0, lineWidth) { return [tx, p0, tx + options.width, p0, lineWidth]; }
+                        axis.type === "linear"
+                            ? [values[0], values[~-values.length], maxRange + ty, ty]
+                            : [0, plotLines.length, maxRange + ty, ty],
+                        function (p) { return mathFloor(p.y - 0.5) <= mathCeil(maxRange + ty) && mathCeil(p.y - 0.5) >= mathFloor(ty); },
+                        function (p0, lineWidth) { return [tx, p0, tx + options.width, p0, lineWidth]; },
+                        [maxRange + ty, ty]
                     ]
                 }[axis.name];
 
                 context.save();
-                if (caller && isArray(plotLines) && plotLines.length) {
-                    plotLines.forEach(function (d) {
-                        var lineWidth = pack("number", d.width, 1),
-                            value = d.value;
-                        if (lineWidth > 0 && isNumber(value, true) && values.length > 1) {
-                            linePixel = fixLinePixel.apply(null, caller[3](interpolate.apply(null, [d.value].concat(caller[1])), lineWidth));
-                            if (caller[2](linePixel)) {
-                                lineTo(context, linePixel.x, linePixel.y, linePixel[caller[0][0]], linePixel[caller[0][1]], {
-                                    lineColor: d.color,
-                                    lineWidth: lineWidth,
-                                    dashStyle: d.dashStyle
-                                });
-                            }
+                if (caller && plotLines.length) {
+                    notPlotlines.forEach(function (d, i) {
+                        linePixel = fixLinePixel.apply(null, caller[3](interpolate.apply(null,
+                            [i, 0, ~-notPlotlines.length].concat(caller[4])
+                        ), lineWidth));
+                        addPlotline(d, linePixel);
+                    });
+                    plotlines.forEach(function (d, i) {
+                        if (values.length) {
+                            linePixel = fixLinePixel.apply(null, caller[3](interpolate.apply(null,
+                                [d.defaultZero === true ? 0 : d.value, values[0], values[~-values.length]].concat(caller[4])
+                            ), lineWidth));
+                            addPlotline(d, linePixel);
                         }
                     });
                 }
@@ -483,7 +611,6 @@
                     y = ty + item.y,
                     x = tx + item.x;
                 var linePixel;
-
                 y = Math.max(0, y);
 
                 context.save();
@@ -532,9 +659,9 @@
                     var x0 = tx,//options.x,
                         y0 = ty,//options.y,
                         x1 = tickLength,
-                        y1 = Math.abs(maxRange - minRange);//vertical
+                        y1 = mathAbs(maxRange - minRange);//vertical
                     if (isHorizontal) {
-                        x1 = Math.abs(maxRange - minRange);
+                        x1 = mathAbs(maxRange - minRange);
                         y1 = tickLength;
                     }
                     linearGradient = context.createLinearGradient.apply(context, [x0, y0].concat(isHorizontal ? [x1, y0] : [x0, y1]));
@@ -693,7 +820,7 @@
                 if (opposite === true) {
                     tickLength = -tickLength;
                 }
-                if (!defined(angle)) {
+                if (!isNumber(angle, true)) {
                     angle = (isRotation && name === "xAxis") ? autoRotation : 0;//default angle
                 }
                 isCenter = isCenter && isCategories;
@@ -712,16 +839,15 @@
                         if(opposite === true){
                             width = 0;
                         }
-                        y = Math.max(0, y);
-                        //y = y + height / 2;
-                        if(isCategories){
+                        y = mathMax(0, y);
+                        if (isCategories) {
                             y -= tick.size / 2;
                         }
                         x = x - width - tickLength;
                         x = setAlign(x, maxLabelWidth, text.width)[pack("string", labels.align, "center")];
                     }
                     else if (name === "xAxis") {
-                        x = Math.max(0, x);
+                        x = mathMax(0, x);
                         if(isCenter){
                             x = x + (tickWidth - width) / 2;
                         }
@@ -733,43 +859,71 @@
                             y = y - height / 2 + tickLength;
                         }
                     }
-                    else if (name === "polarAxis") {
-                        var delta = tick.angle * PI / 180;
-                        x = Math.cos(delta) * (radius + tickLength + 3) + cx;
-                        y = Math.sin(delta) * (radius + tickLength + 3) + cy;
-                    }
-                    
-                    if (isNumber(labels.rotation) || (isRotation && name === "xAxis")) {
+
+                    if ((name === "xAxis" || name === "yAxis") && isNumber(angle, true) || (isRotation && name === "xAxis")) {
+                        var quadr1 = function (tick, name) {
+                            return {
+                                xAxis: [
+                                    tick.x + (isCategories ? (tick.size - text.width) / 2 : -text.width / 2),
+                                    tick.y + text.height + tickLength
+                                ],
+                                yAxis: [
+                                    tick.x + (-text.width * !opposite) - tickLength,
+                                    tick.y - (isCategories ? (tick.size - text.height) / 2 : -text.height / 2)
+                                ]
+                            }[name];
+                        };
+                        var quadr2 = function (tick, name) {
+                            return {
+                                xAxis: [
+                                    (type === "categories")
+                                        ? tick.x + tick.size / 2 - (text.width / 2) * !opposite //(text.width - tick.size) / 2
+                                        : tick.x + text.width / 4,
+                                    tick.y + (text.height * !opposite) + tickLength
+                                ],
+                                yAxis: [
+                                    tick.x - tickLength,
+                                    tick.y - (tick.size - text.height) / 2
+                                ]
+                            }[name];
+                        };
+                        var quadr4 = function (tick, name) {
+                            return {
+                                xAxis: [
+                                    tick.x - text.width / 2,
+                                    tick.y + tickLength
+                                ],
+                                yAxis: [
+                                    tick.x - text.width - tickLength,
+                                    tick.y - text.height / 2
+                                ]
+                            }[name];
+                        };
+                        var quadr3 = function (tick, name) {
+                            return {
+                                xAxis: [
+                                    tick.x + text.width / 2,
+                                    tick.y + text.height
+                                ],
+                                yAxis: [
+                                    tick.x - tickLength,
+                                    tick.y - text.height / 2 - (tick.size - text.height) / 2
+                                ]
+                            }[name];
+                        };
+                        angle %= 360;
                         if (angle < 0) {
                             angle = 360 + angle;
                         }
-                        angle %= 360;
-                        if(angle > 0 && angle <= 90){
-                            x = tick.x + (tick.size - text.width) / 2;
-                            y = tick.y + tickLength;
-                        }
-                        else if(angle >= 180 && angle < 270){
-                            x = tick.x + (tick.size);
-                            y = tick.y + text.height * !opposite + tickLength;
-                        }
-                        else if(angle >= 270 && angle < 360){
-                            x = (type === "categories")
-                                ? tick.x + tick.size / 2 - (text.width / 2) * !opposite //(text.width - tick.size) / 2
-                                : tick.x - text.width / 2;
-                            y = tick.y + (text.height * !opposite) + tickLength;
-                        }
-                        else{
-                            x = tick.x + (tick.size - text.width) / 2;
-                            y = tick.y + text.height + tickLength;
+                        
+                        var quadr = [quadr1, quadr4, quadr3, quadr2][Numeric.indexOfRange([0, 90, 180, 270, 360], angle)];
+                        if (quadr && (quadr = quadr(tick, name))) {
+                            y = quadr[1];
+                            x = quadr[0];
                         }
                     }
-                    /*if(name === "colorAxis"){
-                        options.layout !== "horizontal" ?
-                            (x += tickLength, y += (i !== 0) * textHeight)
-                            : (y += tickLength + textHeight, x -= (i !== 0) * textWidth);
-                    }*/
                     var color = Color.parse(fontStyle.color);
-                    color.a = Math.max(0, Math.min(pack("number", tick.opacity, 1), 1));
+                    color.a = mathMax(0, mathMin(pack("number", tick.opacity, 1), 1));
                     context.save();
                     context.beginPath();
                     context.fillStyle = Color.rgba(color);
@@ -781,7 +935,7 @@
                         fontStyle.fontSize + "/" + fontStyle.lineHeight,
                         fontStyle.fontFamily
                     ].join(" ");
-                    if(name === "colorAxis"){
+                    if (name === "colorAxis") {
                         ((text.isLast) && (layout !== "horizontal"
                             ? (x = tick.x + (tickLength - text.width) / 2, y = minRange - 2)
                             : (x = tick.x, y = tick.y + text.height + (tickLength - text.height) / 2), !0)
@@ -795,26 +949,19 @@
                         );
                     }
                     else {
-                        var tag = Text.HTML(Text.parseHTML(text.ellipse), context, {
-                            fontFamily: style.fontFamily,
-                            fontSize: style.fontSize,
-                            fontWeight: style.fontWeight
-                        }),
+                        var tag = Text.HTML(Text.parseHTML(text.ellipse), context, fontStyle),
                         bbox = Text.measureText(text.ellipse, style);
-                        if(name === "yAxis"){
-                            y += bbox.height / 2;
-                        }
-                        else if(name === "polarAxis"){
-                            if(Math.abs(x - cx) / radius < 0.3){
+                        if (name === "polarAxis") {
+                            if (mathAbs(x - cx) / radius < 0.3) {
                                 x -= bbox.width / 2;
                             }
-                            else if(x <= cx){
+                            else if (x <= cx){
                                 x -= bbox.width;
                             }
-                            if(Math.abs(y - cy) / radius < 0.3){
+                            if (mathAbs(y - cy) / radius < 0.3) {
                                 y += bbox.height / 2;//0,180
                             }
-                            else if(y > cy){
+                            else if (y > cy) {
                                 y += bbox.height;
                             }
                         }
@@ -827,14 +974,15 @@
                         }
 
                         context.translate(tx + x + pack("number", labels.x, 0), ty + y + pack("number", labels.y, 0));
-                        context.rotate(angle * PI / 180);
+                        context.rotate(angle * PI / 180, angle * PI / 180);
+                        //context.translate(-bbox.width, -text.height);
                         tag.toCanvas(context);
                         //context.fillText(text.ellipse, 0, 0);
                     }
-                    if(type === "logarithmic" && isNumber(logarithmic.base) && defined(logarithmic.pow)){
+                    if (type === "logarithmic" && isNumber(logarithmic.base) && defined(logarithmic.pow)) {
                         var dm = 1,
                             powN;
-                        if(isNumber(options.tickAmount) && options.tickAmount > 1){
+                        if (isNumber(options.tickAmount) && options.tickAmount > 1) {
                             dm = axis.maxDomain / ~-options.tickAmount;
                         }
                         powN  = mathRound(axis.startValue + dm * i, 1);
@@ -876,9 +1024,12 @@
             this.labelHeight = 0;
             this.isRotation = false;
 
+            this.shapes = [];// z sort
+
             this.ticks = [];
             this._ticks = [];
             this.tickPositions = [];
+            this.tickPositioner = [];
             this.values = [];
             this.tickInterval = 5;
             this.tickGap = 1;//define categroies
@@ -893,6 +1044,7 @@
 
             !~("logarithmic categories datetime".indexOf(this.type)) && (this.type = "linear");
             this.setTitle();
+            this.setPlotLines();
         },
         translate: function (x, y) {
             var options = this.options;
@@ -1040,15 +1192,16 @@
             }
             return ticks;
         },
-        getCategoriesTicks: function (startValue, endValue) {
+        getCategoriesTicks: function (startValue, endValue, maxLength) {
             var options =  this.options,
                 tickAmount = options.tickAmount;
-            var start = Math.max(1, startValue),
-                end = Math.max(endValue, start);
+            var start = mathMax(1, startValue),
+                end = mathMax(endValue, start, maxLength);
             var ticks = [];
             var i;
+            if (start === end) return [];
 
-            if (isNumber(tickAmount, true) && (tickAmount = Math.max(1, ~~tickAmount))) for (i = 0; i < tickAmount; i++) {
+            if (isNumber(tickAmount, true) && (tickAmount = mathMax(1, ~~tickAmount))) for (i = 0; i < tickAmount; i++) {
                 ticks.push(start + i);
             }
             else for (i = start; i <= end; i += 1) {
@@ -1171,7 +1324,7 @@
                 date = start.getDate();
             end = end.getTime();
 
-            if(isNumber(tickAmount)){
+            if (isNumber(tickAmount)) {
                 tickAmount = Math.max(1, ~~tickAmount);
                 dm = Math.floor((end - time) / tickAmount);
                 while(i <= tickAmount){
@@ -1222,6 +1375,7 @@
                 maxValue = options.maxValue,
                 startValue = options.startValue,
                 endValue = options.endValue;
+            var minLength = 0, maxLength = 0;
             var values = [];
             var ticks;
             var sorted = function (values) {
@@ -1264,11 +1418,16 @@
                     /*: type === "categories"
                         ? this.getCategoriesTicks(minDomain, maxDomain)*/
                         : this.getLinearTicks(minValue, maxValue);//min & max value
-                if (type === "logarithmic") {
+                if (type === "linear") {
+                    values = this.getLinearTicks(minDomain, maxDomain);
+                }
+                else if (type === "logarithmic") {
                     values = this.getLogTicks(minDomain, maxDomain, logBase);
                 }
                 else if (type === "categories" || (isArray(categories))) {
-                    values = this.getCategoriesTicks(minDomain, maxDomain);
+                    values = this.getCategoriesTicks(minDomain, maxDomain, options.length);
+                    minLength = 0;
+                    maxLength = values.length;
                 }
                 else if (type === "datetime") {
                     values = this.getTimeTicks(startValue, endValue);
@@ -1304,24 +1463,29 @@
                 this.minValue = mathLog(this.minValue, logBase);
                 this.maxValue = mathLog(this.maxValue, logBase);
             }
+            this.minLength = minLength;
+            this.maxLength = maxLength;
             //console.log(values, type, this.name, ticks, this.minValue, this.maxValue, maxDomain);
             return this.values = values;
         },
         setLabels: function () {
             var options = this.options,
                 layout = options.layout || {},
+                tickLength = pack("number", options.tickLength),
                 hasCategories = options.categories && isArray(options.categories) && !!options.categories.length;
 
             var maxRange = this.maxRange,
                 minRange = this.minRange,
                 startValue = this.startValue,
                 endValue = this.endValue;
-            var ticks = this.ticks,
+            var ticks = arrayFilter(this.ticks, function (tick) { return tick.visibled; }),
                 type = this.type,
                 name = this.name;
             var size = 0,
                 length;
             var axis = this;
+            var values = this.values;
+            var firstTick;
 
             var startAngle = pack("number", options.startAngle, -90),
                 center = (
@@ -1331,15 +1495,16 @@
                 radius = maxRange;//polar axis
             center[0] = pack("number", center[0], Numeric.percentage(options.width, center[0]));
             center[1] = pack("number", center[1], Numeric.percentage(options.height, center[1]));
+            this.tickPositioner = []
 
             axis.zeroAxis.hidden = type === "categories"
                     || !(startValue <= 0 && endValue > 0)
                     || (name !== "xAxis" && name !== "yAxis");
             if (length = ticks.length) {
-                size = Math.max(minRange, maxRange, 1) / (length);
-                ticks.forEach(function(tick, i){
+                size = mathMax(minRange, maxRange, 1) / (length);
+                ticks.forEach(function (tick, i) {
                     if (name === "xAxis") {
-                        size = maxRange / Math.max(1, length - 1);
+                        size = maxRange / mathMax(1, length - 1);
                         tick.y = 0;
                         if (type === "categories") {
                             size = maxRange / (length - !hasCategories);
@@ -1348,13 +1513,13 @@
                         else {
                             tick.x = interpolate(tick.value, startValue, endValue, minRange, maxRange);
                         }
-                        if(tick.value === 0)
+                        if (tick.value === 0)
                             axis.zeroAxis.x = tick.x;
                     }
                     else if (name === "yAxis") {
                         tick.x = 0;
-                        if(type === "logarithmic"){
-                            size = Math.max(minRange, maxRange, 1) / (Math.max(1, length - 1));
+                        if (type === "logarithmic") {
+                            size = mathMax(minRange, maxRange, 1) / (mathMax(1, length - 1));
                             tick.y = (length - i - 1) * size;
                         }
                         else if (type === "categories"){
@@ -1378,7 +1543,7 @@
                         }
                     }
                     else if (name === "polarAxis" || name === "radiusAxis") {
-                        var ratio = i / Math.max(1, length - (name === "radiusAxis")),
+                        var ratio = i / mathMax(1, length - (name === "radiusAxis")),
                             innerRadius = radius - radius * ratio,
                             angle = ratio * 360 + startAngle, //(ratio * PI2) + (startAngle / 180 * PI);
                             delta = angle * PI / 180;
@@ -1386,15 +1551,32 @@
                             cy = center[1];// (options.height - innerRadius * 2);
                         tick.cx = cx;
                         tick.cy = cy;
-                        tick.x = Math.cos(delta) * radius + cx;
-                        tick.y = Math.sin(delta) * radius + cy;
+                        tick.x = mathCos(delta) * (radius + (name === "polarAxis") * (tickLength + 3)) + cx;
+                        tick.y = mathSin(delta) * (radius + (name === "polarAxis") * (tickLength + 3)) + cy;
                         tick.angle = angle;
                         tick.radius = radius;
                         tick.innerRadius = innerRadius;
                         tick.startAngle = startAngle;
                     }
                     tick.size = size;
+                    if (!i) {
+                        firstTick = tick;
+                    }
+                    else {
+                        tick.size = mathAbs(tick[name === "xAxis" ? "x" : "y"] - firstTick[name === "xAxis" ? "x" : "y"]);
+                        firstTick = tick;
+                    }
                 });
+                ticks.length && firstTick && (ticks[0].size = firstTick.size);
+            }
+            length = values.length;
+            for (var i = 0; i < length; i++) {
+                size = maxRange / (length - !hasCategories);
+                this.tickPositioner.push(
+                    name === "yAxis"
+                        ? { x: 0, y: i * size, size: size }
+                        : { x: i * size, y: 0, size: size }
+                );
             }
             //this.scale();
         },
@@ -1428,38 +1610,44 @@
             var values = this.values,
                 tickPositions = this.tickPositions;
             var hasCategories = this.type === "categories";// isArray(categories) && categories.length;
-            var isRotation = isNumber(angle) && !isNaN(angle) && isFinite(angle);
+            var isRotation = isNumber(angle, true) &&  angle !== 0;
 
             var axis = this;
             var context = this.context,
                 type = this.type,
                 name = this.name;
-            if(name === "yAxis"){
-                minTickWidth = this.labelHeight;
-            }
 
             var length = values.length;
+            var visibleLength = 0;
 
-            if(!isNumber(tickInterval))
+            if (fontStyle.fontFamily === "inherit") {
+                fontStyle.fontFamily = getStyle(this.canvas, "font-family") || "Arial";
+            }
+
+            if (name === "yAxis" && length) {
+                minTickWidth = mathMax(10, Text.measureText(hasCategories ? categories[0] : values[0], fontStyle).height * 2);
+            }
+
+            if (!isNumber(tickInterval))
                 tickInterval = 1;
-            if(!isNumber(step)){
-                if(isNumber(tickAmount)){
+            if (!isNumber(step)) {
+                if (isNumber(tickAmount)) {
                     tickInterval = 1;
                 }
-                else if(type === "logarithmic"){
+                else if (type === "logarithmic") {
                     tickInterval = 1;//no auto
                 }
-                else if(name === "colorAxis"){
+                else if (name === "colorAxis") {
                     tickInterval = 1;
                 }
-                else if(~~(maxRange / length) <= minTickWidth){
-                    tickInterval = Math.round(length / maxRange * minTickWidth);
+                else if (~~(maxRange / length) <= minTickWidth) {
+                    tickInterval = mathRound((length) / maxRange * minTickWidth);
                 }
             }
             else {
                 tickInterval = step;
             }
-            tickInterval = Math.max(tickInterval, 1);
+            tickInterval = mathMax(tickInterval, 1);
             for (var i = 0, j = 0; i < length; i++) {
                 var value = values[i];
                 var tick = {
@@ -1467,30 +1655,36 @@
                     isLast: i === length - 1,
                     //size: size,
                     value: value,
-                    gap: Math.abs(value - (values[i + 1] || value))
+                    gap: mathAbs(value - (values[i + 1] || value)),
+                    visibled: i % tickInterval === 0
                 };
                 tickPositions[i] = hasCategories && categories[i - 1] || value;
-                if (i % tickInterval === 0) {
+                //if (i % tickInterval === 0) {
                     j++;
                     tick.enabled = true;
                     ticks.push(tick);
+                //}
+                if (tick.visibled) {
+                    tick.__proto__ = new Animate();
+                    visibleLength++;
                 }
             }
             if (length = ticks.length) {
-                size = (maxRange - minRange) / (j);
-                ticks.forEach(function (item, i) {
-                    var text = axis.labelFormatter(item.value, {
+                size = (maxRange - minRange) / visibleLength;
+                ticks.forEach(function (tick, i) {
+                    var text = axis.labelFormatter(tick.value, {
                         isFirst: !i,
                         isLast: !(length - i - 1),
                         index: i
                     }), ellipse = text,
                     bbox,
                     tag;
-
+                    
+                    context.save();
                     context.font = [
                         fontStyle.fontStyle,
                         fontStyle.fontWeight,
-                        fontStyle.fontSize + "/" + (fontStyle.lineHeight),
+                        fontStyle.fontSize,// + "/" + (fontStyle.lineHeight),
                         fontStyle.fontFamily
                     ].join(" ");
                     tag = Text.HTML(Text.parseHTML(text), context, {
@@ -1498,11 +1692,12 @@
                         fontWeight: fontStyle.fontWeight,
                         fontSize: fontStyle.fontSize,
                         lineHeight: fontStyle.lineHeight,
-                        fontFamily: fontStyle.fontFamily
+                        fontFamily: fontStyle.fontFamily,
+                        rotation: pack("number", angle)
                     });
                     bbox = tag.getBBox();
-                    if (isNumber(maxWidth)) {
-                        //bbox.width = maxWidth;
+                    if (isNumber(maxWidth, true)) {
+                        bbox.width = maxWidth;
                     }
                     var tickSize = size - 4 * (name === "xAxis"),//margin
                         dm;
@@ -1520,20 +1715,22 @@
                         fontWeight: fontStyle.fontWeight,
                         fontSize: fontStyle.fontSize,
                         lineHeight: fontStyle.lineHeight,
-                        fontFamily: fontStyle.fontFamily
+                        fontFamily: fontStyle.fontFamily,
+                        rotation: pack("number", angle)
                     });
                     bbox = tag.getBBox();
                     //bbox.width = context.measureText(ellipse).width;
-                    if (isNumber(logarithmic.base) && defined(logarithmic.pow)) {
+                    if (isNumber(logarithmic.base, true) && defined(logarithmic.pow)) {
                         dm = 1;
                         if (isNumber(options.tickAmount) && options.tickAmount > 1) {
                             dm = axis.maxDomain / ~-options.tickAmount;
                         }
                         bbox.width += context.measureText(mathRound(i * dm, 1)).width * 0.7;
                     }
-                    isRotation = isRotation || (name === "xAxis" && bbox.width >= tickSize);//margin
-                    
-                    item.text = {
+                    if (tick.visibled)
+                        isRotation = isRotation || (name === "xAxis" && bbox.width >= tickSize);//margin
+                    context.restore();
+                    tick.text = {
                         name: text,
                         ellipse: ellipse,
                         width: bbox.width,
@@ -1571,16 +1768,16 @@
                         text.height = bbox.height;
                     }
                     if (labels.enabled !== false) {
-                        labelWidth = Math.max(labelWidth, text.width);
-                        labelHeight = Math.max(labelHeight, text.height);
+                        labelWidth = mathMax(labelWidth, text.width);
+                        labelHeight = mathMax(labelHeight, text.height);
                     }
                 });
-                if (!defined(angle)) {
+                if (!isNumber(angle, true)) {
                     angle = 0;//this.name !== "yAxis" ? -45 : 0;//default angle
-                    if(name === "xAxis" && isRotation)
-                        angle = autoRotation;
+                    if (name === "xAxis" && isRotation)
+                        angle = autoRotation;//x axis rotation 45
                 }
-                angle = angle * Math.PI / 180;
+                angle = angle * PI / 180;
                 //labelWidth += !isRotation * options.tickLength;
                 labelHeight += /*!isRotation **/ tickLength;
             }
@@ -1598,9 +1795,8 @@
                 this.textBoxSize = this.labelWidth + this.titleWidth;
             }
             else if (name === "xAxis") {
-                this.textBoxSize = this.labelHeight + this.titleWidth;
+                this.textBoxSize = this.labelHeight + this.titleHeight;
             }
-            //console.log(this.labelWidth, this.labelHeight, ticks, this.name, isRotation, axis);
         },
         setTitle: function (rendered) {
             var options = this.options,
@@ -1798,6 +1994,20 @@
             context.fillText(text, x + padding, y + bbox.height + arrow);
             context.restore();
         },
+        setPlotLines: function () {
+            var container = this.canvas.parentNode;
+            (this.options.plotLines || []).forEach(function (d) {
+                var label = d.label;
+                if (container && defined(label) && label.useHTML === true) {
+                    var dom = document.createElement("div");
+                    if (defined(label.className)) {
+                        dom.setAttribute("class", label.className);
+                    }
+                    label.dom = dom;
+                    container.appendChild(dom);
+                }
+            });
+        },
         setGrid: function (tick, i, ticks) {
             var options = this.options,
                 gridLineInterpolation = options.gridLineInterpolation;
@@ -1881,6 +2091,47 @@
                 context.restore();
             }
         },
+        setCrosshair: function (x, y) {
+            var options = this.options,
+                crosshair = options.crosshair;
+            var tx = pack("number", options.x),
+                ty = pack("number", options.y);
+            var tickPositioner = this.tickPositioner.slice(0),
+                tick;
+            var n = tickPositioner.length,
+                i = 0;
+            var intersected = {
+                yAxis: function (point, prev, tick) {
+                    return point.x >= tx && point.x <= options.width + tx && point.y >= ty && point.y > prev.y + ty && point.y < tick.y + ty;
+                },
+                xAxis: function (point, prev, tick) {
+                    return point.y >= (ty - options.height) && point.y <= ty && point.x >= tx && point.x - tx > prev.x && point.x - tx < tick.x;
+                }
+            };
+            this.crosshair = null;
+            if (defined(crosshair) && isNumber(x, true) && isNumber(y, true) && n) {
+                if (this.type === "categories") {
+                    tickPositioner.push({
+                        x: this.name === "yAxis" ? tickPositioner[0].x : tickPositioner[~-n].x + tickPositioner[0].size,
+                        y: this.name === "yAxis" ? tickPositioner[~-n].y + tickPositioner[0].size : tickPositioner[~-n].y,
+                        size: tickPositioner[0].size
+                    });
+                }
+                n = tickPositioner.length;
+
+                for (i = 1; i < n; i++) {
+                    tick = tickPositioner[i];
+                    if (intersected[this.name] && intersected[this.name]({ x: x, y: y }, tickPositioner[i - 1], tick)) {
+                        this.crosshair = {
+                            zIndex: 2,
+                            shape: tick
+                        };
+                        break;
+                    }
+                }
+            }
+            return this;
+        },
         setOptions: function (options) {
             var domain, range;
             extend(this.options, options);
@@ -1903,8 +2154,7 @@
                 ret;//tickPositions
             params = params || {};
             var type = this.type;
-            
-            if (type === "categories") {
+            if (isArray(options.categories) || type === "categories") {
                 ret = pack("array", options.categories, [])[~-value];
                 !defined(ret) && (ret = value);
                 this.tickPositions[value] = ret;
@@ -1942,130 +2192,89 @@
                 tick;
             var axis  = this;
             tick = this.Item();
+
             ticks.forEach(function (item, i) {
-                axis.setGrid(item, i, ticks);
-                if (labels.enabled !== false) {
-                    tick.adjustLabel(item, i, {
-                        isCenter: labels.align === "center" && !!ticks.length,
-                        isRotation: axis.isRotation
-                    });
+                if (item.visibled) {
+                    axis.setGrid(item, i, ticks);
+                    if (labels.enabled !== false) {
+                        tick.adjustLabel(item, i, {
+                            isCenter: labels.align === "center" && !!ticks.length,
+                            isRotation: axis.isRotation
+                        });
+                    }
+                    tick.render(item, i);
+                    callback && callback.call(axis, item);
                 }
-                tick.render(item, i);
-                callback && callback.call(axis, item);
             });
             tick.line();
             tick.plotLines();
+            this.crosshair && tick.crosshair(this.crosshair.shape);
         },
         animateTo: function () {
             var options = this.options,
                 labels = options.labels || {},
                 gridLineWidth = pack("number", options.gridLineWidth);
             var oldData = this._ticks,
-                newData = this.ticks;
+                newData = arrayFilter(this.ticks, function (tick) { return tick.visibled; });
+            var axis = this;
             var ticks = [];
-            var animator = [];
+            var previous = [];
             if (labels.enabled !== false || gridLineWidth > 0) {
                 List.diff(newData, oldData, function (a, b) {
                     return a && b && (a.text.ellipse === b.text.ellipse);
                 }).add(function (newIndex) {
-                    var oldTick = oldData[newIndex], mergeTick;
+                    var oldTick = newData[newIndex];
+                    var to;
                     if (oldTick) {
-                        mergeTick = {
-                            isFirst: oldTick.isFirst,
-                            isLast: oldTick.isLast,
-                            size: oldTick.size,
-                            text: oldTick.text,
-                            angle: oldTick.angle,
+                        oldTick.animate({
+                            opacity: 0,
                             x: oldTick.x,
-                            y: oldTick.y,
-                            opacity: 0
-                        };
-                        ticks.push([oldTick, function(){
-                            mergeTick.x = oldTick.x;
-                            mergeTick.y = oldTick.y;// * timer;//oldTick.y;
-                            mergeTick.opacity = 0;//1 - 1 * timer;
-                        }]);
-                        //animateTo(mergeTick, newIndex);
-                        //animator.push(oldTick);
+                            y: oldTick.y
+                        }, to = {
+                            text: oldTick.text,
+                            opacity: 1,
+                            x: oldTick.x,
+                            y: oldTick.y
+                        });
+                        previous.push(to);
+                        ticks.push(oldTick);
                     }
                 }).modify(function (newIndex, oldIndex) {
                     var newTick = newData[newIndex],
-                        oldTick = oldData[oldIndex],
-                        mergeTick;
-                    if(newTick && oldTick){
-                        mergeTick = {
-                            isFirst: newTick.isFirst,
-                            isLast: newTick.isLast,
-                            size: newTick.size,
+                        oldTick = oldData[oldIndex];
+                    var to;
+                    if (newTick && oldTick) {
+                        newTick.animate({
+                            x: oldTick.x || 0,
+                            y: pack("number", oldTick.y, newTick.y, 0)
+                        }, to = {
                             text: newTick.text,
-                            angle: newTick.angle,
-                            x: oldTick.x,
-                            y: oldTick.y
-                        };
-                        ticks.push([newTick, function(timer){
-                            var ox = oldTick.x || 0,//step missing x&y
-                                oy = pack("number", oldTick.y, newTick.y, 0);
-                            mergeTick.x = ox + (newTick.x - ox) * timer;
-                            mergeTick.y = oy + (newTick.y - oy) * timer;
-                        }]);
-                        animator.push(mergeTick);
+                            x: newTick.x,
+                            y: newTick.y
+                        });
+                        ticks.push(newTick);
+                        previous.push(to);
                     }
                 }).remove(function (newIndex) {
-                    var newTick = newData[newIndex],
-                        mergeTick;
-                    if(newTick){
-                        mergeTick = {
-                            isFirst: newTick.isFirst,
-                            isLast: newTick.isLast,
-                            size: newTick.size,
-                            text: newTick.text,
-                            angle: newTick.angle,
-                            x: newTick.x,
-                            y: newTick.y,
-                            //opacity: 0
-                        };
-                        ticks.push([newTick, function () {
-                            mergeTick.x = newTick.x;
-                            mergeTick.y = newTick.y;
-                            //mergeTick.opacity = timer;
-                        }]);
-                        animator.push(mergeTick);
-                    }
+                    var newTick = newData[newIndex];
+                    var to;
+                    newTick.animate({
+                        x: newTick.x,
+                        y: newTick.y
+                    }, to = {
+                        text: newTick.text,
+                        x: newTick.x,
+                        y: newTick.y
+                    });
+                    previous.push(to);
+                    ticks.push(newTick);
                 }).each();
                 
-                this._ticks = this.ticks;
-                this.animator = animator;
+                this._ticks = previous;
             }
             return ticks;
         },
-        onFrame: function () {
-            var options = this.options,
-                labels = this.options.labels || {},
-                gridLineWidth = pack("number", options.gridLineWidth, 0);
-            var tick = this.Item();
-            var axis = this;
-            var oldData = this._ticks,
-                newData = this.ticks;
-            if (labels.enabled !== false || gridLineWidth > 0) {
-                var animateTo = function (mergeTick, i) {
-                    axis.setGrid(mergeTick, i, newData);
-                    tick.render(mergeTick);
-                    if (labels.enabled !== false) {
-                        tick.adjustLabel(mergeTick, i, {
-                            isCenter: labels.align === "center" && !!oldData.length,
-                            isRotation: axis.isRotation
-                        });
-                    }
-                };
-                this.animator.forEach(function(tick, i){
-                    animateTo(tick, i);
-                });
-            }
-            tick.line();
-            tick.plotLines();
-            axis.setTitle(true);
-        },
-        draw: function() {
+        draw: function () {
             this.formatter();
             this.setTitle(true);
         },
@@ -2076,6 +2285,9 @@
             var options = this.options,
                 stops = pack("array", options.stops, []),
                 isHorizontal = options.layout === "horizontal",
+                tx = pack("number", options.x),
+                ty = pack("number", options.y),
+                tickLength = pack("number", options.tickLength, 0),
                 name = this.name;
             var startValue = this.startValue,
                 endValue = this.endValue,
@@ -2085,32 +2297,32 @@
             var onMove = function(area) {
                 extend(area, {
                     xAxis: {
-                        width: options.x + maxRange,
-                        height: options.y + options.tickLength + axis.labelHeight,
+                        width: tx + maxRange,
+                        height: ty + tickLength + axis.labelHeight,
                         dx: x,
-                        dy: options.y,
-                        k: (x - options.x) / maxRange,
+                        dy: ty,
+                        k: (x - tx) / maxRange,
                         anchor: "bottom"
                     },
                     yAxis: {
-                        width: options.x - options.tickLength - axis.labelWidth,
-                        height: options.y + maxRange,
-                        dx: options.x,
+                        width: tx - tickLength - axis.labelWidth,
+                        height: ty + maxRange,
+                        dx: tx,
                         dy: y,
-                        k: (maxRange - y + options.y) / (maxRange),
+                        k: (maxRange - y + ty) / (maxRange),
                         anchor: "left"
                     },
                     colorAxis: {
-                        width: options.x + (isHorizontal ? maxRange : options.tickLength),
-                        height: options.y + (isHorizontal ? options.tickLength : maxRange),
-                        dx: isHorizontal ? x : options.x + options.tickLength,
-                        dy: isHorizontal ? options.y + options.tickLength : y,
-                        k: (isHorizontal ? x - options.x : maxRange - y + options.y) / (maxRange),
+                        width: tx + (isHorizontal ? maxRange : tickLength),
+                        height: ty + (isHorizontal ? tickLength : maxRange),
+                        dx: isHorizontal ? x : tx + tickLength,
+                        dy: isHorizontal ? ty + tickLength : y,
+                        k: (isHorizontal ? x - tx : maxRange - y + ty) / (maxRange),
                         anchor: isHorizontal ? "top" : "left"
                     }
                 }[name]);
                 if (isNumber(startValue, true) && isNumber(endValue, true) && Intersection.rect({x: x, y: y}, area)) {
-                    var k = Math.min(1, Math.max(0, area.k));
+                    var k = mathMin(1, mathMax(0, area.k));
                     if (k - 0.01 <= 0) k = 0;
                     if (k - 0.99 >= 0) k = 1;
                     var value = startValue + (endValue - startValue) * k,
@@ -2120,16 +2332,14 @@
                         color: color,
                         anchor: area.anchor
                     });
-
-                    //console.log(k, value, startValue, endValue);
                     
                     isFunction(callback) && callback.call(axis, value, color, k);
                 }
             };
-            onMove({x: options.x, y: options.y});
+            onMove({x: tx, y: ty});
             return this;
         },
-        destroy: function(){
+        destroy: function () {
             
         }
     };

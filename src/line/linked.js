@@ -1,22 +1,22 @@
-(function(){
-    var next = function(points, i, n) {
+(function () {
+    var next = function (points, i, n) {
         var point;
-        while(point = points[i], point.isNULL && i < ~-n) ++i;
+        while (point = points[i], point.isNULL && i < ~-n) ++i;
             return i;
     };
-    var back = function(points, i, n) {
+    var back = function (points, i, n) {
         var point;
-        while(point = points[n - 1], point.isNULL && --n > i);
+        while (point = points[n - 1], point.isNULL && --n > i);
             return n;
     };
-    var find = function(points, s, e) {
+    var find = function (points, s, e) {
         var j = s, point;
         do {
             point = points[j];
-        } while(point.isNULL && j++ < e);
+        } while (point.isNULL && j++ < e);
         return j;
     };
-    var each = function(context, points, step) {
+    var each = function (context, points, step) {
         var length = points.length,
             i = next(points, 0, length),
             j;
@@ -27,9 +27,9 @@
 
         context.beginPath();
         context.moveTo(moveX = point.x, moveY = point.y);
-        for(; i < length; i++){
+        for (; i < length; i++) {
             point = points[i];
-            if(point.isNULL){
+            if (point.isNULL) {
                 j = find(points, j = i + 1, length);
                 point = points[j];
                 context.moveTo(moveX = point.x, moveY = point.y);
@@ -39,28 +39,37 @@
     };
 
     var Linked = {
-        line: function(context, points, options) {
+        line: function (context, points, options) {
             var dashStyle = options.dashStyle,
                 onStep = options.onStep;
             var length = points.length,
                 i = next(points, 0, length),//[a, b-1)
                 j;
-            var point;
+            var point, aniattr;
             var x, y, moveX, moveY;
             length = back(points, i, length);//(b, a]
             point = points[i];
+            /*aniattr = point.aniattr();
 
+            if (aniattr) {
+                isNumber(aniattr.x, true) && (moveX = aniattr.x);
+                isNumber(aniattr.y, true) && (moveY = aniattr.y);
+            }*/
             context.beginPath();
-            context.moveTo(moveX = point.x, moveY = point.y);
+            context.moveTo(moveX, moveY);
             for (; i < length; i++) {
                 point = points[i];
                 if (point.isNULL) {
                     j = find(points, j = i + 1, length);
                     point = points[j];
-                    context.moveTo(moveX = point.x, moveY = point.y);
+                    moveX = point.x, moveY = point.y;
+                    //aniattr = point.aniattr();
+                    //aniattr && (isNumber(aniattr.x, true) && (moveX = aniattr.x), isNumber(aniattr.y, true) && (moveY = aniattr.y));
+                    context.moveTo(moveX, moveY);
                 }
                 //step(point, i, moveX, moveY);
                 x = point.x, y = point.y;
+                //(aniattr = point.aniattr()) && (isNumber(aniattr.x, true) && (x = aniattr.x), isNumber(aniattr.y, true) && (y = aniattr.y));
                 DashLine[dashStyle] && dashStyle !== "solid" ? DashLine[dashStyle](
                     context,
                     moveX, moveY,
@@ -69,7 +78,7 @@
                 onStep && onStep(point);
             }
         },
-        spline: function(context, points, options) {
+        spline: function (context, points, options) {
             var onStep = options.onStep;
             var length = points.length,
                 i = next(points, 0, length),
@@ -78,9 +87,10 @@
             var point;
             length = back(points, i, length);
             point = points[i];
+            x = point.x, y = point.y;
 
             context.beginPath();
-            context.moveTo(point.x, point.y);
+            context.moveTo(x, y);
             for (; i < length; i++) {
                 point = points[i];
                 x = point.x, y = point.y;
@@ -93,14 +103,16 @@
                     y = y1 = y2 = point.y;
                     context.moveTo(x, y);
                 }
-                else context.bezierCurveTo(x1, y1, x2, y2, x, y);
+                else {
+                    context.bezierCurveTo(x1, y1, x2, y2, x, y);
+                }
                 onStep && onStep(point);
             }
         },
-        step: function(context, points, options) {
+        step: function (context, points, options) {
             var type = options.step,
                 onStep = options.onStep;
-            each(context, points, function(point, i) {
+            each(context, points, function (point, i) {
                 var curt = points[i],
                     prev = points[i - 1];
                 if (prev && !prev.isNULL && !curt.isNULL) {
@@ -121,7 +133,7 @@
                 }
             });
         },
-        arearange: function(context, points, options){
+        arearange: function (context, points, options) {
             var onStep = options.onStep;
             var length = points.length,
                 i = next(points, 0, length),
@@ -135,9 +147,9 @@
 
             context.beginPath();
             context.moveTo(moveX = point.x, moveY = point[key]);
-            for(; i < length; i++){
+            for (; i < length; i++) {
                 point = points[i];
-                if(point.isNULL){
+                if (point.isNULL) {
                     j = find(points, j = i + 1, length);
                     point = points[j];
                     context.moveTo(moveX = point.x, moveY = point[key]);

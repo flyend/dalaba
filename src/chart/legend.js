@@ -1,30 +1,10 @@
 (function (global, Chart) {
+    var Animate = Chart.Animate;
+
     var Symbol = {
-        circle: function (x, y, w, h) {
-            var PI2 = Math.PI * 2;
-            return function (context){
-                context.beginPath();
-                context.arc(x + w / 2, y + w / 2, w / 2 - 0.5, 0, PI2, true);
-                //context.arc(x, y, h * 0.4, 0, PI2, false);
-                return {
-                    x: x,// + w / 2 - 1,
-                    y: y,// + w / 2 - 1,
-                    width: w,
-                    height: h
-                };
-            };
-        },
+        circle: Geometry.Symbol.circle,
         rect: Geometry.Symbol.rect,
-        ellipse: function (x, y, w, h) {
-            var cpw = 0.166 * w;
-            return function (context) {
-                context.beginPath();
-                context.moveTo(x + w / 2, y);
-                context.bezierCurveTo(x + w + cpw, y, x + w + cpw, y + h, x + w / 2, y + h);
-                context.bezierCurveTo(x - cpw, y + h, x - cpw, y, x + w / 2, y);
-                context.closePath();
-            };
-        },
+        ellipse: Geometry.Symbol.ellipse,
         line: function (x, y, w, h) {
             return function (context) {
                 //Symbol.rect(x - r, y + h / 2, w + r * 2, 3)(context);
@@ -130,6 +110,7 @@
             this.translateY = 0;
             this.scroller = {next: null, prev: null};
             this.globalAnimation = {
+                instance: null,
                 isFinish: false,
                 startY: 0,
                 current: 0
@@ -225,13 +206,14 @@
             this.data.forEach(function (item, i) {
                 var text = item.name,
                     selected = item.selected !== false,//默认显示
-                    disabled = item.showInLegend !== false;
+                    disabled = item.disabled !== true && item.showInLegend !== false;
                 var width = 0,
                     textHeight = 0;
                 var legendItem;
                 var legendFormatter;
                 var nowrap = false;
                 if (disabled && context) {
+                    context.save();
                     context.font = [
                         fontStyle.fontStyle,
                         fontStyle.fontWeight,
@@ -239,6 +221,7 @@
                         fontStyle.fontFamily
                     ].join(" ");
                     bbox = Text.measureText(text, fontStyle);
+                    context.restore();
                     textHeight = symbolWidth;// Math.max(symbolWidth, bbox.height);
 
                     if(bbox.width >= itemWidth){
@@ -288,8 +271,8 @@
                     var legendItemHTML = [
                         "<p style='",
                             [
-                                "position: absolute",
-                                "left:" + (x) + "px",
+                                "float: left;",
+                                "margin:" + (symbolPadding) + "px",
                                 "top:" + (y + symbolPadding) + "px",
                                 "color:" + (selected ? fontStyle.color : "#ccc"),
                                 "font:" + fontStyle.fontStyle + " " + fontStyle.fontWeight + " " + fontStyle.fontSize + " " + fontStyle.fontFamily,
@@ -317,7 +300,7 @@
                         itemHTML += legendItemHTML.join("");
                     }
                 }
-                if (!isFormatter || legendFormatter) {
+                if (disabled && !isFormatter || legendFormatter) {
                     x += width + itemDistance * (layout === "horizontal");
                 }
                 sumWidth = Math.max(sumWidth, x);
@@ -329,13 +312,13 @@
                 this.height = (sumHeight + padding) * (length !== 0);
             }
             this.width = (sumWidth + padding * 2 - itemDistance * (layout === "horizontal")) * (length !== 0);//fix width
-            if(lineNumber < 4){
+            if (lineNumber < 4) {
                 maxHeight = this.height;
             }
-            if(layout === "vertical"){
+            if (layout === "vertical") {
                 maxHeight = this.height;
             }
-            if(isNumber(options.maxHeight)){
+            if (isNumber(options.maxHeight)) {
                 maxHeight = options.maxHeight;
             }
             this.maxHeight = (maxHeight + padding) * (length !== 0);//options.borderWidth * 2
@@ -348,22 +331,25 @@
             if (useHTML === true && itemHTML.length) {
                 var bbox;
                 canvas.innerHTML = itemHTML;
+                setStyle(canvas, {
+                    overflow: "auto",
+                    "white-space": "nowrap"
+                });
                 bbox = canvas.getBoundingClientRect();
                 this.height = bbox.height;
                 this.width = bbox.width;
                 setStyle(canvas, {
-                    left: (this.x - bbox.width + linePixel.width) + linePixel.x + "px",
-                    top: (this.y - bbox.height + linePixel.height) + linePixel.y + "px",
-                    height: bbox.height + "px",
-                    width: bbox.width + "px",
-                    overflow: "auto"
+                    left: (this.x) + linePixel.x + "px",
+                    top: this.y + "px",
+                    height: this.maxHeight + "px",
+                    width: this.width + "px"
                 });
             }
         },
-        scrollTop: function(y){
+        scrollTop: function (y) {
             this.translateY = y;
         },
-        formatter: function(){
+        formatter: function () {
             var context = this.context,
                 options = this.options,
                 style = pack("object", options.style, {}),
@@ -387,13 +373,13 @@
 
             context.save();
             context.translate(padding, padding + this.translateY);
-            this.items.forEach(function(item){
+            this.items.forEach(function (item) {
                 var x = item.x,
                     y = item.y;
                 var color = item.selected ? item.color : "#ccc";
                 var tag, bbox;
                 var legendFormatter = isFunction(formatter) && formatter.call(item, item.value, item.index, legend);
-                if(item.disabled) {
+                if (item.disabled) {
                     context.save();
                     //context.textBaseline = "bottom"
                     context.font = [
@@ -413,22 +399,22 @@
                     if (!isFunction(formatter) || defined(legendFormatter)) {
                         symbolTypes = {
                             column: Symbol.rect(x, y, symbolWidth, symbolWidth, symbolRadius),
-                            pie: Symbol.circle(x, y, symbolWidth, symbolWidth),
+                            pie: Symbol.circle(x, y + symbolWidth / 2, symbolWidth / 2, symbolWidth),
                             line: Symbol.line(x, y, symbolWidth + 4, symbolWidth)
                         };
                         context.lineWidth = 1;
                         context.strokeStyle = color;
-                        if(Color.isColor(color)){
+                        if (Color.isColor(color)) {
                             color = Color.parse(color).alpha(0.55).rgba();
                         }
-                        else if(isObject(color)){
+                        else if (isObject(color)) {
                             color = defined(color.radialGradient)
                                 ? Color.parse(color).radial(x + symbolRadius, y + symbolRadius, symbolRadius)
                                 : defined(color.linearGradient)
                                     ? Color.parse(color).linear(x, y, symbolWidth, symbolWidth)
                                     : "#000";
                         }
-                        else{
+                        else {
                             color = "#000";
                         }
                         
@@ -494,7 +480,7 @@
                 context.restore();
             }
         },
-        next: function(){
+        next: function () {
             var options = this.options,
                 itemMarginBottom = pack("number", options.itemMarginBottom, 8),
                 width = this.width,
@@ -503,7 +489,7 @@
             var context = this.context;
             var prev = { p0: {x: 0, y: 0}, p1: {x: 0, y: 0}, type: "prev"},
                 next = { p0: {x: 0, y: 0}, p1: {x: 0, y: 0}, type: "next"};
-            if(defined(options.borderWidth) && options.borderWidth > 0){
+            if (defined(options.borderWidth) && options.borderWidth > 0) {
                 context.beginPath();
                 context.moveTo(width, 0);
                 context.lineTo(width, maxHeight);
@@ -528,7 +514,7 @@
             this.scroller.prev = prev;
             this.scroller.next = next;
         },
-        onScroll: function(callback){
+        onScroll: function (callback) {
             var options = this.options,
                 //borderWidth = pack("number", options.borderWidth, 0),
                 navigation = options.navigation || {},
@@ -538,69 +524,61 @@
 
             var canvas = this.canvas,
                 legend = this;
-            if(arguments[1]){
+            if (arguments[1]) {
                 canvas = callback;
                 callback = arguments[1];
             }
             var nextId = 0;
 
-            var animateTo = function(clickedItem){
-                //var length = Math.ceil(legend.height / (legend.maxHeight - 2)),
+            var animateTo = function (e, clickedItem) {
                 var dir = (clickedItem.type === "next" || -1);
                 var isFinish = globalAnimation.isFinish,
                     isLast = false,
-                    //current = globalAnimation.current,
                     startY = globalAnimation.startY,
                     endY;
                 var step = legend.maxHeight - padding;
-
-                //globalAnimation.current = current = Math.min(length - 1, Math.max(0, current += dir));
                 endY = startY + dir * step;
-                if(endY < 0){
+                if (endY < 0) {
                     startY = -1;/*缓动*/
                     endY = 0;
                 }
-                if(endY >= legend.height){
+                if (endY >= legend.height) {
                     endY = startY + 1;
                     isLast = true;
                 }
-                // (current += dir) * (legend.maxHeight - padding - borderWidth*0);
-                //console.log(endY, startY, legend.maxHeight, legend.height);
-                if (defined(Dalaba.Animation)/* && (endY < legend.height)*/) {
-                    var value = 0;
-                    /*Animation ? Animation.stop() : (*/Animation = new Dalaba.Animation();
-                    [[{ }, function (timer) {
-                        value = startY + (endY - startY) * timer;
-                    }]].forEach(function(item){
-                        var step = item[1];
-                        Animation.addAnimate(item[0], {
-                            step: function(target, timer){
-                                step(timer);
-                                legend.translateY = -(value);
-                                callback && callback(legend, value);
-                            },
-                            duration: 300,
-                            delay: 0,
-                            easing: "linear"
-                        });
-                    });
 
-                    Animation.fire(function(){
+                if (defined(Dalaba.Animation) && !globalAnimation.instance/* && (endY < legend.height)*/) {
+                    globalAnimation.instance = new Dalaba.Animation();
+                }
+                if (globalAnimation.instance !== null) {
+                    clickedItem.animate({
+                        translateY: startY
+                    }, {
+                        translateY: endY
+                    });
+                    globalAnimation.instance.addAnimate(clickedItem, {
+                        duration: 300,
+                        delay: 0,
+                        easing: "linear"
+                    }).fire(function () {
+                        var pos = clickedItem.translateY;//startY + (endY - startY) * timer;
+                        legend.translateY = -pos;
+                        callback && callback.call(legend, e, pos);
                         isFinish = true;
-                    }, function(){
-                        if(!isLast)
+                    }, function () {
+                        if (!isLast)
                             globalAnimation.startY = startY = endY;
                         globalAnimation.isFinish = isFinish = false;
                     });
                 }
-                else{
+                else {
                     legend.translateY = -endY;
-                    callback && callback(legend, endY);
-                    if(!isLast)
+                    callback && callback.call(legend, e, endY);
+                    if (!isLast)
                         globalAnimation.startY = startY = endY;
                 }
             };
-            var clipTo = function(clickedItem){
+            var clipTo = function (e, clickedItem) {
                 //var items = legend.items;
                 //var currentY;
                 var length = Math.floor(legend.height / legend.maxHeight);
@@ -616,12 +594,12 @@
                     }
                 }*/
                 //console.log(nextId, cy);
-                cy = Math.max(0, cy);
+                cy = mathMax(0, cy);
                 legend.translateY = -cy;
                 callback && callback(legend, cy);
             };
 
-            var onClick = function(e){
+            var onClick = function (e) {
                 var buttons = [legend.scroller.prev, legend.scroller.next];
                 var clickedItem = null;
                 var evt = Event.normalize(e, this),
@@ -629,13 +607,18 @@
                     ey = evt.y,
                     x = legend.x,
                     y = legend.y;
-                if(legend.height < legend.maxHeight){
+                if (legend.height < legend.maxHeight) {
                     return;//no clip
                 }
+                buttons.forEach(function (button) {
+                    if (button !== null) {
+                        button.__proto__ = new Animate();
+                    }
+                });
 
-                for(var i = 0; i < buttons.length; i++){
+                for (var i = 0; i < buttons.length; i++) {
                     var item = buttons[i];
-                    if(item && Intersection.rect({
+                    if (item && Intersection.rect({
                         x: ex,
                         y: ey
                     }, {
@@ -643,35 +626,35 @@
                         y: item.p0.y - 10 + y,
                         width: item.p1.x + 10 + x,
                         height: item.p1.y + 10 + y
-                    })){
+                    })) {
                         clickedItem = item;
                         break;
                     }
                 }
 
-                if(clickedItem){
+                if (clickedItem) {
                     if(navigation.animation !== false){
-                        animateTo(clickedItem);
+                        animateTo(e, clickedItem);
                     }
                     else{
-                        clipTo(clickedItem);
+                        clipTo(e, clickedItem);
                     }
                 }
             };
-            if(hasTouch) {
+            if (hasTouch) {
                 //new Dalaba.Touch(canvas).on("tap", onClick, false);
                 new Dalaba.Touch(canvas).on({
                     tap: onClick
                 });
             }
-            else if(canvas.nodeType === 1) {
+            else if (canvas.nodeType === 1) {
                 canvas.removeEventListener("click", onClick, false);
                 canvas.addEventListener("click", onClick, false);
             }
             onClick = null;
             return this;
         },
-        destroy: function(){
+        destroy: function () {
             var globalAnimation = this.globalAnimation;
             globalAnimation.isFinish = false;
             globalAnimation.startY = 0;
@@ -679,6 +662,7 @@
             return this;
         }
     };
+
     (function (Legend) {
         var useCapture = false;
 
@@ -719,14 +703,14 @@
             } : function(item) {
                 return that.context && filter(that, item, x, y);
             };
-            for(var i = 0; i < items.length; i++){
+            for (var i = 0; i < items.length; i++) {
                 item = items[i];
-                if(flag(item)){
+                if (flag(item)) {
                     clicked = true;
                     break;
                 }
             }
-            callback.call(item, clicked, items);
+            clicked && callback.call(item, clicked, items);
         };
         var getXY = function (e, el) {
             var evt = Event.normalize(e, el),
@@ -735,26 +719,26 @@
             return [x *= DEVICE_PIXEL_RATIO, y *= DEVICE_PIXEL_RATIO];
         };
         extend(Legend.prototype, {
-            onClick: function(callback){
+            onClick: function (callback) {
                 var canvas = this.canvas,
                     legend = this;
                 var useHTML = this.options.useHTML;
 
-                if(arguments[1]){
+                if (arguments[1]) {
                     canvas = callback;
                     callback = arguments[1];
                 }
                 
-                var onClick = function(e){
+                var onClick = function (e) {
                     var x = getXY(e, this),
                         y = x[1];
                     x = x[0];
 
-                    onAction.apply(legend, (useHTML === true ? [useHTML, e.target] : [x, y]).concat(function(clicked, items) {
+                    onAction.apply(legend, (useHTML === true ? [useHTML, e.target] : [x, y]).concat(function (clicked, items) {
                         var item = this;
-                        if(clicked){
+                        if (clicked) {
                             item.selected = !item.selected;
-                            callback && callback.call(item, item.series, item.index, items);
+                            callback && callback.call(item, e, item.series, item.index, items);
                         }
                     }));
                 };
@@ -771,36 +755,34 @@
                 //onClick = null;
                 return this;
             },
-            onState: function (callback) {
-                var canvas = this.canvas,
-                    legend = this;
+            onState: function (event, callback, mouseout) {
+                var legend = this,
+                    canvas = this.canvas;
                 var flag;
 
-                if(arguments[1]){
-                    canvas = callback;
+                if (arguments[1]) {
                     callback = arguments[1];
                 }
                 
                 var onState = function (e) {
-                    var x = getXY(e, this),
+                    var x = getXY(e, canvas),
                         y = x[1];
                     x = x[0];
-                    onAction.call(legend, x, y, function(clicked, items){
+                    onAction.call(legend, x, y, function (clicked, items) {
                         var item = this;
-                        if(!clicked){
+                        if (!clicked) {
                             flag = 0;
                         }
-                        if(clicked && !flag){
+                        if (clicked && !flag) {
                             flag = 1;
                             callback && callback.call(item, item.series, item.index, items);
                         }
+                        else {
+                            mouseout && mouseout.call(item, item.series);
+                        }
                     });
                 };
-                if(canvas.nodeType === 1) {
-                    canvas.removeEventListener("mousemove", onState, useCapture);
-                    canvas.addEventListener("mousemove", onState, useCapture);
-                }
-                onState = null;
+                onState(event);
                 return this;
             }
         });
@@ -812,7 +794,7 @@
         module.exports = Legend;
     }
     else if (typeof define === "function" && define.amd)
-        define(function(){
+        define(function () {
             return Legend;
         });
     else {

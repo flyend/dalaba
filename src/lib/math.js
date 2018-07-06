@@ -1,26 +1,30 @@
-(function(){
-    var mathPow = Math.pow;
+(function () {
 
-    var mathRound = Math.round;
+    var mathPow = Math.pow;
 
     var mathLog = Math.log;
 
-    function round(v, p) {
+    var mathRound = Math.round;
+
+    function round (v, p) {
         p = mathPow(10, p || 0);
         return p === 0 ? v : mathRound(v * p) / p;
     }
-    var Mathematics = {
-        log: function(v, base, positive){
+
+    var Maths = {
+        log: function (v, base, positive) {
             base = base || 10;
             typeof positive === "undefined" && (positive = true);
             return (!!positive ? mathLog(v < 0 ? 0 : v) : -mathLog(v > 0 ? 0 : -v)) / mathLog(base);
         },
-        pow: function(v, base, positive){
+        pow: function (v, base, positive) {
             base = base || 10;
             typeof positive === "undefined" && (positive = true);
             return !!positive ? mathPow(base, v) : -mathPow(base, -v);
         },
         round: round
     };
-    return Mathematics;
+
+    return Maths;
+
 }).call(typeof window !== "undefined" ? window : this);

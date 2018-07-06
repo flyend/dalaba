@@ -1,97 +1,73 @@
 (function (global) {
-    var mathMax = Math.max,
-        mathMin = Math.min;
+    
+    var clamp = function (v, max) {
+        return mathMax(0, mathMax(pack("number", max, 0), pack("number", v, 0)));
+    };
+    
+    var prediction = function (values) {
+        var n = values.length,
+            sum = 0,
+            mean = false;
+        var each = function (cb) {
+            var l = n & 1,
+                r = n;
+            l && cb(values[0], mean === false ? 0 : mean);
+            while (l < r) {
+                cb(values[l++], values[--r]);
+            }
+        };
+        each(function (a, b) { sum += a; sum += b; });
+        mean = sum / n, sum = 0;
+        each(function (a, b) { sum += (a - mean) * (a - mean), sum += (b - mean) * (b - mean); });
 
-    function factoy (global, Dalaba, List) {
+        return values[n - 1]; //mean;// n ? Math.sqrt(sum / n) : 0;
+    };
 
-        var defined = Dalaba.defined;
+    function factoy (global, Numeric, List, Animate) {
 
         var partition = List.partition;
 
         var indexOf = List.indexOf;
 
-        var isNumber = function (v) {
-            return Dalaba.isNumber(v, true);
-        };
+        var valueOf = Numeric.valueOf;
 
-        var prediction = function (values) {
-            var n = values.length,
-                sum = 0,
-                mean = false;
-            var each = function (cb) {
-                var l = n & 1,
-                    r = n;
-                l && cb(values[0], mean === false ? 0 : mean);
-                while (l < r) {
-                    cb(values[l++], values[--r]);
-                }
-            };
-            each(function (a, b) { sum += a; sum += b; });
-            mean = sum / n, sum = 0;
-            each(function (a, b) { sum += (a - mean) * (a - mean), sum += (b - mean) * (b - mean); });
-
-            return values[n - 1]; //mean;// n ? Math.sqrt(sum / n) : 0;
-        };
-
-        var valueOf = function (v, k) {
-            var value = parseFloat(v, 10),
-                values = v.match(/([\+\-]?\d+[\.eE]?\d*)/g),
-                p = values && values.length;
-
-            if (isNumber(value) && !p) {
-                return value;
-            }
-            if (p && values.length < 2) {
-                return value = parseFloat(values[0], 10);
-            }
-            if (p) {
-                var kdtree = new KDTree(values.map(function (t) {
-                    return {x: parseFloat(t, 10)};
-                }), ["x"]);
-                value = kdtree.nearest({x: k}, function (a, b) {
-                    return (a.x - b.x) * (a.x - b.x);
-                })[0];
-                kdtree.destroy();
-                if (isNumber(value.x)) {
-                    return value = value.x;
-                }
-            }
-            return null;
-        };
-
-        function Series (options) {
-            extend(this, options);
-            this.__options__ = options;
+        function Series (series, options) {
+            this.options = options;
+            extend(this, series);
+            this.__options__ = series;
         }
         Series.prototype = {
             constructor: Series,
-            update: function (options, redraw) {
+            update: function (series, redraw) {
                 var chart = this.chart,
                     newSeries;
-                
+
                 if (defined(chart)) {
-                    newSeries = extend(this, options);
-                    this.__options__ = options;
+                    newSeries = extend(this, series);
+                    this.__options__ = series;
                     this._shapes = this.shapes;
                     this.shapes = this.addShape();
 
-                    redraw !== false && chart.draw();
+                    redraw !== false && chart.draw({ target: chart, type: "update"});
                 }
             },
             addShape: function () {
-                var newSeries = this;
-                var data = pack("array", newSeries.data, []),
+                var options = this.options,
+                    colors = options.colors || [];
+                var data = pack("array", this.data, []),
                     item, value,
                     shapes = [], shape,
-                    minValue, maxValue,
-                    diff = 0;
+                    minValue = MAX_VALUE, maxValue = MIN_VALUE, sumValue = 0,
+                    size = 0;
                 var vari = [];
-                var animationDelay = newSeries.animationDelay;
+                var animationDelay = this.animationDelay;
 
-                var type = newSeries.type;
+                var type = this.type;
                 var length = data.length,
-                    j = 0;
+                    i = 0;
                 var isNULL = false;
+
+                var newSeries = this;
 
                 var start = pack("number", parseFloat(newSeries.start, 10) / 100, 0),
                     end = pack("number", parseFloat(newSeries.end, 10) / 100, 1);
@@ -100,112 +76,156 @@
                 newSeries.startIndex = start;
                 newSeries.endIndex = end;
 
-                if (diff = (end - start)) {
-                    minValue = Number.MAX_VALUE,
-                    maxValue = -minValue;
-                    for(; start < end; start++, j++){
-                        item = data[start];
-                        value = item;
-                        shape = {
-                            series: newSeries,
-                            source: item
-                        };
-                        if (newSeries.animationEnabled !== false) {
-                            shape.duration = newSeries.animationDuration;
-                            shape.easing = newSeries.animationEasing;
-                            if (isFunction(animationDelay)) shape.delay = animationDelay.call(item, j);
-                            else if (isNumber(animationDelay)) shape.delay = animationDelay;
-                            else shape.delay = isFunction(newSeries.delay) ? newSeries.delay.call(item, j) : newSeries.delay;
-                        }
+                if (size = (end - start)) for (; start < end; start++, i++) {
+                    item = data[start];
+                    value = item;
+                    shape = {
+                        series: newSeries,
+                        source: item
+                    };
+                    if (newSeries.animationEnabled !== false) {
+                        shape.duration = newSeries.animationDuration;
+                        shape.easing = newSeries.animationEasing;
+                        if (isFunction(animationDelay)) shape.delay = animationDelay.call(item, i);
+                        else if (isNumber(animationDelay)) shape.delay = animationDelay;
+                        else shape.delay = isFunction(newSeries.delay) ? newSeries.delay.call(item, i) : newSeries.delay;
+                    }
 
-                        if (isObject(item)) {
-                            value = defined(item.value) ? item.value : item.y;
-                            if (type === "arearange" && defined(item.high)) {
-                                value = item.high;
-                            }
-                            extend(shape, item);
-                            delete shape.x;
-                            delete shape.y;
-                            defined(item.x) && (shape._x = item.x);
-                            defined(item.y) && (shape._y = item.y);
+                    if (isObject(item)) {
+                        value = defined(item.value) ? item.value : item.y;
+                        if (type === "arearange" && defined(item.high)) {
+                            value = item.high;
                         }
-                        else if (isArray(item)) {
-                            value = defined(item[1]) ? item[1] : item[0];
-                            if(type === "arearange" || defined(item[2])){
-                                value = defined(item[2]) ? item[2] : item[1];
-                            }
-                            extend(shape, {
-                                _x: item[0],
-                                _y: item[1]
-                            });
+                        extend(shape, item);
+                        delete shape.x;
+                        delete shape.y;
+                        defined(item.x) && (shape._x = item.x);
+                        defined(item.y) && (shape._y = item.y);
+                    }
+                    else if (isArray(item)) {
+                        value = defined(item[1]) ? item[1] : item[0];
+                        if (type === "arearange" || isNumber(item[2], true)) {
+                            value = isNumber(item[2], true) ? item[2] : item[1];
                         }
-                        var svalue = value,
-                            $value = svalue;
-                        if (isString(value)) {
-                            var k = vari.length ? vari.length > 2 ? prediction(vari.slice(-10)) : vari[0] : 0;
-                            value = valueOf(svalue = value, k);
-                        }
-                        
-                        if (!isNumber(value) || !isFinite(value)) {
-                            value = svalue = null;
-                            $value = "--";
-                        }
-                        if (isNumber(value)) {
-                            minValue = mathMin(minValue, value);
-                            maxValue = mathMax(maxValue, value);
-                            vari.push(value);
-                        }
-                        isNULL = value === null;
-                        if (type === "candlestick") {
-                            (isNULL = !(
-                                isNumber(+shape.open, true) &&
-                                isNumber(+shape.close, true) &&
-                                isNumber(+shape.low, true) &&
-                                isNumber(+shape.high, true)
-                            )) || ($value = [
-                                "<br>",
-                                "open: " + shape.open + "<br>",
-                                "close: " + shape.close + "<br>",
-                                "low: " + shape.low + "<br>",
-                                "high: " + shape.high + "<br>"
-                            ].join(""));
-                            isNULL && ((isNULL = !(
-                                isNumber(+item[0], true) &&
-                                isNumber(+item[1], true) &&
-                                isNumber(+item[2], true) &&
-                                isNumber(+item[3], true)
-                            )) || ($value = [
-                                "<br>",
-                                "open: " + item[0] + "<br>",
-                                "close: " + item[1] + "<br>",
-                                "low: " + item[2]+ "<br>",
-                                "high: " + item[3] + "<br>"
-                            ].join("")));
-                        }
-                        if (!!~(indexOf(["pie", "funnel", "venn"], type))) {
-                            !defined(shape.name) && (shape.name = svalue);
-                        }
-                        else {
-                            if (type !== "diagram" && type !== "sankey")
-                                shape.name = newSeries.name;
-                            !defined(shape.color) && (shape.color = newSeries.color);
-                        }
-                        shape._value = svalue;//show value
-                        shape.value = value;//cal value
-                        shape.$value = $value;//tooltip value
-                        shape.isNULL = isNULL;
-                        shape.dataLabel = {};
-                        shapes.push(shape);
-                        if ((type === "pie" || type === "funnel")) {
-                            data[start] = isObject(item) || isArray(item) ? item : {value: item};//legend data
+                        extend(shape, {
+                            _x: item[0],
+                            _y: item[1]
+                        });
+                    }
+                    var svalue = value,
+                        $value = svalue;
+                    if (isString(value)) {
+                        value = valueOf(svalue = value, vari.length ? vari.length > 2 ? prediction(vari.slice(-10)) : vari[0] : 0);
+                    }
+                    
+                    if (!isNumber(value, true)) {
+                        value = svalue = null;
+                        $value = "--";
+                    }
+                    if (isNumber(value, true)) {
+                        minValue = mathMin(minValue, value);
+                        maxValue = mathMax(maxValue, value);
+                        item.selected !== false && (sumValue += value);
+                        vari.push(value);
+                    }
+                    isNULL = value === null;
+                    if (type === "candlestick") {
+                        (isNULL = !(
+                            isObject(shape) &&
+                            isNumber(shape.open, true) &&
+                            isNumber(shape.close, true) &&
+                            isNumber(shape.low, true) &&
+                            isNumber(shape.high, true)
+                        )) || ($value = [
+                            "<br>",
+                            "open: " + shape.open + "<br>",
+                            "close: " + shape.close + "<br>",
+                            "low: " + shape.low + "<br>",
+                            "high: " + shape.high + "<br>"
+                        ].join(""));
+                        isNULL && ((isNULL = !(
+                            isArray(item) &&
+                            isNumber(item[0], true) &&
+                            isNumber(item[1], true) &&
+                            isNumber(item[2], true) &&
+                            isNumber(item[3], true)
+                        )) || ($value = [
+                            "<br>",
+                            "open: " + item[0] + "<br>",
+                            "close: " + item[1] + "<br>",
+                            "low: " + item[2]+ "<br>",
+                            "high: " + item[3] + "<br>"
+                        ].join("")));
+                        if (!isNULL) {
+                            minValue = mathMin(minValue, pack("number", item[2], shape.low, minValue));
+                            maxValue = mathMax(maxValue, pack("number", item[3], shape.high, maxValue));
                         }
                     }
+                    if (type === "boxplot") {
+                        (isNULL = isNULL || !(
+                            isObject(shape) &&
+                            isNumber(shape.upper, true) &&
+                            isNumber(shape.q3, true) &&
+                            isNumber(shape.median, true) &&
+                            isNumber(shape.q1, true) && 
+                            isNumber(shape.lower, true)
+                        )) || ($value = [
+                            "<br>",
+                            "upper: " + shape.upper + "<br>",
+                            "Q3: " + shape.q3 + "<br>",
+                            "median: " + shape.median + "<br>",
+                            "q1: " + shape.q1 + "<br>",
+                            "lower: " + shape.lower + "<br>"
+                        ].join(""));
+                        isNULL && ((isNULL = !(
+                            isArray(item) &&
+                            isNumber(item[0], true) &&
+                            isNumber(item[1], true) &&
+                            isNumber(item[2], true) &&
+                            isNumber(item[3], true)
+                        )) || ($value = [
+                            "<br>",
+                            "upper: " + item[4] + "<br>",
+                            "Q3: " + item[3] + "<br>",
+                            "median: " + item[2]+ "<br>",
+                            "Q1: " + item[1] + "<br>",
+                            "lower: " + item[0] + "<br>"
+                        ].join("")));
+                        if (!isNULL) {
+                            minValue = mathMin(minValue, pack("number", item[0], shape.lower, minValue));
+                            maxValue = mathMax(maxValue, pack("number", item[4], shape.upper, maxValue));
+                        }
+                    }
+                    if (type === "arearange") {
+                        minValue = mathMin(minValue, pack("number", item[0], minValue));
+                        maxValue = mathMax(maxValue, pack("number", item[1], maxValue));
+                    }
+                    
+                    shape._value = svalue;//show value
+                    shape.value = value;//cal value
+                    shape.$value = $value;//tooltip value
+                    shape.isNULL = isNULL;
+                    shape.dataLabel = {};
+                    shape.__proto__ = new Animate();
+                    
+                    if (!!~(indexOf(["pie", "funnel", "venn"], type))) {
+                        !defined(shape.name) && (shape.name = svalue);
+                        !defined(shape.color) && (shape.color = colors[i % colors.length]);
+                        data[start] = isObject(item) || isArray(item) ? item : {value: item};//legend data
+                    }
+                    else {
+                        if (type !== "diagram" && type !== "sankey")
+                            shape.name = newSeries.name;
+                        !defined(shape.color) && (shape.color = newSeries.color);
+                    }
+                    shapes.push(shape);
                 }
-                newSeries.minValue = diff ? minValue : 0;
-                newSeries.maxValue = diff ? maxValue : 0;
+                newSeries.minValue = size ? minValue : 0;
+                newSeries.maxValue = size ? maxValue : 0;
+                newSeries.sumValue = size ? sumValue : 0;
                 return shapes;
             },
-            destroy: function(){
+            destroy: function () {
 
             }
         };
@@ -217,10 +237,6 @@
                 polarAxis: {},
                 radiusAxis: {},
                 colorAxis: {}
-            };
-
-            var clamp = function (v, max) {
-                return mathMax(0, mathMax(pack("number", max, 0), pack("number", v, 0)));
             };
 
             var add = function (axisSeries, key, value) {
@@ -245,8 +261,8 @@
                     
                     if (series.selected !== false) {
                         series.sumLength = mathMax(sumLength, (series.data || []).length | 0);
-                        series.maxLength = mathMax(maxLength, series.shapes.length);
                     }
+                    series.maxLength = mathMax(maxLength, series.shapes.length);
                     //2d axis
                     if (isAxis2D) {
                         add(axisSeries.yAxis, clamp(series.yAxis), series);
@@ -269,8 +285,6 @@
          * @param series{Array}
         */
         Series.normalize = function (series) {
-            var MAX_VALUE = Number.MAX_VALUE,
-                MIN_VALUE = -MAX_VALUE;
             var minValue = MAX_VALUE,
                 maxValue = -minValue;
             var minAxisX = minValue,
@@ -278,14 +292,16 @@
                 minAxisY = minValue,
                 maxAxisY = maxValue;
             var isX = false, isY = false;
+            var isHigh = false;
             var isNULL = false;
 
             var maxLength = -MAX_VALUE;
+            var axisLength = 0;
 
             var groups = partition(series, function (a, b) {
-                if(a.type !== b.type)
+                if (a.type !== b.type)
                     return false;
-                if(typeof a.stack === "undefined" && typeof b.stack === "undefined")
+                if (typeof a.stack === "undefined" && typeof b.stack === "undefined")
                     return false;
                 return a.stack === b.stack;
             });
@@ -293,6 +309,13 @@
 
             var ztree = new ZTree(series, ["type", "stack"]),
                 root;
+
+            for (var i = 0; !isHigh && i < series.length; i++) {
+                root = series[i];
+                isHigh = root.type === "arearange"
+                    || root.type === "candlestick"
+                    || root.type === "boxplot";
+            }
 
             root = ztree.update(function (item) {
                 var minValue = MAX_VALUE,
@@ -308,7 +331,7 @@
                 var series = item[0],
                     startIndex = series.startIndex,
                     endIndex = series.endIndex;
-                var isHigh;
+                
                 var m = endIndex - startIndex, n = item.length, i, j;
                 var data, source, value, x = null, y = null;
                 var lowValue, highValue;//no negative
@@ -331,8 +354,6 @@
                         series = item[i];
                         isSelected = isSelected || series.selected !== false;
                         if (series.selected !== false) {
-                            isHigh = !!~(indexOf(["arearange", "candlestick"], series.type));
-
                             data = series.shapes[j] || {};
                             source = series.data[~~(startIndex + j)];
                             value = data.value;
@@ -342,7 +363,11 @@
                                 isNumber(source[1]) && (lowValue = value = y = source[1], isY = isY || !isY);
                                 isNumber(source[2]) && (highValue = source[2]);
                                 if (isHigh) {
-                                    isY = false;//arearange use value
+                                    isY = false;
+                                    isX = false;
+                                }
+                                if (!(series.type === "arearange" || series.type === "candlestick" || series.type === "boxplot") && isNumber(source[0], true)) {
+                                    axisLength = mathMax(axisLength, source[0]);
                                 }
                             }
                             else if (isObject(source)) {
@@ -360,11 +385,11 @@
                             isPositiveY = isPositiveY || y >= 0;
                             isNULL = isNULL || isNumber(value) || (isNumber(lowValue) && isNumber(highValue));
                             if (isHigh) {
-                                positive += highValue;
-                                negative += lowValue;
+                                positive = series.maxValue;//use min & max value
+                                negative = series.minValue;
                                 isPositive = isNegative = true;
                             }
-                            else{
+                            else {
                                 if (isNumber(value)) {
                                     if (value < 0) {
                                         negative += value;
@@ -415,7 +440,7 @@
                     minAxisY: minAxisY,
                     maxAxisY: maxAxisY
                 };
-            }, function(newProps, props) {
+            }, function (newProps, props) {
                 var cals = {
                     minValue: [mathMin, MAX_VALUE],
                     maxValue: [mathMax, MIN_VALUE],
@@ -455,6 +480,7 @@
                 min: minValue,
                 max: maxValue,
                 length: maxLength,
+                axisLength: axisLength,
                 groups: groups
             };
             if (isX) {

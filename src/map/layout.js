@@ -3,10 +3,6 @@
     var mathMax = Math.max;
     var MAX_VALUE = Number.MAX_VALUE;
 
-    var rescale = function (s) {
-        return isNumber(s) && isFinite(s) ? Math.min(10, Math.max(s, 0)) : 1;
-    };
-
     var setTransform = function (a, b, k) {
         return a * k + b;
     };
@@ -48,9 +44,18 @@
                     var scale = [1, 1],
                         translate = [0, 0];
                     var transform = series.transform,
-                        scaleRadio = pack("number", transform.scale, 0.75),
+                        scaleRadio = Math.max(0, pack("number", transform.scale, 0.75)),
                         translateX = transform.translate[0],
                         translateY = transform.translate[1];
+
+                    var projection = series.projection,
+                        projectAt;
+                    if (isObject(projection)) {
+                        projectAt = extend({}, projection);//geoJson.cp;
+                    }
+                    else if (isFunction(projection)) {
+                        projectAt = projection.call(series);
+                    }
 
                     if (defined(colorAxisOptions) && isArray(colorAxisOptions.stops)) {
                         colorAxisOptions.stops.forEach(function (stop) {
@@ -61,29 +66,11 @@
                     }
                         
                     if (defined(geoJson)) {
-                        scale = [plotWidth / chartWidth * 0.9, plotHeight / chartHeight * 0.9];
-                        translate = [plotX, plotY];
-                        if (defined(series.scale)) {
-                            isNumber(series.scale) && (scale = rescale(series.scale), scale = [scale, scale]);
-                            if (isArray(series.scale)) {
-                                scale = [rescale(series.scale[0]), rescale(series.scale[1])];
-                            }
-                        }
-                        if (defined(series.translate)) {
-                            translate = TRouBLe(series.translate).map(function (d, i) {
-                                return d * [plotX, plotY][i];
-                            });
-                        }
-                        var center = geoJson.cp;
-                        //var projection = series.projection.call(series, center, scale, translate);
                         var bounds = [[MAX_VALUE, MAX_VALUE], [-MAX_VALUE, -MAX_VALUE]];
                         var centerX = 0,
                             centerY = 0;
-                        //Path.size([chartWidth, chartHeight]).scale(scale).translate(translate).projection(projection).parse(geoJson, function (groups, feature) {
-                        var projected = new Projection({
-                            //scale: 450,
-                            //center: [137, 38]
-                        });
+                        var projected = new Projection(projectAt);
+                        var index = 0;
                         projected.size([plotWidth, plotHeight]).parse(geoJson, function (groups, feature) {
                             var points = [];
                             var count = 0;
@@ -103,14 +90,15 @@
                                 var length = polygon.length,
                                     j;
                                 var point;
-                                x = setTransform(polygon[j = 0][0], translateX, scaleRadio);
-                                y = setTransform(polygon[j][1], translateY, scaleRadio);
+                                x = setTransform(polygon[j = 0][0], 0, scaleRadio);
+                                y = setTransform(polygon[j][1], 0, scaleRadio);
+
                                 bounds = setBounds(bounds, x, y);
                                 i && points.push({x: x, y: y, isNext: true});
                                 for (j = 1; j < length; j++) {
                                     point = polygon[j];
-                                    x = setTransform(point[0], translateX, scaleRadio);
-                                    y = setTransform(point[1], translateY, scaleRadio);
+                                    x = setTransform(point[0], 0, scaleRadio);
+                                    y = setTransform(point[1], 0, scaleRadio);
                                     cx += (x - cx) / ++count;
                                     cy += (y - cy) / count;
                                     points.push({x: x, y: y});
@@ -119,8 +107,8 @@
                             });
                             if (defined(cp) && isNumber(cp[0], true) && isNumber(cp[1], true)) {
                                 cp = projected.projection(cp);
-                                cx = setTransform(cp[0], translateX, scaleRadio);
-                                cy = setTransform(cp[1], translateY, scaleRadio);
+                                cx = setTransform(cp[0], 0, scaleRadio);
+                                cy = setTransform(cp[1], 0, scaleRadio);
                             }
                             shape.shapeArgs = {
                                 x: cx, y: cy,
@@ -131,6 +119,9 @@
                             var data = series.mapKey[shape.name] || series.mapKey[shape.code],
                                 value,
                                 color;
+                            if (defined(data)) {
+                                shape.index = index++;
+                            }
                             if (!isObject(data)) {
                                 data = {value: null};
                             }
@@ -140,6 +131,7 @@
                             }
                             extend(shape, data);
                             shape.name = properties.name;
+                            shape.series = series;
                             shapes.push(shape);
                         });
                         centerX = plotX + (plotWidth - (bounds[1][0] - bounds[0][0])) / 2 - bounds[0][0];
@@ -147,8 +139,8 @@
 
                         shapes.forEach(function (shape) {
                             shape.points.forEach(function (point) {
-                                point.x += centerX;
-                                point.y += centerY;
+                                point.x += centerX + translateX;
+                                point.y += centerY + translateY;
                             });
                             shape.shapeArgs.x += centerX;
                             shape.shapeArgs.y += centerY;
@@ -157,7 +149,13 @@
                             center: [centerX, centerY]
                         };
                         series.__projector__ = {
-                            projection: function (point) { return projected.projection.call(projected, point); },
+                            projection: function (point) {
+                                var p = projected.projection.call(projected, point);
+                                return [
+                                    setTransform(p[0], 0, scaleRadio) + centerX + translateX,
+                                    setTransform(p[1], 0, scaleRadio) + centerY + translateY
+                                ];
+                            },
                             //scale: projection.scale(),
                             //translate: projection.translate(),
                             //center: projection.center()

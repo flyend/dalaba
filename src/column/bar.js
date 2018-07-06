@@ -30,8 +30,7 @@
             redraw: columnProp.redraw,
             drawShape: columnProp.drawShape,
             drawState: columnProp.drawState,
-            dataLabels: columnProp.dataLabels,
-            onFrame: columnProp.onFrame
+            dataLabels: columnProp.dataLabels
         };
 
         Bar.create(barProp, methods);
@@ -41,7 +40,7 @@
             reflow: function () {
                 return columnProp.reflow.apply(this, arguments);
             },
-            animateTo: function() {
+            animateTo: function () {
                 return columnProp.animateTo.apply(this, arguments);
             },
             getShape: function (x, y, shared) {
@@ -52,8 +51,8 @@
                     first,
                     last;
                 var ret = [];
-                function reset(shapes){
-                    shapes.forEach(function(item){
+                function reset (shapes) {
+                    shapes.forEach(function (item) {
                         delete item.current;
                     });
                 }
@@ -103,7 +102,7 @@
     }
 
     return {
-        deps: function() {
+        deps: function () {
             return factoy.apply(global, [].slice.call(arguments, 0));
         }
     };

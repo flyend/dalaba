@@ -1,5 +1,5 @@
 (function (global) {
-    function factoy (global, Dalaba) {
+    function factoy () {
         var Intersection = {
             /*
              * Euclidean distance
@@ -13,8 +13,36 @@
 
                 return Math.sqrt((x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2));
             },
+            inBounds: function (x, y, rect) {
+                return x >= rect.x && x < rect.width && y >= rect.y && y < rect.height;
+            },
             line: function (p0, p1) {
                 return this.distance(p0, p1) <= p1.width;
+            },
+            segment: function (p0, p1, p2) {
+                var spx = p2.x - p1.x,
+                    spy = p2.y - p1.y;
+                var start = new Vector(p2.x, p2.y).sub(p1),// segment ent point --> start point
+                    end = new Vector(p0.x, p0.y).sub(p1);// point --> start point
+                var t;
+                var dist;
+
+                if (start.x === 0 && start.y === 0) {
+                    return false;
+                }
+                t = end.dot(start) / start.square();
+                
+                if (t < 0) {
+                    dist = p1;// start point
+                }
+                else if (t > 1) {
+                    dist = p2;// end point
+                }
+                else {
+                    dist = new Vector(p1.x + start.x * t, p1.y + start.y * t);
+                }
+                dist = new Vector(dist.x, dist.y).sub(p0).length();
+                return dist <= 1;
             },
             circle: function (p0, p1) {
                 var dx = p1.x - p0.x,
@@ -30,15 +58,14 @@
              * @param checkin and checkout is callback
             */
             pie: function (p0, p1) {
-                var PI2 = Math.PI * 2;
                 var dx = p0.x - p1.x,
                     dy = p0.y - p1.y;
 
                 var inPie = this.distance(p0, p1) <= p1.radius;
-                if(inPie && typeof p1.innerRadius === "number")
+                if (inPie && isNumber(p1.innerRadius, true))
                     inPie = this.distance(p0, p1) >= p1.innerRadius;
 
-                if(inPie){
+                if (inPie) {
                     var angle = Math.atan2(dy, dx) + Math.PI / 2;//顺、逆时针开始
                     if(angle < 0)
                         angle += PI2;
@@ -61,37 +88,37 @@
                 var ry = (p0.y - p1.y) * (p0.y - p1.height);
                 return rx <= 0.0 && ry <= 0.0;
             },
-            aabb: function (x1, y1, w1, h1, x2, y2, w2, h2) {
+            aabb: function (p0, p1) {
                 return !(
-                    x2 > x1 + w1 ||
-                    x2 + w2 < x1 ||
-                    y2 > y1 + h1 ||
-                    y2 + h2 < y1
+                    p1.x > p0.x + p0.width ||
+                    p1.x + p1.width < p0.x ||
+                    p1.y > p0.y + p0.height ||
+                    p1.y + p1.height < p0.y
                 );
             },
             polygon: function (p0, points) {
                 var n = 0;
-                for(var i = 0, length = points.length, j = length - 1; i < length; j = i, i++){
+                for (var i = 0, length = points.length, j = length - 1; i < length; j = i, i++) {
                     var source = points[i],
                         target = points[j];
                     //点与多边形顶点重合或在多边形的边上
-                    if(
+                    if (
                         (source.x - p0.x) * (p0.x - target.x) >= 0 &&
                         (source.y - p0.y) * (p0.y - target.y) >= 0 &&
                         (p0.x - source.x) * (target.y - source.y) === (p0.y - source.y) * (target.x - source.x)
-                    ){
+                    ) {
                         return true;
                     }
                     //点与相邻顶点连线的夹角
                     var angle = Math.atan2(source.y - p0.y, source.x - p0.x) - Math.atan2(target.y - p0.y, target.x - p0.x);
                     //确保夹角不超出取值范围（-π 到 π）
-                    if(angle >= Math.PI)
-                        angle -= Math.PI * 2;
-                    else if(angle <= -Math.PI)
-                        angle += Math.PI * 2;
+                    if (angle >= PI)
+                        angle -= PI2;
+                    else if (angle <= -Math.PI)
+                        angle += PI2;
                     n += angle;
                 }
-                return Math.round(n / Math.PI) !== 0;//当回转数为 0 时，点在闭合曲线外部。
+                return Math.round(n / PI) !== 0;//当回转数为 0 时，点在闭合曲线外部。
             }
         };
         /**
@@ -259,7 +286,7 @@
                     curPoint.rightContX = rightContX;
                     curPoint.rightContY = rightContY;
                 }
-                if(prevPoint){
+                if (prevPoint) {
                     ret = {
                         x1: prevPoint.rightContX || prevPoint.x,
                         y1: prevPoint.rightContY || prevPoint.y,
@@ -325,6 +352,79 @@
                         height: h
                     };
                 }
+            },
+            circle: function (x, y, w, h) {
+                return function (context) {
+                    context.beginPath();
+                    context.arc(x, y, w, 0, PI2, true);
+                    return {
+                        x: x,
+                        y: y,
+                        width: w,
+                        height: h
+                    };
+                };
+            },
+            triangle: function (x, y, w, h) {
+                return function (context) {
+                    context.beginPath();
+                    context.moveTo(x - w / 2, y + h / 2);
+                    context.lineTo(x, y - h / 2);
+                    context.lineTo(x + w / 2, y + h / 2);
+                    context.closePath();
+                    context.stroke()
+                    return {
+                        x: x,
+                        y: y,
+                        width: w,
+                        height: h
+                    };
+                };
+            },
+            hexagon: function (x, y, w, h) {
+                var sin = Math.sin, cos = Math.cos;
+                var r = Math.max(w, h);
+                return function (context) {
+                    var i = -1, n = 6, a;
+                    r /= 2;
+                    context.beginPath();
+                    context.moveTo(x + cos(0) * r, y + sin(0) * r);
+                    while (++i < n) {
+                        context.lineTo(
+                            x + cos(a = i / n * PI2) * r,
+                            y + sin(a) * r
+                        );
+                    }
+                    context.closePath();
+                };
+            },
+            diamond: function (x, y, w, h) {
+                return function (context) {
+                    context.beginPath();
+                    context.moveTo(x - w / 2, y);
+                    context.lineTo(x, y - h / 2);
+                    context.lineTo(x + w / 2, y);
+                    context.lineTo(x, y + h / 2);
+                    context.lineTo(x - w / 2, y);
+                    context.stroke();
+
+                    return {
+                        x: x,
+                        y: y,
+                        width: w,
+                        height: h
+                    };
+                };
+            },
+            ellipse: function (x, y, w, h) {
+                var cpw = 0.166 * w;
+                return function (context) {
+                    context.beginPath();
+                    context.moveTo(x + w / 2, y);
+                    context.bezierCurveTo(x + w + cpw, y, x + w + cpw, y + h, x + w / 2, y + h);
+                    context.bezierCurveTo(x - cpw, y + h, x - cpw, y, x + w / 2, y);
+                    context.closePath();
+                };
             }
         };
 
@@ -337,16 +437,15 @@
         return Geometry;
     }
     var exports = {
-        deps: function(){
-            var args = Array.prototype.slice.call(arguments, 0);
-            return factoy.apply(global, [global].concat(args));
+        deps: function () {
+            return factoy.apply(global, [].slice.call(arguments));
         }
     };
-    if(typeof module === "object" && module.exports){
+    if (typeof module === "object" && module.exports) {
         module.exports = exports;
     }
-    else if(typeof define === "function" && define.amd){
-        define(function(){
+    else if (typeof define === "function" && define.amd) {
+        define(function () {
             return exports;
         });
     }

@@ -1,10 +1,94 @@
-(function(){
+(function () {
     var abs = Math.abs,
         log = Math.log,
         pow = Math.pow,
+        mathMax = Math.max,
+        mathMin = Math.min,
+        mathFloor = Math.floor,
+        mathCeil = Math.ceil,
         round = Math.round;
-    var isNumber = function(a){
-        return typeof a === "number" && a === a;
+
+    var rPercent = /^[+\-\s\.\d]+\s*%\s*$/;
+
+    var rValue = /([\+\-]?\d+[\.eE]?\d*)/g;
+
+    var lerp = function (a, b, t) {
+        return a + b * t;
+    };
+
+    var bilinear = function (a, b, values) {
+        var na = mathFloor(a),
+            nb = mathFloor(b);
+        var ma = mathCeil(a),
+            mb = mathCeil(b);
+        var fa = a - na,
+            fb = b - nb;
+
+        return values[na][nb] * (1 - fa) * (1 - fb)
+            + values[ma][nb] * fa * (1 - fb)
+            + values[na][mb] * (1 - fa) * fb
+            + values[ma][mb] * fa * fb;
+    };
+
+    var ascending = function (a, b) {
+        isString(a) && (a = valueOf(a));
+        isString(b) && (b = valueOf(b));
+        if (isNumber(a, true) && isNumber(b, true))
+            return a - b;
+        if (isNumber(a, true))
+            return 1;
+        if (isNumber(b, true))
+            return -1;
+        return 0;
+    };
+
+    var valueOf = function (v, neighbor) {
+        var value = parseFloat(v, 10),
+            values = v.match(rValue),
+            p = values && values.length;
+        var filter = function (d) {
+            return { x: parseFloat(d, 10) };
+        };
+        var distance = function (a, b) {
+            return (a[neighbor.dim] - b[neighbor.dim]) * (a[neighbor.dim] - b[neighbor.dim]);
+        };
+        var point = {};
+        var kdtree;
+
+        if (isNumber(value, true) && !p) {
+            return value;
+        }
+        if (p && values.length < 2) {
+            return value = parseFloat(values[0], 10);
+        }
+        if (p && defined(neighbor)) {
+            if (!isObject(neighbor)) {
+                neighbor = { dim: "x", k: 1, filter: filter, distance: distance };
+            }
+            !defined(neighbor.dim) && (neighbor.dim = "x");
+            !isNumber(neighbor.k, true) && (neighbor.k = 1);
+            !isFunction(neighbor.filter) && (neighbor.filter = filter);
+            !isFunction(neighbor.distance) && (neighbor.distance = distance);
+            point[neighbor.dim] = pack("number", neighbor.base);
+
+            kdtree = new KDTree(values.map(neighbor.filter), [neighbor.dim], neighbor.k);
+            value = kdtree.nearest(point, neighbor.distance)[0];//k = 1
+            kdtree.destroy();
+            if (isNumber(value[neighbor.dim], true)) {
+                return value = value[neighbor.dim];
+            }
+        }
+        return null;
+    };
+
+    var notNULL = function (data) {
+        var d = [];
+        var n = data.length,
+            i = -1;
+
+        while (++i < n) if (isString(data[i]) || isNumber(data[i], true)) d.push(data[i]);
+        
+        return d;
     };
     
     /*
@@ -14,7 +98,7 @@
      * @param max{Number} max range
      * Returns is a number value
     */
-    function clamp(value, min, max){
+    function clamp (value, min, max) {
         return (value = value || 0) < min ? min : value > max ? max : value;
     }
 
@@ -28,20 +112,20 @@
      * Returns a linear value, f(y) = ax + b
     */
 
-    var interpolate = function(value, minValue, maxValue, minRange, maxRange){
+    var interpolate = function (value, minValue, maxValue, minRange, maxRange) {
         var dissRange = maxRange - minRange,//定义域
             dissDomain = maxValue - minValue,//值域
             retValue;
         dissDomain = dissDomain ? 1 / dissDomain : 0;//fix value is 0
         retValue = (value - minValue) * dissDomain;
-        return minRange + dissRange * retValue;//ax + b
+        return lerp(minRange, dissRange, retValue);//ax + b
     };
 
-    var toPrecision = function(n, precision){
+    var toPrecision = function (n, precision) {
         var EPSILON = 8;//0.00000001
-        if(arguments.length < 2)
+        if (arguments.length < 2)
             precision = EPSILON;
-        return Number.prototype.toPrecision ? Number(n).toPrecision(precision) : (function(n, precision){
+        return Number.prototype.toPrecision ? Number(n).toPrecision(precision) : (function (n, precision) {
             if(n === 0 || isNaN(n) || isFinite(n))
                 return "" + n;
             var ln10 = ~~(log(abs(n)) / Math.LN10);//log base
@@ -54,16 +138,83 @@
             return "" + (m === 0 ? n : round(n / m) * m);
         })(n, precision);
     };
+
+    var quantile = function (data, percent) {
+        var size = 1 + (data.length - 1) * percent,
+            length = Math.floor(size);
+        var diff = size - length;
+        var d = data[length],
+            d0 = data[length - 1];
+        d = (isString(d) || isNumber(d)) ? valueOf(d) : 0;
+        d0 = (isString(d0) || isNumber(d0)) ? valueOf(d0) : 0;
+
+        return diff ? lerp(d0, d - d0, diff) : d0;
+    };
+
+    var quartile = function (data, iqr) {
+        var values = notNULL(data).sort(ascending);//new data, string or number
+        var length = values.length;
+        var first, last;
+        var q1, median, q3, lower, upper;
+        var ratio;
+
+        iqr = iqr !== false;
+
+        if (!length || (length && length < 5)) {
+            return null;
+        }
+
+        first = valueOf(values[0]);
+        last = valueOf(values[mathMax(0, values.length - 1)]);
+        
+        q1 = quantile(values, 0.25);
+        median = quantile(values, 0.5);
+        q3 = quantile(values, 0.75);
+
+        ratio = (iqr ? 1.5 : 1) * (q3 - q1);
+
+        lower = !iqr ? first : mathMax(first, q1 - ratio);
+        upper = !iqr ? last : mathMin(last, q3 + ratio);
+
+        return [lower, q1, median, q3, upper];
+    };
+
+    var indexOfRange = function (range, d) {
+        var l = 0, r;
+        var m;
+
+        if (!isArray(range) || (isArray(range) && (r = range.length) === 0))
+            return -1;
+
+        if (d === range[0]) return 0;
+        if (r > 1 && d === range[~-r]) return r - 2;
+
+        while (l < r) {
+            m = (r + l) >> 1;
+            if (d >= range[m] && d < range[m + 1]) {
+                return m;
+            }
+            if (d < range[m]) r = m;
+            else if (d > range[m]) l = m + 1;
+        }
+        return -1;
+    };
+
     var Numeric = {
         clamp: clamp,
-        percentage: function(value, percentage){
-            var rPercent = /^[+\-\s\.\d]+\s*%\s*$/;
-            return isNumber(value) && rPercent.test(percentage)
+        percentage: function (value, percentage) {
+            return isNumber(value, true) && rPercent.test(percentage)
                 ? value * (parseFloat(percentage, 10) / 100)
                 : NaN;
         },
         interpolate: interpolate,
-        toPrecision: toPrecision
+        lerp: lerp,
+        bilinear: bilinear,
+        toPrecision: toPrecision,
+        valueOf: valueOf,
+        quantile: quantile,
+        quartile: quartile,
+        indexOfRange: indexOfRange
     };
     return Numeric;
 }).call(typeof global !== "undefined" ? global : this);

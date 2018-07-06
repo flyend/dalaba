@@ -1,8 +1,6 @@
-(function(global) {
+(function (global) {
 
-    var mathLog = Mathematics.log;
-
-    var isZero = function(min, max) {
+    var isZero = function (min, max) {
         return min <= 0 && max >= 0;
     };
 
@@ -405,7 +403,7 @@
         var groupLength = 0,
             groupCounting = -1;
 
-        var counter = function(data) {
+        var counter = function (data) {
             var flag = !1;
             var n = data.length,
                 i = 0,
@@ -417,7 +415,7 @@
             return flag;
         };
 
-        return function (panels, modified) {
+        return function (panels, isResized) {
             panels.forEach(function (pane) {
                 var series = pane.series;
                 groupLength = 0,
@@ -431,7 +429,7 @@
                 groups.forEach(function (group) {
                     counter(group) && groupLength++;
                 });
-                groupLength = Math.max(1, groupLength);
+                groupLength = mathMax(1, groupLength);
                 groups.forEach(function (group) {
                     counter(group) && groupCounting++;
                     //console.log(groupCounting, groupLength, group[0].panelIndex, group)
@@ -445,7 +443,7 @@
 
     return {
         deps: function () {
-            return factoy.apply(global, [].concat([].slice.call(arguments, 0)));
+            return factoy.apply(global, [].slice.call(arguments, 0));
         }
     };
 }).call(typeof window !== "undefined" ? window : this)

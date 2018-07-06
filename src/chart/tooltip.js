@@ -27,57 +27,14 @@
         positioner: undefined//The return should be an object containing x and y values
     };
 
-    var symbolCallout = function(x, y, w, h, options){
+    var symbolCallout = function (x, y, w, h, options) {
         var arrowLength = 6,
             halfDistance = 6,
             r = Math.min((options && options.r) || 0, w, h),
             safeDistance = r + halfDistance,
             anchorX = options && options.anchorX,
-            anchorY = options && options.anchorY,
-            path;
-
-        path = [
-            "M", x + r, y, 
-            "L", x + w - r, y, // top side
-            "C", x + w, y, x + w, y, x + w, y + r, // top-right corner
-            "L", x + w, y + h - r, // right side
-            "C", x + w, y + h, x + w, y + h, x + w - r, y + h, // bottom-right corner
-            "L", x + r, y + h, // bottom side
-            "C", x, y + h, x, y + h, x, y + h - r, // bottom-left corner
-            "L", x, y + r, // left side
-            "C", x, y, x, y, x + r, y // top-right corner
-        ];
-        if (anchorX && anchorX > w && anchorY > y + safeDistance && anchorY < y + h - safeDistance) { // replace right side
-            path.splice(13, 3,
-                "L", x + w, anchorY - halfDistance, 
-                x + w + arrowLength, anchorY,
-                x + w, anchorY + halfDistance,
-                x + w, y + h - r
-            );
-        } else if (anchorX && anchorX < 0 && anchorY > y + safeDistance && anchorY < y + h - safeDistance) { // replace left side
-            path.splice(33, 3, 
-                "L", x, anchorY + halfDistance, 
-                x - arrowLength, anchorY,
-                x, anchorY - halfDistance,
-                x, y + r
-            );
-        } else if (anchorY && anchorY > h && anchorX > x + safeDistance && anchorX < x + w - safeDistance) { // replace bottom
-            path.splice(23, 3,
-                "L", anchorX + halfDistance, y + h,
-                anchorX, y + h + arrowLength,
-                anchorX - halfDistance, y + h,
-                x + r, y + h
-            );
-        } else if (anchorY && anchorY < 0 && anchorX > x + safeDistance && anchorX < x + w - safeDistance) { // replace top
-            path.splice(3, 3,
-                "L", anchorX - halfDistance, y,
-                anchorX, y - arrowLength,
-                anchorX + halfDistance, y,
-                w - r, y
-            );
-        }
-        //console.log(path);
-        return function(context){
+            anchorY = options && options.anchorY;
+        return function (context) {
             context.beginPath();
             context.moveTo(x + r, y);
             context.lineTo(x + w - r, y);//top side
@@ -95,12 +52,12 @@
         };
     };
 
-    var symbolHTML = function(tag, text){
-        var style = [].concat(Array.prototype.slice.call(arguments, 2)).join(";");
+    var symbolHTML = function (tag, text) {
+        var style = [].concat([].slice.call(arguments, 2)).join(";");
         return "<" + tag + " style='" + style + "'>" + text + "</" + tag + ">";
     };
 
-    function Tooltip(){
+    function Tooltip () {
         this.init.apply(this, arguments);
     }
     Tooltip.prototype = {
@@ -137,10 +94,14 @@
                     "z-index": 3,
                     "box-shadow": tooltipOptions.boxShadow
                 };
+                this.canvas = document.createElement("div");
+
                 if (tooltipOptions.animation) {
                     attr.transition = "left .1s linear, top .1s linear";
                 }
-                this.canvas = document.createElement("div");
+                if (isString(tooltipOptions.className)) {
+                    this.canvas.className = tooltipOptions.className;
+                }
                 setStyle(this.canvas, attr);
                 canvas.parentNode.appendChild(this.canvas);
             }
@@ -398,7 +359,7 @@
             if (length = items.length) {
                 for (; --length >= 0 && !defined(title = items[length].key); );
 
-                shapes = items.map(function(d) { return d.shape; });
+                shapes = items.map(function (d) { return d.shape; });
 
                 if (isFunction(formatter)) {
                     point = shapes[0];
@@ -409,7 +370,8 @@
                         x: title,
                         key: title,
                         value: point.$value,
-                        points: shapes
+                        points: shapes,
+                        series: point.series
                     } : {
                         mx: x,
                         my: y,
@@ -419,7 +381,8 @@
                         percentage: point.percentage,
                         total: point.total,
                         point: point,
-                        points: shapes
+                        points: shapes,
+                        series: point.series
                     }, tooltip);
 
                     if (defined(text)) {
@@ -505,8 +468,8 @@
             extend(this.options, options);
             return this;
         },
-        setChart: function (charts) {
-            this.charts = charts;
+        setChart: function (chart) {
+            this.chart = chart;
             //(pos = this.position()) !== null && this.move(pos.x, pos.y);
         },
         position: function (x, y) {
@@ -530,19 +493,7 @@
         getShape: function (x, y) {
             var options = this.options,
                 shared = options.shared;
-            var shapes = [];
-            //console.log(this.charts)
-
-            this.charts.forEach(function (chart) {
-                pack("array", pack("function", chart.getShape, noop).call(chart, x, y, shared)).forEach(function (shape) {
-                    shapes.push({
-                        shape: shape.shape,
-                        series: shape.series,
-                        key: shape.shape.key
-                    });
-                });
-            });
-            return shapes;
+            return this.chart.getShape(this.chart.charts, x, y, shared);
         },
         move: function (x, y, isMoving) {
             var options = this.options;

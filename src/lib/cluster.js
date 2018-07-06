@@ -1,13 +1,14 @@
-(function() {
+(function () {
     var indexOf = Array.prototype.indexOf;
+
+    var mathMin = Math.min;
 
     var Cluster = {};
 
-    Cluster.hirschbergs = (function(){
-        var min = Math.min;
+    Cluster.hirschbergs = (function () {
 
         //a0[p0,p1) and a1[q0,q1)
-        function left(a0, a1, p1, p2, q1, q2, compare, memo) {
+        function left (a0, a1, p1, p2, q1, q2, compare, memo) {
             var i, j;
             var diag;
 
@@ -22,13 +23,13 @@
                     diag = memo[(i - 1) % 2][j - 1];
                     if (!compare(a0[i - 1], a1[j - 1]))
                         diag += 1;
-                    memo[i % 2][j] = min(diag, min(memo[(i - 1) % 2][j] + 1, memo[i % 2][j - 1] +  1));
+                    memo[i % 2][j] = mathMin(diag, mathMin(memo[(i - 1) % 2][j] + 1, memo[i % 2][j - 1] +  1));
                 }
             }
         }
 
         //reverse(a0[p1..p2)) and reverse(a1[q1..q2))
-        function right(a0, a1, p1, p2, q1, q2, compare, memo) {
+        function right (a0, a1, p1, p2, q1, q2, compare, memo) {
             var i, j;
             var diag;
 
@@ -43,13 +44,13 @@
                     diag = memo[(i + 1) % 2][j + 1];
                     if (!compare(a0[i], a1[j]))
                         diag += 1;
-                    memo[i % 2][j] = min(diag, min(memo[(i + 1) % 2][j] + 1, memo[i % 2][j + 1] + 1));
+                    memo[i % 2][j] = mathMin(diag, mathMin(memo[(i + 1) % 2][j] + 1, memo[i % 2][j + 1] + 1));
                 }
             }
         }
 
         //align a0[p1..p2) with a1[q1..q2)
-        function align(a0, a1, p0, p1, q0, q1, score0, score1, compare, append) {
+        function align (a0, a1, p0, p1, q0, q1, score0, score1, compare, append) {
             var ret = [];
             var item, memo = 0;
             var i, j;
@@ -118,7 +119,7 @@
          * @param filter{Function}
          * Returns Array
         */
-        partition: function(data, filter) {
+        partition: function (data, filter) {
             var length = (data = data || []).length,
                 i = 0, j;
             var groups = [], group;
@@ -128,7 +129,7 @@
 
             for (; i < length; i++) {
                 group = [a = data[i]];
-                for(j = i + 1; j < length; j++) if (filter && filter.call(data, a, b = data[j], i, j) === true) {
+                for (j = i + 1; j < length; j++) if (filter && filter.call(data, a, b = data[j], i, j) === true) {
                     group.push(b);
                     visited[j] = true;
                 }
@@ -144,7 +145,7 @@
          * @param filter{Function}
          * Returns Array
         */
-        filter: function(data, filter) {
+        filter: function (data, filter) {
             var length = data.length,
                 i = -1;
             var newData = [], a;
@@ -160,8 +161,8 @@
          * @param filter{Function}
          * Returns Array
         */
-        indexOf: function(data, key){
-            return indexOf ? indexOf.call(data, key) : (function() {
+        indexOf: function (data, key) {
+            return indexOf ? indexOf.call(data, key) : (function () {
                 var i = -1, n = data.length;
                 while (++i < n && data[i] !== key);
                     return i < n ? i : -1;
@@ -173,7 +174,7 @@
          * @param place{.} All js data type
          * Returns Array
         */
-        fill: function(n, place) {
+        fill: function (n, place) {
             return Array.prototype.fill ? new Array(n = Math.max(0, n) || 0).fill(place) : (function(){
                 var array = [];
                 while (n--) array.push(place);

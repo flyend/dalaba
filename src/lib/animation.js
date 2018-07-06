@@ -1,15 +1,5 @@
 /*
  * Class Animation
- * @param source{Array}
- * @param target{Array}
- * @param options{Object}
- * example
- * Animation.fire([0], [10], {
- *     step: function(){ //this.target},
- *     complete: function(){},
- *     easing: "linear"
- *     duration: 1000
- * })
 */
 (function (callback) {
     // Easing functions take at least four arguments:
@@ -255,30 +245,19 @@
     };
     return callback && callback.call(this, easing);
 }).call(typeof window !== "undefined" ? window : typeof this !== "undefined" ? this : global, function (easing) {
-    var toString = Object.prototype.toString;
 
-    var isObject = function (v) {
-        return toString.call(v) === "[object Object]";
-    };
+    var FPS = 1000 / 60;
+
+    var isObject = Dalaba.isObject;
+
+    var isNumber = Dalaba.isNumber;
     
-    var extend = function (a, b) {
-        var n;
-        if (!a) {
-            a = {};
-        }
-        for (n in b) {
-            var src = a[n],
-                copy = b[n];
-            if(src === copy)
-                continue;
-            if(copy && isObject(copy)){
-                a[n] = extend(src, copy);
-            }
-            else if(copy !== undefined){
-                a[n] = copy;
-            }
-        }
-        return a;
+    var extend = Dalaba.extend;
+
+    var hasOwnProperty = ({}).hasOwnProperty;
+
+    var lerp = function (a, b, k) {
+        return a + (b - a) * k;;
     };
 
     var requestAnimationFrame = this.requestAnimationFrame
@@ -286,67 +265,67 @@
         || this.webkitRequestAnimationFrame
         || this.msRequestAnimationFrame
         || this.oRequestAnimationFrame
-        || function(callback){
-            return setTimeout(callback, 1000 / 60);
+        || function (callback) {
+            return setTimeout(callback, FPS);
         };
     var cancelAnimationFrame = this.cancelAnimationFrame
         || this.webkitCancelAnimationFrame
         || this.mozCancelAnimationFrame
         || this.oCancelAnimationFrame
-        || function(id){
+        || function (id) {
             clearTimeout(id);
         };
 
-    var parseCubicBezier = function(value){
+    var parseCubicBezier = function (value) {
         var x1, y1, x2, y2;
         var bezier = value.match(/cubic-bezier\(\s*(.*?),\s*(.*?),\s*(.*?),\s*(.*?)\)/);
-        if(bezier){
+        if (bezier) {
             isNaN(x1 = parseFloat(bezier[1], 10)) && (x1 = 0);
             isNaN(y1 = parseFloat(bezier[2], 10)) && (y1 = 0);
             isNaN(x2 = parseFloat(bezier[3], 10)) && (x2 = 1);
             isNaN(y2 = parseFloat(bezier[4], 10)) && (y2 = 1);
 
-            return function(time){
+            return function (time) {
                 return easing.cubicBezier(x1, y1, x2, y2, time);
             };
         }
     };
-    var propFilter = function(props, key, a, b, k){
-        if(typeof a === "number"){
-            props[key] = a + (b - a) * k;
+    var propFilter = function (props, key, a, b, k) {
+        if (isNumber(a)) {
+            props[key] = lerp(a, b, k);
         }
-        else if(typeof a === "object" && typeof b === "object"){
-            for(var p in b){
-                propFilter(props[key], p, a[p], b[p], k);
-            }
+        else if (typeof a === "object" && typeof b === "object") for (var p in b) if (hasOwnProperty.call(b, p)) {
+            propFilter(props[key], p, a[p], b[p], k);
         }
     };
-    var easingFn = function(type){      
+
+    var easefuns = function (type) {      
         var fn;     
-        if(typeof type === "function"){
+        if (typeof type === "function") {
             return type;        
         }       
-        else if(typeof type === "string"){      
-            if(!!~type.indexOf("cubic-bezier")){        
+        else if (typeof type === "string") {      
+            if (!!~type.indexOf("cubic-bezier")) {        
                 fn = parseCubicBezier(type) || easing["linear"];        
             }       
-            else{       
+            else {       
                 fn = easing[type] || easing["linear"];      
             }       
         }       
-        else{       
+        else {       
             fn = easing["linear"];      
         }       
         return fn;      
     };
 
-    function runAnimation(animators){
+    function runAnimation (animators) {
         var now = new Date().getTime(),
             ani;
         var isAnim = true,
             i = 0,
             ii = animators.length;
-        for(; i < ii; i++) if(!(ani = animators[i]).paused && !ani.done){
+
+        for (; i < ii; i++) if (!(ani = animators[i]).paused && !ani.done) {
             var nextd = ani.next,
                 target = ani.target;
             var time = now - ani.start,
@@ -356,147 +335,163 @@
                 complete = ani.complete;
             var timer;
             isAnim = false;
-            if(time < 0){
+            
+            if (time < 0) {
                 continue;
             }
-            if(time < duration){
+            if (time < duration) {
                 timer = easefy(time, duration, now);
-                step(target, timer);
+                target.onframe.call(target, timer);
+                ani.time = time;
+                //step(target, timer);
             }
-            else{
-                step(target, timer = 1);
+            else {
+                target.onframe.call(target, timer = 1);
                 complete(target, timer);
-                //animators.splice(i--, 1);
+                target.oncomplete.call(target);
+                ani.time = time;
                 ani.done = true;
-                //--count;
-                if(ani.repeat > 1 && !nextd){
+                ani.isDone = true;
+                if (ani.repeat > 1 && !nextd) {
 
                 }
-                //if(nextd && !ani.stop){
-                    //animation(me.animators.slice());
-                //}
             }
         }
-        //console.log(isAnim)
-        //return animators.length <= 0;
         return isAnim;
     }
 
-    var aniQueue = [];
     /**
      * Class Animation
     **/
-    function Animation(){
+    function Animation () {
         this.animators = [];
         this.running = false;
-        if(aniQueue.length > 1){
-            //aniQueue.pop();
-        }
-        aniQueue.push(this);
+        this.options = {};
     }
     Animation.prototype = {
-        stop: function(gotoEnd){
-            var animators = this.animators;
-            animators.forEach(function(ani){
-                if(gotoEnd){
-                    ani.step(ani.target, 1);
+        stop: function (gotoEnd, isClear) {
+            var options = this.options;
+            this.animators.forEach(function (ani) {
+                if (gotoEnd) {
+                    //ani.step(ani.target, 1);
                 }
+                if (ani.isDone) {
+                    ani.done = false;
+                    ani.isDone = false;
+                    ani.start = new Date().getTime();
+                }
+                else {
+                    ani.start = ani.time + ani.start;
+                }
+                ani.duration = options.duration;
             });
-            //this.prev = aniQueue.shift();
+            if (isClear) {
+                this.animators = [];
+            }
             return this;
         },
-        addAnimate: function(){
-            //this.stop();
-            var args = Array.prototype.slice.call(arguments, 0),
+        addAnimate: function () {
+            var args = [].slice.call(arguments, 0),
                 target = {},
                 options = {},
                 defaultOptions = {
                     duration: 500,
                     easing: "linear",
-                    step: function(){},
-                    complete: function(){}
+                    step: function () {},
+                    complete: function () {}
                 };
             var easing, duration, delay, step, complete;
-            if(!args.length){
+            if (!args.length) {
                 return this;
             }
-            if(args.length > 1){
+            if (args.length > 1) {
                 target = args[0] || {};
                 options = args[1] || defaultOptions;
             }
-            else{
+            else {
                 target = {};
                 options = args[0] || defaultOptions;
             }
             step = options.step, complete = options.complete, easing = options.easing;
 
-            duration = Math.max(1, options.duration) || defaultOptions.duration;
+            duration = mathMax(1, options.duration) || defaultOptions.duration;
             delay = options.delay || 0;
             step = typeof step === "function" ? step : defaultOptions.step;
-            //console.log(duration)
             complete = typeof complete === "function" ? complete : defaultOptions.complete;
 
-            var tweens = easingFn(easing),
+            var tweens = easefuns(easing),
                 timestamp = new Date().getTime();
 
+            this.options.duration = duration;
+
             this.animators.push({
-                //percent: percent,
                 target: target,
                 timestamp: timestamp,
+                time: 0,//current time position
                 start: timestamp + delay,
                 stop: false,
                 duration: duration,
-                easefy: function(t, d){
+                easefy: function (t, d) {
                     return tweens.length === 1 ? tweens(t / d) : tweens(t, 0, 1, d);
                 },
-                step: function(target, percent){
-                    step(target, percent);
-                },
-                complete: function(target, percent){
+                complete: function (target, percent) {
                     complete(target, percent);
                 },
             });
+            return this;
         },
-        fire: function(step, complete){
-            var me = this.prev || this;
-            //var animators = me.animators;
-            if(!aniQueue.length){
+        setOptions: function (newOptions) {
+            var options = this.options;
+            var duration = Math.max(1, pack("number", newOptions.duration, 500));
+            options.duration = duration;
+            return this;
+        },
+        isDoned: function () {
+            var animators = this.animators;
+            var length = animators.length,
+                i = 0;
+            var doneCount = 0;
+            for (; i < length; i++) {
+                if (animators[i].isDone) {
+                    //animators[i] = animators[length - 1];
+                    //animators.pop();
+                    //length--;
+                    doneCount++;
+                }
+                else {
+                    //i++;
+                }
+            }
+            return doneCount !== length;
+        },
+        fire: function (step, complete) {
+            var animators = this.animators;
+            if (!animators.length) {
                 complete();
             }
-            var t;
-            var animation = function(){
-                me.running = true;
-                function loop(){
-                    if(me.running){
-                        var isAnim;
+            var timer;
+            //console.log(this.animators)
+            var animation = function () {
+                var animated = this;
+                this.running = true;
+                function loop () {
+                    if (animated.running) {
+                        runAnimation(animators);
                         step && step();
-                        //isAnim = runAnimation(animators);
-                        for(var i = 0; i < aniQueue.length; i++){
-                            var f = runAnimation(aniQueue[i].animators);
-                            if(f){
-                                aniQueue.splice(i--, 1);
-                            }
+                        if (animated.isDoned()) {
+                            timer = requestAnimationFrame(loop);
                         }
-                        isAnim = !aniQueue.length;
-                        if(!isAnim){
-                            t = requestAnimationFrame(loop);
-                        }
-                        else{
+                        else {
                             //me.running = false;
                             //me.stop(1);
                             step && step(1);
-                            /*animators.forEach(function(ani){
-                                ani.step(ani.target, 1);
-                            });*/
-                            //t && cancelAnimationFrame(t);
-                            complete && complete.call(me);
-                            //aniQueue = [];
+                            complete && complete.call(animated);
                         }
                     }
                 }
-                requestAnimationFrame(loop);
+                loop();
             };
-            animation();
+            animation.call(this);
         }
     };
 
@@ -508,7 +503,7 @@
         module.exports = Animation;
     }
     else if (typeof define === "function" && define.amd) {
-        define(function() {
+        define(function () {
             return Animation;
         });
     }

@@ -6,7 +6,6 @@ require("./lib");
 require("./define");
 
 (function (global, Dalaba) {
-    var Series = Dalaba.Chart.Series;
 
     var hasOwnProperty = ({}).hasOwnProperty;
 
@@ -28,7 +27,7 @@ require("./define");
             });
         };
         var add = function (newData, oldData, added) {
-            for (var i = Math.max(0, ~-oldData.length); i < newData.length; i++) {
+            for (var i = Math.max(0, oldData.length); i < newData.length; i++) {
                 added && added(newData[i], oldData[i], i);
             }
         };
@@ -64,6 +63,7 @@ require("./define");
             "-webkit-user-select": "none",
             "user-select": "none",
             cursor: "default"
+            //"font-size": "9px"
         });
         //rescale(this.context, width, height, DEVICE_PIXEL_RATIO);
 
@@ -188,13 +188,12 @@ require("./define");
         }
         else {
             this.context = this.canvas.getContext("2d");
-            rescale(this.context, width, height, DEVICE_PIXEL_RATIO);
         }
-        //make layer
-        this.layer = [];
         if (element.nodeType === 1 && element.constructor === global.HTMLCanvasElement) {
             this.renderer = element;
             this.imageData = this.context.getImageData(0, 0, width, height);
+        }
+        if (!this.is3D) {
             rescale(this.context, width, height, DEVICE_PIXEL_RATIO);
         }
 
@@ -205,6 +204,8 @@ require("./define");
             );
         }
 
+        //make layer
+        this.layer = [];
         this.layer.push(this.canvas);
 
         this.type = this.options.type || "line";
@@ -227,7 +228,6 @@ require("./define");
 
         this.isAxis2D = false;
         this.srcOptions = options;
-        this.eventAction = "update";
 
         var animationOptions = chartOptions.animation;
         if (!isObject(animationOptions)) {
@@ -236,13 +236,18 @@ require("./define");
 
         this.globalAnimation = extend({
             isReady: false,
-            enabled: animationOptions.enabled !== false//default true
+            enabled: animationOptions.enabled !== false,//default true
+            instance: null
         }, animationOptions);
         this.globalAnimation.initialize = true;//initial once
 
         this.globalEvent = {
             click: noop,
             isDragging: false
+        };
+
+        this.globalHTML = {
+            dataLabels: null
         };
     }, chartProto;
 
@@ -401,8 +406,8 @@ require("./define");
                 var start = rangeSelector.start,
                     end = rangeSelector.end;
                 if (isObject(rangeSelector)) {
-                    start = Math.min(100, Math.max(0, pack("number", parseFloat(start, 10), 0)));
-                    end = Math.min(100, Math.max(0, pack("number", parseFloat(end, 10), 100)));
+                    start = mathMin(100, mathMax(0, pack("number", parseFloat(start, 10), 0)));
+                    end = mathMin(100, mathMax(0, pack("number", parseFloat(end, 10), 100)));
                     rs.start = start + "%";
                     rs.end = end + "%";//xAxis=0
                 }
@@ -432,6 +437,7 @@ require("./define");
                 animationDelay: animation.delay,
                 animationEasing: animation.easing,
                 animationEnabled: animation.enabled,
+                animationCompleted: true,
                 transform: transform,
                 states: {
                     hover: {}
@@ -449,7 +455,7 @@ require("./define");
                 newSeries,
                 {color: newData.color}
             );
-            newSeries = new Series(mergeOptions);
+            newSeries = new Series(mergeOptions, this.options);
             newSeries.shapes = newSeries.addShape();
             newSeries.chart = this;
 
@@ -555,6 +561,10 @@ require("./define");
                 return type === "categories";
             };
 
+            var logar = function (type) {
+                return type === "logarithmic";
+            };
+
             var x = function (s) {
                 return s.isX === true;
             };
@@ -578,7 +588,7 @@ require("./define");
                     enabled = axisOptions.enabled,
                     categories = axisOptions.categories,
                     tickAmount = axisOptions.tickAmount,
-                    type = axisOptions.type || axis.type,
+                    type = axis.type,
                     logBase = pack("number", (axisOptions.logarithmic || {}).base, 10);
                 var softMax = axisOptions.softMax,
                     softMin = axisOptions.softMin;
@@ -602,6 +612,9 @@ require("./define");
                         minDomain = 0, maxDomain = seriesOptions.length;
                     },
                     function (name, type) {
+                        if (xAxis(name) && linear(type)) {
+                            return false;
+                        }
                         return xAxis(name) && !categor(type) && x(seriesOptions);
                     }, function () {
                         minDomain = minValue = seriesOptions.minX;
@@ -616,15 +629,15 @@ require("./define");
                     function (name, type) {
                         return seriesFirst.minAxisZero && linear(type);
                     }, function () {
-                        minDomain = minValue = Math.min(0, seriesOptions.min);//bar & column base value 0
+                        minDomain = minValue = mathMin(0, seriesOptions.min);//bar & column base value 0
                     },
-                    function () {
-                        return isNumber(softMin, true) && softMin < minValue;
+                    function (name, type) {
+                        return (linear(type) || logar(type)) && isNumber(softMin, true) && softMin < minValue;
                     }, function () {
                         minDomain = minValue = softMin;
                     },
-                    function () {
-                        return isNumber(softMax, true) && softMax < maxValue;
+                    function (name, type) {
+                        return (linear(type) || logar(type)) && isNumber(softMax, true) && softMax < maxValue;
                     }, function () {
                         maxDomain = maxValue = softMax;
                     },
@@ -644,17 +657,17 @@ require("./define");
                         tickAmount = axisOptions.tickAmount;
                     },
                     function (name, type) {
-                        return categor(type) || isArray(categories);
+                        return categor(type) || (!linear(type) && isArray(categories));
                     }, function () {
                         var categoriesLength = pack("number", categories && categories.length, seriesOptions.length, tickAmount, 0);
-                        minDomain = Math.max(0, Math.min(~~(categoriesLength * start / 100), categoriesLength - 1));
-                        maxDomain = Math.max(Math.ceil(categoriesLength * end / 100), minDomain + 1);
+                        minDomain = mathMax(0, mathMin(~~(categoriesLength * start / 100), categoriesLength - 1));
+                        maxDomain = mathMax(mathCeil(categoriesLength * end / 100), minDomain + 1);
                         if (isNumber(tickAmount, true)) {
                             tickAmount = maxDomain - minDomain;//defined axis tickAmount
                         }
                     },
                     function () {
-                        return seriesOptions.length === 0;
+                        return !(seriesOptions.length !== 0 || (isArray(categories) && categories.length));
                     }, function () {
                         minDomain = maxDomain = 0;
                     }
@@ -665,19 +678,19 @@ require("./define");
                 }
 
                 seriesOptions = extend({series: series}, Series.normalize(series));
-                seriesOptions.length = seriesFirst.sumLength;
+                //seriesOptions.length = seriesFirst.sumLength;
                 start = pack("number", parseFloat(seriesFirst.start, 10), 0);
                 end = pack("number", parseFloat(seriesFirst.end, 10), 100);
                 minValue = seriesOptions.min, maxValue = seriesOptions.max;
                 minDomain = minValue, maxDomain = maxValue;
-                
+
                 n = opera.length;
                 while ((j += 2) < n) if (isTrued = opera[j].apply(null, [name, type])) {
                     opera[-~j](isTrued);
                 }
 
                 mergeOptions = {
-                    length: seriesOptions.length,
+                    length: seriesOptions.axisLength,//seriesOptions.length,// 不使用数据长度
                     domain: [minDomain, maxDomain],
                     minValue: minValue,
                     maxValue: maxValue,
@@ -692,11 +705,13 @@ require("./define");
                     mergeOptions.endValue = isNumber(rangeSelectorOptions.endValue, true) ? rangeSelectorOptions.endValue : null;
                 }
                 axis.setOptions && axis.setOptions(mergeOptions);
-
                 isNumber(axis.minValue, true) && (minValue = axis.minValue);
                 isNumber(axis.maxValue, true) && (maxValue = axis.maxValue);
+
                 axis.options.maxValue = maxValue;
                 axis.options.minValue = minValue;
+                axis.options.minLength = axis.minLength;
+                axis.options.maxLength = axis.options.length = axis.maxLength;
                 axis.options.plot = {
                     x: [seriesOptions.minX, seriesOptions.maxX],
                     y: [seriesOptions.minY, seriesOptions.maxY],
@@ -714,7 +729,7 @@ require("./define");
                 axis.options.enabled = enabled === true || ((enabled !== false) && isTrued);
             };
 
-            (function dfs(root) {
+            (function dfs (root) {
                 var children = root.children,
                     i = -1,
                     n;
@@ -725,7 +740,7 @@ require("./define");
                     next = !1;
                 }
                 
-                if (next && children && (n = children.length)) while(++i < n) {
+                if (next && children && (n = children.length)) while (++i < n) {
                     dfs(children[i]);
                 }
             })(this.chartTree);
@@ -792,20 +807,24 @@ require("./define");
                     seriesColors = options.colors || [];
                 if (options.legend.enabled !== false) {
                     this.series.forEach(function (series, i) {
-                        var data = series.data;
-                        if((series.type === "pie" || series.type === "funnel") && series.showInLegend === true){
-                            data.forEach(function(item, j){
-                                if(item !== null && (isObject(item) && item.value !== null)){
-                                    var value = extend({type: series.type, seriesIndex: i, dataIndex: j}, item);//new Data
-                                    !defined(value.color) && (value.color = seriesColors[j % seriesColors.length]);
-                                    !defined(value.name) && (value.name = value.value);
+                        var data = series.shapes;
+                        if ((series.type === "pie" || series.type === "funnel") && series.showInLegend === true) {
+                            data.forEach(function (item, j) {
+                                if (item !== null && (isObject(item) && item.value !== null)) {
+                                    var value = item;// extend({type: series.type, seriesIndex: i, dataIndex: j}, item);//new Data
+                                    value.type = series.type;
+                                    value.seriesIndex = i;
+                                    value.dataIndex = j;
                                     !defined(value.showInLegend) && (value.showInLegend = series.showInLegend);
                                     seriesData.push(value);
+                                }
+                                else {
+                                    seriesData.push({ type: series.type, /*seriesIndex: i, dataIndex: j, */disabled: true });
                                 }
                             });
                         }
                         else {
-                            series.showInLegend !== false && seriesData.push(series);
+                            series.showInLegend !== false && isArray(series.data) && data.length && seriesData.push(series);
                         }
                     });
 
@@ -831,11 +850,9 @@ require("./define");
             var viewport = this.getViewport().getView(),
                 width = viewport.width,
                 height = viewport.height;
-            var margin = TRouBLe(grid.margin).map(function (d, i) {
-                return [viewport.top, 0, 0, viewport.left][i];
-            });
+            var margin = TRouBLe(grid.margin);
             var chart = this;
-            var panel = setChartLayout(layout.panel, pack("number", grid.row, 1), pack("number", grid.col, 1), width, height, margin);
+            var panel = setChartLayout(layout.panel, pack("number", grid.row, 1), pack("number", grid.col, 1), width, height, margin, viewport);
             var n = panel.length;
             
             var index = function (i, n) {
@@ -851,7 +868,7 @@ require("./define");
             });
             partition(this.title, function (a, b) {
                 return index(a.panelIndex, ~-n) === index(b.panelIndex, ~-n);
-            }).forEach(function(groups){
+            }).forEach(function (groups) {
                 var pane = panel[clamp(groups[0].panelIndex, ~-n)],
                     titleBBox;
                 if (groups[0]) {
@@ -896,7 +913,20 @@ require("./define");
             }
             return this.panel = panel;
         },
-        renderAll: function () {
+        getShape: function (graphers, x, y, shared) {
+            var shapes = [];
+            graphers.forEach(function (chart) {
+                pack("array", pack("function", chart.getShape, noop).call(chart, x, y, shared)).forEach(function (shape) {
+                    shapes.push({
+                        shape: shape.shape,
+                        series: shape.series,
+                        key: shape.shape.key
+                    });
+                });
+            });
+            return shapes;
+        },
+        renderAll: function (event) {
             var options = this.options;
             var context = this.context,
                 chart = this;
@@ -965,11 +995,6 @@ require("./define");
                 },
                 toolbar: function () {
                     chart.toolbar && chart.toolbar.render();
-                },
-                legend: function () {
-                    if(chart.legend !== null && chart.legend.data.length){
-                        chart.legend.draw();
-                    }
                 },
                 rangeSlider: function() {
                     chart.rangeSlider.forEach(function(slider){
@@ -1055,9 +1080,9 @@ require("./define");
             };
             onRenderer();
         },
-        renderChart: function (charts, redraw) {
+        renderChart: function (charts, initialize) {
             charts.forEach(function (graphic) {
-                graphic.draw();
+                graphic.draw(initialize);
             });
         },
         clear: function () {
@@ -1071,36 +1096,34 @@ require("./define");
                 }
             });
         },
-        draw: function () {
+        addPlotSeries: function (types) {
+            var chartType = this.type;
+            var panel = this.panel;
+            var chart = this;
+
+            this.series.forEach(function (series) {
+                var type = series.type || chartType;
+                var pane = panel[mathMin(series.panelIndex | 0, ~-panel.length)];
+                series.plotX = pack("number", pane.plotX, pane.x, 0);
+                series.plotY = pack("number", pane.plotY, pane.y, 0);
+                series.plotWidth = pack("number", pane.plotWidth, pane.width);
+                series.plotHeight = pack("number", pane.plotHeight, pane.height);
+                series.plotCenterX = pack("number", pane.plotCenterX, pane.width / 2, 0);
+                series.plotCenterY = pack("number", pane.plotCenterY, pane.height / 2, 0);
+                series.plotRadius = pack("number", pane.plotRadius, mathMin(pane.width, pane.height), 0);
+                types && (types[type] = type);
+            });
+        },
+        draw: function (event) {
             var options = this.options,
                 newOptions = extend({}, options);
             var Graphers = Dalaba.Chart.graphers;
             var chart = this;
+            var types = {};
+            if (isEmpty(types)) {
+                types[this.type] = this.type;
+            }
 
-            var addPlotSeries = function (chart) {
-                var series = chart.series,
-                    panel = chart.panel;
-                var width = chart.width,
-                    height = chart.height;
-                var types = {};
-
-                series.forEach(function (series) {
-                    var type = series.type || chart.type;
-                    var pane = panel[Math.min(series.panelIndex | 0, ~-panel.length)];
-                    series.plotX = pack("number", pane.plotX, pane.x, 0);
-                    series.plotY = pack("number", pane.plotY, pane.y, 0);
-                    series.plotWidth = pack("number", pane.plotWidth, pane.width, width);
-                    series.plotHeight = pack("number", pane.plotHeight, pane.height, height);
-                    series.plotCenterX = pack("number", pane.plotCenterX, pane.width / 2, 0);
-                    series.plotCenterY = pack("number", pane.plotCenterY, pane.height / 2, 0);
-                    series.plotRadius = pack("number", pane.plotRadius, Math.min(pane.width, pane.height), 0);
-                    types[type] = type;
-                });
-                if (isEmpty(types)) {
-                    types[chart.type] = chart.type;
-                }
-                return types;
-            };
             var addChartor = function (chart, types, options) {
                 var charts = chart.charts;
                 var creator = {};
@@ -1129,7 +1152,7 @@ require("./define");
             };
 
             if (isEmpty(this.srcOptions) && this.globalAnimation.initialize && !(this.globalAnimation.initialize = false)) {
-                this.renderAll();//title & credits
+                this.renderAll(event);//title & credits
                 return this;
             }
 
@@ -1154,14 +1177,20 @@ require("./define");
             newOptions.series = this.series;
             newOptions.panel = this.panel;
 
-            addChartor(this, addPlotSeries(this), newOptions);
+            this.addPlotSeries(types);
+            addChartor(this, types, newOptions);
             this.panel.forEach(function (pane) {
-                defined(pane.tooltip) && pane.tooltip.setChart(chart.charts);
+                defined(pane.tooltip) && pane.tooltip.setChart(chart);
             });
             this.addOverlap();
-            this.render("update");
+            this.render(event);
         },
-        render: function (redraw, moused) {
+        redraw: function (event) {
+            this.linkAxis();
+            this.addOverlap();
+            this.render(event);
+        },
+        render: function (event) {
             var options = this.options,
                 events = (options.chart || {}).events || {},
                 charts = this.charts,
@@ -1172,13 +1201,13 @@ require("./define");
             var tooltipOptions = options.tooltip || {};
 
             var onLoad = function () {
-                defined(events.load) && events.load.call(chart);
+                defined(events.load) && events.load.call(chart, event);
             };
             var onReady = function () {
-                defined(events.ready) && events.ready.call(chart);
+                defined(events.ready) && events.ready.call(chart, event);
             };
             var onRedraw = function () {
-                defined(events.redraw) && events.redraw.call(chart, redraw, moused);
+                defined(events.redraw) && events.redraw.call(chart, event);
             };
             
             var filterAnimation = function (chart, type) {
@@ -1199,9 +1228,9 @@ require("./define");
                 var list = [].slice.call(arguments, 0, -1),
                     initialize = !!arguments[list.length];
                 var shapes = [];
-                list.forEach(function(item) {
-                    item.forEach(function(item) {
-                        item.animateTo && item.animateTo(context, initialize, chart.eventAction).forEach(function (shape) {
+                list.forEach(function (item) {
+                    item.forEach(function (graphic) {
+                        graphic.animateTo && graphic.animateTo(initialize).forEach(function (shape) {
                             shapes.push(shape);
                         });
                     });
@@ -1211,18 +1240,49 @@ require("./define");
             var drawAixs = function () {
                 chart.yAxis.concat(chart.xAxis).forEach(function (axis) {
                     if (axis.options.enabled !== false) {
-                        axis.draw();
-                        axis._ticks = axis.ticks;
+                        axis.setCrosshair(event.moveX, event.moveY).draw();
                     }
                 });
+            };
+            var drawLegend = function () {
+                var legend = chart.legend;
+                var setState = function (item, isSeted) {
+                    var series = chart.series,
+                        shape = item;
+                    if (item.type === "pie" || item.type === "funnel") {
+                        var shapes = pack("object",
+                            series[pack("number", item.seriesIndex, -1)], {}
+                        ).shapes || [];
+                        shapes.forEach(function (shape) {
+                            delete shape.state;
+                        });
+                        isSeted !== false && ((shape = shapes[pack("number", item.dataIndex, -1)] || {}).state = !0);
+                    }
+                    else {
+                        series.forEach(function (series) {
+                            delete series.state;
+                        });
+                        isSeted !== false && (shape.state = !0);
+                    }
+                };
+                if (legend !== null) {
+                    if (event.type === "mousemove" && globalAnimation.isReady) {
+                        legend.onState(event, function (item) {
+                            setState(item);
+                        }, function (item) {
+                            setState(item, false);
+                        });
+                    }
+                    legend.draw();
+                }
             };
             var tooltipFilter = function (pos, data, ret) {
                 var n = data.length,
                     i = 0;
                 var d, insides = [];
-                for (; i < n; i++) if (defined((d = data[i]).tooltip)) {
+                for (; i < n; i++) if (defined(d = data[i])) {
                     defined(d.tooltip) && pos && Intersection.rect({
-                        x: pos.x, y: pos.y
+                        x: pos.moveX, y: pos.moveY
                     }, {
                         x: d.x, y: d.y,
                         width: d.x + d.width, height: d.y + d.height
@@ -1232,16 +1292,15 @@ require("./define");
             };
 
             var drawTooltip = function () {
-                var panels, curPanel = tooltipFilter(moused, chart.panel, panels = [])[0];
+                var panels, curPanel = tooltipFilter(event, chart.panel, panels = [])[0];
                 var linked = (options.layout || {}).linked;
                 var positioner = tooltipOptions.positioner;
 
                 if (defined(curPanel)) {
-                    if (redraw !== "hover") {
-                        var item = curPanel.tooltip.move(moused.x, moused.y, true)[0],
+                    if (event.type !== "mousemove") {
+                        var item = curPanel.tooltip.move(event.moveX, event.moveY, true)[0],
                             shape;
                         var curIndex;
-
                         if (item && panels.length) {
                             curIndex = item.shape.index;
                             panels.forEach(function (pane) {
@@ -1272,36 +1331,44 @@ require("./define");
                 }
             };
 
-            function paintComponent (arr, ani, once) {
+            function paintComponent (charts, ani, once) {
                 chart.clear();
-                chart.renderAll();
+                chart.renderAll(event);
                 drawAixs();
-                ani && ani();
-                chart.renderChart(arr, redraw);
-                chart.legend && chart.legend.draw();
+                chart.series.forEach(function (series) {
+                    series.animationCompleted = globalAnimation.isReady;
+                });
+                if (ani) {
+                    ani();
+                }
+                else {
+                    chart.renderChart(charts);
+                }
+                drawLegend();
+
                 !once && drawTooltip();
             }
 
-            var isEventing = function (redraw) {
-                return redraw === "hover" || redraw === "resize" || redraw === "drag" || redraw === "click";
+            var isEventing = function (event) {
+                var type = event.type;
+                return type === "mousemove" || type === "resize" || type === "click";
             };
             var isAnimationReady = function (chart) {
                 return chart.globalAnimation.isReady === true;
             };
             var isDragging = function (chart) {
-                return !chart.globalEvent.isDragging;
+                return chart.globalEvent.isDragging === false;
             };
 
             var Animation;
 
             var animateTo = function (charts, onStep, onLoad) {
                 var noAnimationCharts, animationCharts = filterNotAnimation(charts, noAnimationCharts = []);
-
                 globalAnimation.isReady = false;
                 if (noAnimationCharts.length) {
                     defined(background) && defined(background.image) && background.completed !== true ?
-                        new function() {
-                            background.image.onload = function() {
+                        new function () {
+                            background.image.onload = function () {
                                 background.loaded();
                                 paintComponent(noAnimationCharts);
                             };
@@ -1314,29 +1381,17 @@ require("./define");
                         : paintComponent(noAnimationCharts);
                 }
                 if (defined(Dalaba.Animation) && animationCharts.length) {
-                    Animation = new Dalaba.Animation();
-                    //Animation.stop();
-                    getAnimationList(animationCharts, true).forEach(function (item) {
-                        var shape = item[0],
-                            step = item[1];
-                        var animationEnabled = shape.animationEnabled;
-                        if(!defined(animationEnabled) && shape.series){
-                            animationEnabled = shape.series.animationEnabled;
-                        }
-                        Animation.addAnimate(shape, {
-                            step: function (target, timer) {
-                                if (!animationEnabled) timer = 1;
-                                step(timer);
-                            },
+                    globalAnimation.instance = new Dalaba.Animation();
+                    getAnimationList(animationCharts, chart.xAxis, chart.yAxis, chart.polarAxis, true).forEach(function (shape) {
+                        globalAnimation.instance.addAnimate(shape, {
                             complete: function () {
-                                
                             },
                             duration: pack("number", shape.duration, globalAnimation.duration, 500),
                             easing: pack("string", shape.easing, globalAnimation.easing, "ease-in-out"),
                             delay: pack("number", shape.delay, globalAnimation.delay, 0)
                         });
                     });
-                    Animation.fire(function () {
+                    globalAnimation.instance.fire(function () {
                         globalAnimation.isReady = false;
                         onStep && onStep(noAnimationCharts, animationCharts);
                     }, function () {
@@ -1345,131 +1400,151 @@ require("./define");
                         onLoad();
                     });
                 }
-                animationCharts.length | noAnimationCharts.length || (chart.renderAll(), drawAixs(), onLoad(), onReady());
-                !animationCharts.length & !!noAnimationCharts.length && (onLoad(), onReady());
-                globalAnimation.isReady = true;
+                animationCharts.length | noAnimationCharts.length || (globalAnimation.isReady = true, chart.renderAll(event), drawAixs(), onLoad(), onReady());
+                !animationCharts.length & !!noAnimationCharts.length && (globalAnimation.isReady = true, onLoad(), onReady());
+                //globalAnimation.isReady = true;
             };
 
             if (this.is3D) {
-                var animationCharts = filterNotAnimation(charts);
-                chart.renderChart(animationCharts, redraw);
+                chart.renderChart(filterNotAnimation(charts));
                 globalAnimation.isReady = true;
                 return;
             }
 
             if (globalAnimation.initialize === true && !(globalAnimation.initialize = false)) {
-                animateTo(charts, function(noAnimationCharts, animationCharts) {
+                animateTo(charts, function (noAnimationCharts, animationCharts) {
                     paintComponent(noAnimationCharts, function () {
-                        animationCharts.forEach(function (item) {
-                            item.onFrame && item.onFrame(context, true);
-                        });
+                        chart.renderChart(animationCharts, true);
                     }, true);
-                }, function() {
+                }, function () {
                     onLoad(), onReady();
                 });
             }
             else {
-                if (redraw === "update") {
+                if (event.type === "update" || event.type === "selected") {
                     var noAnimationCharts, animationCharts = filterNotAnimation(charts, noAnimationCharts = []);
-
+                    if (event.type === "selected") {
+                        chart.addPlotSeries();
+                        charts.forEach(function (graphic) {
+                            graphic.redraw();
+                        });
+                    }
                     if (noAnimationCharts.length) {
                         paintComponent(noAnimationCharts);
                     }
-                    if (defined(Dalaba.Animation) && animationCharts.length) {
-                        Animation = new Dalaba.Animation();
-                        Animation.stop();
-                        var shapes = getAnimationList(animationCharts, chart.yAxis, chart.xAxis, false);
-                        shapes.forEach(function(item){
-                            var shape = item[0],
-                                step = item[1];
-                            Animation.addAnimate(shape, {
-                                duration: 
-                                    chart.eventAction === "update"
-                                    ? pack("number", shape.duration, globalAnimation.duration, 500)
-                                    : chart.eventAction === "selected" ? 300 : 300,
+                    if (animationCharts.length) {
+                        var shapes = getAnimationList(animationCharts, chart.xAxis, chart.yAxis, this.polarAxis, false);
+                        if (globalAnimation.instance === null) {
+                            globalAnimation.instance = new Dalaba.Animation();
+                        }
+                        globalAnimation.instance.stop(false, true);
+                        shapes.forEach(function (shape) {
+                            globalAnimation.instance.addAnimate(shape, {
+                                duration: event.type === "selected" ? 300 : pack("number", shape.duration, globalAnimation.duration, 500),
                                 delay: 0,
                                 easing: "linear",
-                                step: function (target, timer) {
-                                    step(timer);
-                                },
                                 complete: function () {}
                             });
                         });
-                        Animation.fire(function(){
+                        /*if (event.type === "update") {
+                            globalAnimation.instance.stop(false, true);
+                            shapes.forEach(function (shape) {
+                                globalAnimation.instance.addAnimate(shape, {
+                                    duration: pack("number", shape.duration, globalAnimation.duration, 500),
+                                    delay: 0,
+                                    easing: "linear",
+                                    complete: function () {}
+                                });
+                            });
+                        }
+                        else if (event.type === "selected") {
+                            globalAnimation.instance.setOptions({
+                                duration: 300
+                            }).stop();
+                        }*/
+
+                        globalAnimation.instance.fire(function () {
                             globalAnimation.isReady = false;
-                            chart.clear();
-                            chart.renderAll();
-                            chart.yAxis.concat(chart.xAxis).forEach(function(axis){
-                                if(axis.options.enabled !== false){
-                                    axis.onFrame();
-                                }
-                            });
-                            chart.renderChart(noAnimationCharts);
-                            animationCharts.forEach(function(item){
-                                item.onFrame && item.onFrame(context, false);
-                            });
-                            chart.legend && chart.legend.draw();
-                            //drawTooltip();
+                            paintComponent(charts, null, true);
                             onRedraw();
                         }, function () {
                             globalAnimation.isReady = true;
-                            chart.clear();
-                            chart.renderAll();
-                            chart.yAxis.concat(chart.xAxis).forEach(function (item) {
-                                if (item.options.enabled !== false) {
-                                    item.draw();
-                                }
-                            });
-                            chart.renderChart(charts);
-                            chart.legend && chart.legend.draw();
-                            drawTooltip();
+                            paintComponent(charts, null);
                             onRedraw(), onReady();
                         });
                     }
+                    event.type === "update" && (noAnimationCharts.length & !animationCharts.length) && (onRedraw());
                 }
-                if (isAnimationReady(chart) && isDragging(chart) && isEventing(redraw)) {
+                if (isAnimationReady(chart) && isDragging(chart) && isEventing(event)) {
                     paintComponent(charts);
                     onRedraw();
                 }
             }
         },
-        addOverlap: function (type) {
-            var points = [];
+        addOverlap: function () {
             var labels = [];
             var useHTML;
-            var domHTML = [];
+            var container = this.container;
+            var domDataLabels = [],
+                domLabel;
+
+            var labelPoints = function (shape, dataLabel, labels, points) {
+                if (dataLabel) {
+                    dataLabel.placed = true;
+                    dataLabel.labelrank = shape.labelrank || dataLabel.height;
+                    dataLabel.allowOverlap !== true && labels.push(dataLabel);
+                    dataLabel.useHTML === true && points.push(dataLabel);
+                }
+            };
+
+            while (domLabel = (this.globalHTML.dataLabels || []).pop()) {
+                container.removeChild(domLabel);
+            }
+
             this.series.forEach(function (series) {
                 var dataLabels = series.dataLabels;
+                var pointHTML = [];
                 if (defined(dataLabels) && dataLabels.enabled !== false) {
                     useHTML = useHTML || dataLabels.useHTML === true;
                     series.shapes.forEach(function (shape) {
-                        var dataLabel = shape.dataLabel;
-                        if (dataLabel) {
-                            dataLabel.placed = true;
-                            dataLabel.labelrank = shape.labelrank || dataLabel.height;
-                            dataLabel.allowOverlap !== true && labels.push(dataLabel);
-                            points.push(shape);
+                        var boxDataLabels = shape.boxDataLabels;
+                        if (isArray(boxDataLabels)) {
+                            boxDataLabels.forEach(function (dataLabel, i) {
+                                labelPoints(shape, dataLabel, labels, pointHTML);
+                            });
                         }
+                        labelPoints(shape, shape.dataLabel, labels, pointHTML);
                     });
+                    if (useHTML) {
+                        domLabel = document.createElement("div");
+                        isString(dataLabels.className) && setAttribute(domLabel, { "class": dataLabels.className});
+                        setStyle(domLabel, {
+                            position: "absolute",
+                            top: "0px",
+                            left: "0px"
+                        });
+                        container.appendChild(domLabel);
+                        domDataLabels.push({
+                            dom: domLabel,
+                            labels: pointHTML
+                        });
+                    }
                 }
             });
-            DataLabels.overlapping(labels);
-            if (useHTML === true) {
-                points.forEach(function (point) {
-                    var dataLabel = point.dataLabel;
-                    if (dataLabel.visibled !== false && defined(dataLabel.valueHTML)) {
-                        domHTML.push(dataLabel.valueHTML);
-                    }
+            this.globalHTML.dataLabels = domDataLabels.map(function (d) { return d.dom; });
+            DataLabels.overlapping(labels); // global checked
+            if (domDataLabels.length) {
+                domDataLabels.forEach(function (item) {
+                    var domHTML = [];
+                    item.labels.forEach(function (dataLabel) {
+                        if (dataLabel.visibled !== false && defined(dataLabel.valueHTML)) {
+                            domHTML.push(dataLabel.valueHTML);
+                        }
+                    });
+                    item.dom.innerHTML = domHTML.join("");
+                    domHTML = null;
                 });
-                var domDataLabels = this.dataLabels || (this.container.appendChild(this.dataLabels = document.createElement("div")));
-                setStyle(domDataLabels, {
-                    position: "absolute",
-                    top: "0px",
-                    left: "0px"
-                });
-                domDataLabels.innerHTML = domHTML.join("");
             }
-            domHTML = null;
         },
         getViewport: function () {
             var options = this.options,
@@ -1591,48 +1666,33 @@ require("./define");
             var series = [];
             var seriesOptions,
                 axisOptions,
-                chartOptions;
+                chartOptions = options.chart || {};;
             var chart = this;
             extend(this.options, options);
 
-            var remove = function (type, axisOptions) {
-                var oldAxis = chart[type],
-                    newAxis = axisOptions;
-                chart[type].splice(Math.abs(oldAxis.length - newAxis.length));
-            };
-            var modify = function (type, axisOptions) {
-                axisOptions.slice(0, chart[type].length).forEach(function (item, i) {
-                    var axis = chart[type][i];
-                    axis.setOptions(item);
-                    axis._options = item;
-                });
-            };
-            var add = function (type, axis) {
-                axis.forEach(function (item) {
+            var execute = function(type, axisOptions) {
+                var oldAxis = chart[type];
+                axisOptions = pack("array", axisOptions, [axisOptions]);
+                Comparative(axisOptions, oldAxis).update(function (item) {
                     var srcOptions = isObject(item) ? item : {},
                         axisOptions = extend({
                             name: type,
                             //index: chart[name].length,
                             lang: options.lang
-                            }, defaultOptions[type], srcOptions) || {};
-                    chartOptions = options.chart || {};
+                        }, defaultOptions[type], srcOptions) || {};
                     axisOptions.labels = axisOptions.labels || {};
                     axisOptions.labels.style = axisOptions.labels.style || {};
                     for (var p in chartOptions.style) if (!({}).hasOwnProperty.call(axisOptions.labels.style, p)) {
                         axisOptions.labels.style[p] = chartOptions.style[p];
                     }
                     chart.addAxis(type, axisOptions)._options = srcOptions;
+                }, function () {
+                }, function (axis, item) {
+                    axis.setOptions(item);
+                    axis._options = item;
                 });
-            };
-            var execute = function(type, axisOptions) {
-                axisOptions = pack("array", axisOptions, [axisOptions]);
-                axisOptions.length ^ chart[type].length
-                    ? axisOptions.length < chart[type].length
-                        ? (remove(type, axisOptions), modify(type, axisOptions))
-                        : (modify(type, axisOptions), add(type, axisOptions.slice(chart[type].length)))
-                    : modify(type, axisOptions);
                 //reset index
-                chart[type].forEach(function(axis, i){
+                oldAxis.forEach(function(axis, i){
                     axis.index = i;
                 });
             };
@@ -1670,20 +1730,19 @@ require("./define");
                 this.tooltip.setOptions(options.tooltip);
             }
             if (defined(options.layout)) {
-                this.render("click", {x: this.globalEvent.x, y: this.globalEvent.y});
+                //this.render("click", {x: this.globalEvent.x, y: this.globalEvent.y});
             }
             if (defined(chartOptions = options.chart) && (isNumber(chartOptions.width, true) || isNumber(chartOptions.height, true))) {
                 this.setSize(
                     isNumber(chartOptions.width, true) ?  Math.max(0, chartOptions.width) : chart.width,
                     isNumber(chartOptions.height, true) ? Math.max(0, chartOptions.height) : chart.height,
-                    false
+                    null
                 );
             }
-
-            redraw !== false && this.draw();
+            redraw !== false && this.draw({ target: this, type: "update"});
             return this;
         },
-        setSize: function (width, height, redraw) {
+        setSize: function (width, height, event) {
             var options = this.options,
                 spacing = TRouBLe(options.chart.spacing || []);
             var panel = this.panel;
@@ -1691,8 +1750,8 @@ require("./define");
             var chart = this;
             var oldWidth = this.width,
                 oldHeight = this.height;
-            var ratioWidth = width / oldWidth,
-                ratioHeight = height / oldHeight;
+            var ratioWidth = width - oldWidth,
+                ratioHeight = height - oldHeight;
             var canvas = this.canvas;
             var chart = this;
 
@@ -1716,49 +1775,28 @@ require("./define");
                         (width - spacing[1] - spacing[3]) * 0.7//auto
                     )
                 });
-                this.legend.viewport.height = Math.min(
+                this.legend.viewport.height = mathMin(
                     this.legend.maxHeight + (pack("number", this.legend.options.margin, 0)),
                     this.height / 2
                 );
             }
-            this.rangeSlider.forEach(function (slider) {
-                var rangeSelectorOptions;
-                if (slider !== null) {
-                    rangeSelectorOptions = slider._options;
-                    slider.setOptions({
-                        width: pack("number",
-                            rangeSelectorOptions.width,
-                            Numeric.percentage(chart.width, rangeSelectorOptions.width),
-                            chart.width - spacing[1] - spacing[3]
-                        )
-                    });
-                }
-            });
-            
             panel.forEach(function (pane) {
-                pane.plotX = pane.x *= ratioWidth;
-                pane.plotY = pane.y *= ratioHeight;
-                pane.plotWidth = pane.width *= ratioWidth;
-                pane.plotHeight = pane.height *= ratioHeight;
+                //pane.plotX = pane.x *= ratioWidth;
+                //pane.plotY = pane.y *= ratioHeight;
+                //pane.plotWidth = pane.width *= ratioWidth;
+                //pane.plotHeight = pane.height *= ratioHeight;
+                pane.width += ratioWidth;// spacing[1] - spacing[3];
+                pane.height += ratioHeight;
             });
             this.translateAxis();
-            chart.series.forEach(function (series) {
-                var pane = panel[Math.min(series.panelIndex | 0, ~-panel.length)];
-                series.plotX = pack("number", pane.plotX, pane.x);
-                series.plotY = pack("number", pane.plotY, pane.y);
-                series.plotWidth = pack("number", pane.plotWidth, pane.width);
-                series.plotHeight = pack("number", pane.plotHeight, pane.height);
-                series.plotCenterX = pack("number", pane.plotCenterX, pane.width / 2, 0);
-                series.plotCenterY = pack("number", pane.plotCenterY, pane.height / 2, 0);
-                series.plotRadius = pack("number", pane.plotRadius, Math.min(pane.width, pane.height), 0);
-                series.plotRadius = pane.plotRadius;
-            });
+            this.addPlotSeries();
+
             this.charts.forEach(function (graphic) {
                 graphic.redraw();
             });
             this.addOverlap();
 
-            redraw !== false && chart.render("resize");
+            event !== null && chart.render(event);
         },
         getSize: function (container) {
             var options = this.options,
@@ -1769,6 +1807,8 @@ require("./define");
             var bbox = container.getBoundingClientRect(),
                 boxWidth = pack("number", bbox.width, container.offsetWidth),
                 boxHeight = pack("number", bbox.height, container.offsetHeight);
+            var padding = getStyle(container, "padding").split(/\s+/).map(parseFloat);
+            padding = TRouBLe(padding);
 
             width = Math.max(0, pack("number", width, Numeric.percentage(boxWidth, width)));
             height = Math.max(0, pack("number", height, Numeric.percentage(boxHeight, height)));
@@ -1779,6 +1819,8 @@ require("./define");
             if (width <= 0) {
                 width = pack("number", bbox.width, container.offsetWidth);
             }
+            width = Math.max(0, width - padding[1] - padding[3]);
+            height = Math.max(0, height  - padding[0] - padding[2]);
             return {
                 width: width,
                 height: height
@@ -1788,18 +1830,19 @@ require("./define");
             var container = this.container;
 
             Event.Handler.destroy(this);
+            var layer;
 
-            this.layer.forEach(function (layer) {
-                container.removeChild(layer);
-                layer = null;
-            });
+            while (layer = this.layer.pop()) {
+                (layer.parentNode && layer.parentNode === container) && container.removeChild(layer);
+            }
 
             if (this.tooltip !== null) {
-                this.tooltip.useHTML === true && (container.removeChild(this.tooltip.canvas));
+                layer = this.tooltip.canvas;
+                this.tooltip.useHTML === true && ((layer.parentNode && layer.parentNode === container) && container.removeChild(layer));
             }
             container.parentNode && container.parentNode.removeChild(container);
 
-            [container, this.context, this.tooltip, this.legend].concat(
+            [layer, container, this.context, this.tooltip, this.legend].concat(
                 this.xAxis, this.yAxis, this.colorAxis, this.series
             ).forEach(function (item) {
                 item = null;
@@ -1838,7 +1881,7 @@ require("./define");
             var Legend = Dalaba.Chart.Legend,
                 legend = null;
 
-            if(defined(Legend) && legendOptions.enabled !== false){
+            if (defined(Legend) && legendOptions.enabled !== false) {
                 legend = new Legend(
                     this.canvas,//this.addLayer(legendOptions.layer),
                     legendOptions.series,
@@ -1917,7 +1960,7 @@ require("./define");
                     viewportBottom = 0;
                 item.yAxis.forEach(function (axis) {
                     var axisOptions = axis.options;
-                    var pane = panel[Math.min(axisOptions.panelIndex | 0, panel.length - 1)],
+                    var pane = panel[mathMin(axisOptions.panelIndex | 0, panel.length - 1)],
                         viewport = pane.viewport;
                     var left = viewport.left,
                         right = viewport.right,
@@ -1942,7 +1985,7 @@ require("./define");
                 });
                 item.xAxis.forEach(function (axis) {
                     var axisOptions = axis.options;
-                    var pane = panel[Math.min(axisOptions.panelIndex | 0, panel.length - 1)],
+                    var pane = panel[mathMin(axisOptions.panelIndex | 0, panel.length - 1)],
                         viewport = pane.viewport;
                     var top = viewport.top,
                         bottom = viewport.bottom;
@@ -1972,13 +2015,12 @@ require("./define");
 
                 var startX;
                 item.yAxis.forEach(function (axis) {
-                    var pane = panel[Math.min(axis.options.panelIndex | 0, panel.length - 1)];
+                    var pane = panel[mathMin(axis.options.panelIndex | 0, panel.length - 1)];
                     var plotHeight = pane.height - pane.viewportTop - pack("number", pane.viewportBottom),
                         plotWidth = pane.width - pane.viewportLeft - pane.viewportRight,
                         plotY = pane.y + pane.viewportTop;
                     var x = pane.x,
                         y = plotY;
-
                     //startX = x;
                     if (axis.options.enabled !== false) {
                         if (axis.options.opposite === true) {
@@ -2004,7 +2046,7 @@ require("./define");
                 });
                 item.xAxis.forEach(function (axis) {
                     var axisOptions = axis.options;
-                    var pane = panel[Math.min(axisOptions.panelIndex | 0, panel.length - 1)];
+                    var pane = panel[mathMin(axisOptions.panelIndex | 0, panel.length - 1)];
                     var plotHeight = pane.height - pane.viewportTop - pane.viewportBottom,
                         plotWidth = pane.width - pane.viewportLeft - pane.viewportRight;
                     var y = 0;
@@ -2029,13 +2071,13 @@ require("./define");
                     }
                 });
 
-                item.polarAxis.concat(item.radiusAxis).forEach(function(axis, i) {
-                    var pane = panel[Math.min(axis.options.panelIndex | 0, panel.length - 1)];
+                item.polarAxis.concat(item.radiusAxis).forEach(function (axis, i) {
+                    var pane = panel[mathMin(axis.options.panelIndex | 0, panel.length - 1)];
                     var plotHeight = pane.height - pane.viewportTop - pane.viewportBottom,
                         plotWidth = pane.width - pane.viewportLeft - pane.viewportRight,
                         plotY = pane.y + pane.viewportTop;
                     var axisOptions = axis._options;
-                    var size = Math.min(plotHeight, plotWidth) / 2,//default 85%
+                    var size = mathMin(plotHeight, plotWidth) / 2,//default 85%
                         center;
                     
                     size = pack("number", axisOptions.size, Numeric.percentage(size, axisOptions.size), size * 0.85, 0);
@@ -2047,7 +2089,7 @@ require("./define");
                         pack("number", center[0], Numeric.percentage(plotWidth, center[0]), size),
                         pack("number", center[1], Numeric.percentage(plotHeight, center[1]), size)
                     ];
-                    if(axis.options.enabled !== false){
+                    if (axis.options.enabled !== false) {
                         axis.scale(0, plotWidth);
                         axis.setOptions({
                             center: center,
@@ -2069,7 +2111,16 @@ require("./define");
                         range: [0, size]
                     });
                 });
+                delete item.xAxisTitleFirst;
+                delete item.yAxisTitleFirst;
             });
+        },
+        rangeToPoints: function (bounds) {
+            this.globalEvent.isDragging = false;
+            this.charts.forEach(function (graphic) {
+                graphic.rangeTo && graphic.rangeTo(bounds);
+            });
+            this.render({ target: this, type: "mousemove" });
         },
         export: function (image, width, height, type) {
             var canvas = document.createElement("canvas"),
@@ -2173,59 +2224,20 @@ require("./define");
                 }[pack("string", legendOptions.verticalAlign, "bottom")] + pack("number", legendOptions.y, 0)
             });
             var legend = this.addLegend(legendOptions);
-            if(legend !== null){
-                legend.onClick(chart.container, function(item, index){
-                    var series = chart.series,
-                        selected = this.selected,
-                        curSeries;
-                
-                    if(item.type === "pie" || item.type === "funnel"){
-                        pack("object", pack("object",
-                            series[pack("number", item.seriesIndex, -1)], {}
-                        ).data[pack("number", item.dataIndex, -1)], {}).selected = selected;
-                        //item.selected = selected;
-                    }
-                    else{
-                        curSeries = series[index];
-                        curSeries.selected = selected;//modified series
-                        curSeries.action = "click";//hover-on, hover-off, click-on, click-off
-                    }
-                    series.forEach(function(series){
-                        series.shapes = series.addShape();
-                    });
-                    chart.eventAction = "selected";
-
+            if (legend !== null) {
+                legend.onClick(chart.container, function (e, item, index) {
+                    item.selected = this.selected;//modified series //hover-on, hover-off, click-on, click-off
                     legend.noScroll = true;
-                    chart.draw();
-                    curSeries && (curSeries.action = "");
-                }).onState(chart.container, function(item){
-                    var series = chart.series,
-                        shape = item;
-                    if(item.type === "pie" || item.type === "funnel"){
-                        var shapes = pack("object",
-                            series[pack("number", item.seriesIndex, -1)], {}
-                        ).shapes || [];
-                        shapes.forEach(function(shape){
-                            delete shape.state;
-                        });
-                        (shape = shapes[pack("number", item.dataIndex, -1)] || {}).state = !0;
-                    }
-                    else{
-                        series.forEach(function (series) {
-                            delete series.state;
-                        });
-                        shape.state = !0;
-                    }
-                    chart.render("hover");
-                    delete shape.state;
-                }).onScroll(chart.container, function () {
-                    chart.render("click");
+
+                    chart.redraw(extend({}, e, { type: "selected", points: [item], shapes: [item] }));
+                }).onScroll(chart.container, function (e) {
+                    chart.render(e);
                 });
                 this.legend = legend;
             }
 
             var RangeSelector = Dalaba.Chart.RangeSelector;
-            if(defined(options.rangeSelector)){
+            if (defined(options.rangeSelector)) {
                 (isArray(options.rangeSelector) ? options.rangeSelector : [options.rangeSelector]).forEach(function(item){
                     var rangeSelectorOptions = extend({}, item || {}),
                         rangeSlider = null;
@@ -2249,8 +2261,8 @@ require("./define");
                         if (defined(RangeSelector) && rangeSelectorOptions.enabled === true) {
                             rangeSlider = new RangeSelector(chart.canvas, rangeSelectorOptions);
                             rangeSlider._options = item || {};
+                            chart.rangeSlider.push(rangeSlider);
                         }
-                        chart.rangeSlider.push(rangeSlider);
                         chart.rangeSelector.push({
                             start: rangeSelectorOptions.start,
                             end: rangeSelectorOptions.end
@@ -2261,7 +2273,10 @@ require("./define");
 
             this.toolbar = chart.addToolbar(options.toolbar);
 
-            chart.draw();
+            chart.draw({
+                target: this,
+                type: "load"
+            });
             chart.container.nodeType === 1 && Event.Handler(this);
 
             return this;

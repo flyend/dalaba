@@ -211,7 +211,7 @@
                 }
                 return function (x) {
                     var l = 1, r = length, m;
-                    while(l < r){
+                    while (l < r) {
                         m = l + r >> 1;
                         x < domain[m] ? (r = m) : (l = m + 1);
                     }
@@ -254,13 +254,13 @@
         },
         linear: function (x1, y1, x2, y2) {
             var context = Color.GRADIENT_CONTEXT;
-            if(defined(context)){
+            if (defined(context)) {
                 var gradient = context.createLinearGradient(
                     this.x1 * x1, this.y1 * y1,
                     this.x2 * x2, this.y2 * y2
                 );
-                this.stops.forEach(function(item){
-                    gradient.addColorStop(item[0], item[1]);
+                this.stops.forEach(function (stop) {
+                    gradient.addColorStop(stop[0], stop[1]);
                 });
                 return gradient;
             }

@@ -1,10 +1,10 @@
-(function(global) {
+(function (global) {
 
     var sankeyInterpolate = function(a, b, t) {
         return a * (1 - t) + b * t;
     };
 
-    var sankeyCurve = function(startX, endX, startY, endY) {
+    var sankeyCurve = function (startX, endX, startY, endY) {
         var curvature = 0.5;
         var x0 = startX,
             x1 = endX,
@@ -15,7 +15,7 @@
         return [x0, y0, x2, y0, x3, y1, x1, y1];
     };
 
-    var sankeySum = function(arrays, key) {
+    var sankeySum = function (arrays, key) {
         var n = arrays.length,
             i = n & 1;
         var v = i ? arrays[0][key] : 0;
@@ -25,7 +25,7 @@
         return v;
     };
 
-    var sankeyUnique = function(arrays){
+    var sankeyUnique = function (arrays) {
         var length = arrays.length,
             i = -1;
         var ret = [], o;
@@ -40,8 +40,8 @@
         }
         return ret;
     };
-    var sankeyIndexOf = (function(){
-        var filter = function(a, b){
+    var sankeyIndexOf = (function () {
+        var filter = function (a, b) {
             return a === b;
         };
         var indexOf = function(nodes, key){
@@ -53,7 +53,7 @@
         return indexOf;
     })();
 
-    var Sankey = function() {
+    var Sankey = function () {
         var sankey = {},
             nodeWidth = NaN,
             minWidth = 1e-3,
@@ -65,7 +65,7 @@
             links = [];
         var dx = 0, dy = 0;
 
-        sankey.data = function(data) {
+        sankey.data = function (data) {
             (data || []).forEach(function(d, i){
                 var source = d.source;
                 typeof source !== "undefined" && nodes.push({name: source, data: d});
@@ -279,7 +279,7 @@
                 y1 = endY;
             return [x0, y0, x2, y0, x3, y1, x1, y1];
         };
-        var resetTransform = function(series, transform) {
+        var resetTransform = function (series, transform) {
             var size = series.size;
             var x = series.plotX,
                 y = series.plotY,
@@ -306,13 +306,9 @@
                 height: height
             };
         };
-        return function(type, options){
-            
-            options.panel.forEach(function(pane){
-                var series = arrayFilter(pane.series, function(series){
-                    return series.type === type;
-                });
-                series.forEach(function(series){
+        return function (panels) {
+            panels.forEach(function (pane) {
+                pane.series.forEach(function (series) {
                     var plotX, plotY, plotWidth, plotHeight;
                     var minWidth,
                         maxWidth,
@@ -338,7 +334,7 @@
                         .nodeSpacing([15, 20])
                         .translate(plotX, plotY)
                         .size([plotWidth, plotHeight]);
-                    
+
                     sankey.data(shapes).layout("none");
 
                     sankey.links().forEach(function(link) {
@@ -430,12 +426,10 @@
                 });
             });
         };
-        //return Sankey;
     }
     return {
-        deps: function(){
-            var args = Array.prototype.slice.call(arguments, 0);
-            return factoy.apply(global, [].concat(args));
+        deps: function () {
+            return factoy.apply(global, [].slice.call(arguments, 0));
         }
     };
 }).call(typeof window !== "undefined" ? window : this)

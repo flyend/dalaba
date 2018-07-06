@@ -1,8 +1,6 @@
 (function (global, Dalaba) {
     var Chart = Dalaba.Chart || {};
 
-    var interpolate = Numeric.interpolate;
-
     var mathRound = Mathematics.round;
 
     var hasOwnProperty = Object.prototype.hasOwnProperty;
@@ -262,22 +260,21 @@
                 height = this.height;
             var getDataValue = function (item) {
                 var value = item;
-                if (isObject(item) && (isNumber(item.value) || isNumber(item.y))) {
-                    value = item.value;
-                    isNumber(item.y) && (value = item.y);
+                if (isArray(item)) {
+                    value = { value: item[1] };
                 }
-                else if (isArray(item)) {
-                    value = item[1];
+                if (!isObject(item)) {
+                    value = { value: item };
                 }
-                return isNumber(value) ? value : null;
+                return isNumber(value.value, true) ? value.value : isString(value.value) ? Numeric.valueOf(value.value) : null;
             };
-            var plotX = -Number.MAX_VALUE,
+            var plotX = MIN_VALUE,
                 plotWidth = plotX;
 
             if (hasOwnProperty.call(options, "series")) {
                 options.series.forEach(function (series) {
                     plotX = Math.max(plotX, series.plotX);
-                    plotWidth = Math.max(plotWidth, series.plotWidth);
+                    plotWidth = mathMax(plotWidth, series.plotWidth);
                 });
                 this.x = plotX;
                 this.setWidth(plotWidth);
@@ -286,7 +283,7 @@
             width = this.width / (options.series.length || 1);
             options.series.forEach(function (series, index) {
                 var x, y;
-                var data = series.shapes;
+                var data = series.data;
                 var length = data.length,
                     i = 0, j;
                 var dx = index * width;
@@ -296,15 +293,15 @@
                 var size = width / ~-length,
                     value;
 
-                while(value = getDataValue(data[i]), !isNumber(value) && ++i < length);
-                while(value = getDataValue(data[length - 1]), !isNumber(value) && --length >= 0);
+                while (value = getDataValue(data[i]), !isNumber(value) && ++i < length);
+                while (value = getDataValue(data[length - 1]), !isNumber(value) && --length > 0);
                 //console.log(i, length);
                 minValue = maxValue = value = getDataValue(data[j = i]);
-                for(j = i + 1; j < length; j++){
+                for (j = i + 1; j < length; j++) {
                     value = getDataValue(data[j]);
                     isNumber(value) && (minValue > value && (minValue = value), maxValue < value && (maxValue = value));
                 }
-                if(maxValue - minValue === 0)
+                if (maxValue - minValue === 0)
                     return;
                 context.save();            
                 context.beginPath();
@@ -339,10 +336,8 @@
 
                 context.restore();
             });
-
-            
         },
-        getTarget: function(x, y){
+        getTarget: function (x, y) {
             var range = this.range,
                 height = this.height,
                 startZoom,
@@ -375,7 +370,7 @@
             }
             return target;
         },
-        getCursor: function(x, y){
+        getCursor: function (x, y) {
             var cursor = null;
             var target = this.getTarget(x, y);
             if(target === 0)
@@ -437,7 +432,7 @@
                 context.restore();
             }
         },
-        draw: function(){
+        draw: function () {
             this.drawPlot();
             this.drawSeries();
             this.drawNavigator();
@@ -476,28 +471,28 @@
             var size = z1.x - z0.x,
                 dx, sx, ex;
 
-            if(!this.dragging)
+            if (!this.dragging)
                 return;
 
-            if(target === 1){
+            if (target === 1) {
                 dx = startZoom.left + (x - startZoom.left);
                 this.from = Math.min(width + this.x, Math.max(this.x, dx));
                 this.start = Math.max(0, Math.min(1, (dx - this.x) / width)) * 100 + "%";
             }
-            else if(target === 2){
+            else if (target === 2) {
                 dx = endZoom.left + (x - endZoom.left);
                 this.to = Math.min(width + this.x, Math.max(this.x, dx));
                 this.end = Math.max(0, Math.min(1, (dx - this.x) / width)) * 100 + "%";
             }
-            else if(target === 0){
+            else if (target === 0) {
                 dx = x - this.dx;// + this.ax;
                 sx = dx;
                 ex = dx + size;
-                if(sx <= this.x){
+                if (sx <= this.x){
                     sx = this.x;
                     ex = sx + size;
                 }
-                else if(ex >= this.width + this.x){
+                else if (ex >= this.width + this.x) {
                     ex = this.width + this.x;
                     sx = ex - size;
                 }
@@ -507,7 +502,7 @@
                 this.end = Math.max(0, Math.min(1, (ex - this.x) / width)) * 100 + "%";
             }
             start = parseFloat(this.start, 10), end = parseFloat(this.end, 10);
-            if(start > end){
+            if (start > end) {
                 dx = start;
                 start = end;
                 end = dx;
@@ -520,22 +515,10 @@
             this.dragging = false;
             this.target = -1;
             delete this.hasRange;
-
         }
     };
 
     if (defined(Chart)) {
         Chart.RangeSelector = RangeSelector;
-    }
-
-    if (typeof module === "object" && module.exports) {
-        module.exports = RangeSelector;
-    }
-    else if (typeof define === "function" && define.amd)
-        define(function() {
-            return RangeSelector;
-        });
-    else {
-        (typeof Chart !== "undefined" ? Chart : global).RangeSelector = RangeSelector;
     }
 })(typeof window !== "undefined" ? window : typeof global !== "undefined" ? global : this, Dalaba);

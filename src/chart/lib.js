@@ -1,7 +1,7 @@
 (function (Dalaba) {
-    var defined = Dalaba.defined,
-        extend = Dalaba.extend,
-        pack = Dalaba.pack;
+    var defined = Dalaba.defined;
+
+    var pack = Dalaba.pack;
 
     var document = global.document;
     /*
@@ -71,7 +71,7 @@
         }
         lineWidth = round(lineWidth);
         
-        args.forEach(function(y){
+        args.forEach(function (y) {
             v2 = round(y * 2);
             r.push(((v2 + lineWidth) % 2 === 0 ? v2 : (v2 + (sub || -1))) / 2);
         });
@@ -81,70 +81,36 @@
     /**
      * Chart static constructor
     */
-    var Chart = function(canvas, options) {
+    var Chart = function (canvas, options) {
         return new Dalaba.Chart.fn.init(canvas, options);
     };
-
-    /**
-     * Shape
-     *
-    */
-    Chart.LineSegment = {
-        none: function (context, points, options) {
-            var dashStyle = pack("string", (options = options || {}).dashStyle, "solid");
-            var DashLine = Geometry.Line.Dash;
-            var length = (points || []).length, i, j;
-            var x, y, moveX, moveY;
-            var point;
-            if(!length)
-                return;
-
-            context.beginPath();
-            context.moveTo(moveX = points[i = 0].x, moveY = points[0].y);
-            for(; i < length; i++){
-                point = points[i];
-                x = point.x;
-                y = point.y;
-
-                if(point.value === null){
-                    //find next point
-                    for(j = i + 1; j < length; j++){
-                        //console.log(points)
-                        if(points[j].value !== null){
-                            x = points[j].x;
-                            y = points[j].y;
-                            break;
-                        }
-                    }
-                    context.moveTo(moveX = x, moveY = y);
-                }
-                if(point.value !== null){
-                    DashLine[dashStyle] && dashStyle !== "solid" ? DashLine[dashStyle](
-                        context,
-                        moveX, moveY,
-                        moveX = x, moveY = y
-                    ) : context.lineTo(x, y);
-                }
-            }
-        }
-    };
-
-    extend(Chart, {
-        graphers: {},
-        hasTouch: defined(document) && ("ontouchstart" in document)// document.documentElement.ontouchstart !== undefined;
-    });
     
     var Arc = require("./arc");
+
     var Event = require("./event").deps(Dalaba);
+
+    var Animate = require("./animate").deps();
+
+    Chart.graphers = {};
+    
+    Chart.hasTouch = defined(document) && ("ontouchstart" in document)// document.documentElement.ontouchstart !== undefined;
+
     Chart.Event = Event;
+
     Chart.Event.Handler = require("./eventhandler").deps(Dalaba, Event);
+
     Chart.angleInQuadrant = require("./angleInQuadrant");
     Chart.angle2arc = Arc.angle2arc;
     Chart.arc = Arc.arc;
-    Chart.Series = require("./series").deps(Dalaba, Dalaba.Cluster.List);
+
+    Chart.Clip = require("./clip").deps(Arc.angle2arc);
+
+    Chart.Series = require("./series").deps(Dalaba.Numeric, Dalaba.Cluster.List, Animate);
     Chart.scale = rescale;
     Chart.fixLinePixel = fixLinePixel;
     Chart.fixPixelHalf = fixPixelHalf;
+
+    Chart.Animate = Animate;
 
     Dalaba.Chart = Chart;
 

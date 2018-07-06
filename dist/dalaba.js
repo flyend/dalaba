@@ -1,6 +1,6 @@
 /**
  * dalaba - A JavaScript chart library for Canvas.
- * @date 2018/05/11
+ * @date 2018/06/29
  * @version v0.3.1
  * @license ISC
  */
@@ -111,39 +111,127 @@
         return a;
     };
 
-    Dalaba.Math = (function(){
-    var mathPow = Math.pow;
+    Dalaba.Math = (function () {
 
-    var mathRound = Math.round;
+    var mathPow = Math.pow;
 
     var mathLog = Math.log;
 
-    function round(v, p) {
+    var mathRound = Math.round;
+
+    function round (v, p) {
         p = mathPow(10, p || 0);
         return p === 0 ? v : mathRound(v * p) / p;
     }
-    var Mathematics = {
-        log: function(v, base, positive){
+
+    var Maths = {
+        log: function (v, base, positive) {
             base = base || 10;
             typeof positive === "undefined" && (positive = true);
             return (!!positive ? mathLog(v < 0 ? 0 : v) : -mathLog(v > 0 ? 0 : -v)) / mathLog(base);
         },
-        pow: function(v, base, positive){
+        pow: function (v, base, positive) {
             base = base || 10;
             typeof positive === "undefined" && (positive = true);
             return !!positive ? mathPow(base, v) : -mathPow(base, -v);
         },
         round: round
     };
-    return Mathematics;
+
+    return Maths;
+
 }).call(typeof window !== "undefined" ? window : this);;
-    Dalaba.Numeric = (function(){
+    Dalaba.Numeric = (function () {
     var abs = Math.abs,
         log = Math.log,
         pow = Math.pow,
+        mathMax = Math.max,
+        mathMin = Math.min,
+        mathFloor = Math.floor,
+        mathCeil = Math.ceil,
         round = Math.round;
-    var isNumber = function(a){
-        return typeof a === "number" && a === a;
+
+    var rPercent = /^[+\-\s\.\d]+\s*%\s*$/;
+
+    var rValue = /([\+\-]?\d+[\.eE]?\d*)/g;
+
+    var lerp = function (a, b, t) {
+        return a + b * t;
+    };
+
+    var bilinear = function (a, b, values) {
+        var na = mathFloor(a),
+            nb = mathFloor(b);
+        var ma = mathCeil(a),
+            mb = mathCeil(b);
+        var fa = a - na,
+            fb = b - nb;
+
+        return values[na][nb] * (1 - fa) * (1 - fb)
+            + values[ma][nb] * fa * (1 - fb)
+            + values[na][mb] * (1 - fa) * fb
+            + values[ma][mb] * fa * fb;
+    };
+
+    var ascending = function (a, b) {
+        isString(a) && (a = valueOf(a));
+        isString(b) && (b = valueOf(b));
+        if (isNumber(a, true) && isNumber(b, true))
+            return a - b;
+        if (isNumber(a, true))
+            return 1;
+        if (isNumber(b, true))
+            return -1;
+        return 0;
+    };
+
+    var valueOf = function (v, neighbor) {
+        var value = parseFloat(v, 10),
+            values = v.match(rValue),
+            p = values && values.length;
+        var filter = function (d) {
+            return { x: parseFloat(d, 10) };
+        };
+        var distance = function (a, b) {
+            return (a[neighbor.dim] - b[neighbor.dim]) * (a[neighbor.dim] - b[neighbor.dim]);
+        };
+        var point = {};
+        var kdtree;
+
+        if (isNumber(value, true) && !p) {
+            return value;
+        }
+        if (p && values.length < 2) {
+            return value = parseFloat(values[0], 10);
+        }
+        if (p && defined(neighbor)) {
+            if (!isObject(neighbor)) {
+                neighbor = { dim: "x", k: 1, filter: filter, distance: distance };
+            }
+            !defined(neighbor.dim) && (neighbor.dim = "x");
+            !isNumber(neighbor.k, true) && (neighbor.k = 1);
+            !isFunction(neighbor.filter) && (neighbor.filter = filter);
+            !isFunction(neighbor.distance) && (neighbor.distance = distance);
+            point[neighbor.dim] = pack("number", neighbor.base);
+
+            kdtree = new KDTree(values.map(neighbor.filter), [neighbor.dim], neighbor.k);
+            value = kdtree.nearest(point, neighbor.distance)[0];//k = 1
+            kdtree.destroy();
+            if (isNumber(value[neighbor.dim], true)) {
+                return value = value[neighbor.dim];
+            }
+        }
+        return null;
+    };
+
+    var notNULL = function (data) {
+        var d = [];
+        var n = data.length,
+            i = -1;
+
+        while (++i < n) if (isString(data[i]) || isNumber(data[i], true)) d.push(data[i]);
+        
+        return d;
     };
     
     /*
@@ -153,7 +241,7 @@
      * @param max{Number} max range
      * Returns is a number value
     */
-    function clamp(value, min, max){
+    function clamp (value, min, max) {
         return (value = value || 0) < min ? min : value > max ? max : value;
     }
 
@@ -167,20 +255,20 @@
      * Returns a linear value, f(y) = ax + b
     */
 
-    var interpolate = function(value, minValue, maxValue, minRange, maxRange){
+    var interpolate = function (value, minValue, maxValue, minRange, maxRange) {
         var dissRange = maxRange - minRange,//定义域
             dissDomain = maxValue - minValue,//值域
             retValue;
         dissDomain = dissDomain ? 1 / dissDomain : 0;//fix value is 0
         retValue = (value - minValue) * dissDomain;
-        return minRange + dissRange * retValue;//ax + b
+        return lerp(minRange, dissRange, retValue);//ax + b
     };
 
-    var toPrecision = function(n, precision){
+    var toPrecision = function (n, precision) {
         var EPSILON = 8;//0.00000001
-        if(arguments.length < 2)
+        if (arguments.length < 2)
             precision = EPSILON;
-        return Number.prototype.toPrecision ? Number(n).toPrecision(precision) : (function(n, precision){
+        return Number.prototype.toPrecision ? Number(n).toPrecision(precision) : (function (n, precision) {
             if(n === 0 || isNaN(n) || isFinite(n))
                 return "" + n;
             var ln10 = ~~(log(abs(n)) / Math.LN10);//log base
@@ -193,25 +281,96 @@
             return "" + (m === 0 ? n : round(n / m) * m);
         })(n, precision);
     };
+
+    var quantile = function (data, percent) {
+        var size = 1 + (data.length - 1) * percent,
+            length = Math.floor(size);
+        var diff = size - length;
+        var d = data[length],
+            d0 = data[length - 1];
+        d = (isString(d) || isNumber(d)) ? valueOf(d) : 0;
+        d0 = (isString(d0) || isNumber(d0)) ? valueOf(d0) : 0;
+
+        return diff ? lerp(d0, d - d0, diff) : d0;
+    };
+
+    var quartile = function (data, iqr) {
+        var values = notNULL(data).sort(ascending);//new data, string or number
+        var length = values.length;
+        var first, last;
+        var q1, median, q3, lower, upper;
+        var ratio;
+
+        iqr = iqr !== false;
+
+        if (!length || (length && length < 5)) {
+            return null;
+        }
+
+        first = valueOf(values[0]);
+        last = valueOf(values[mathMax(0, values.length - 1)]);
+        
+        q1 = quantile(values, 0.25);
+        median = quantile(values, 0.5);
+        q3 = quantile(values, 0.75);
+
+        ratio = (iqr ? 1.5 : 1) * (q3 - q1);
+
+        lower = !iqr ? first : mathMax(first, q1 - ratio);
+        upper = !iqr ? last : mathMin(last, q3 + ratio);
+
+        return [lower, q1, median, q3, upper];
+    };
+
+    var indexOfRange = function (range, d) {
+        var l = 0, r;
+        var m;
+
+        if (!isArray(range) || (isArray(range) && (r = range.length) === 0))
+            return -1;
+
+        if (d === range[0]) return 0;
+        if (r > 1 && d === range[~-r]) return r - 2;
+
+        while (l < r) {
+            m = (r + l) >> 1;
+            if (d >= range[m] && d < range[m + 1]) {
+                return m;
+            }
+            if (d < range[m]) r = m;
+            else if (d > range[m]) l = m + 1;
+        }
+        return -1;
+    };
+
     var Numeric = {
         clamp: clamp,
-        percentage: function(value, percentage){
-            var rPercent = /^[+\-\s\.\d]+\s*%\s*$/;
-            return isNumber(value) && rPercent.test(percentage)
+        percentage: function (value, percentage) {
+            return isNumber(value, true) && rPercent.test(percentage)
                 ? value * (parseFloat(percentage, 10) / 100)
                 : NaN;
         },
         interpolate: interpolate,
-        toPrecision: toPrecision
+        lerp: lerp,
+        bilinear: bilinear,
+        toPrecision: toPrecision,
+        valueOf: valueOf,
+        quantile: quantile,
+        quartile: quartile,
+        indexOfRange: indexOfRange
     };
     return Numeric;
 }).call(typeof global !== "undefined" ? global : this);;
-    Dalaba.Vector = (function(){
-    var isNumber = function(a){
-        return typeof a === "number" && a === a;
+    Dalaba.Vector = (function () {
+    var mathCos = Math.cos,
+        mathSin = Math.sin,
+        mathAtan2 = Math.atan2;
+
+    var isNumber = function (a, finite) {
+        return typeof a === "number" && !isNaN(a) && (finite !== true || isFinite(a));
     };
 
-    function pack(){
+    function pack () {
         var r = {
             "number": [0, isNumber]
         };
@@ -227,27 +386,33 @@
         }
         return r[type] && r[type][0];
     }
-    var Vector = function(){
+    var Vector = function () {
         return (arguments.length >= 3
                 ? new Vector3D(arguments[0], arguments[1], arguments[2])
                 : new Vector2D(arguments[0], arguments[1]));
     };
     Vector.prototype = {
-        add: function(v){
+        add: function (v) {
             this.x += pack("number", v.x, 0);
             this.y += pack("number", v.y, 0);
         },
-        sub: function(v){
+        sub: function (v) {
             this.x -= pack("number", v.x, 0);
             this.y -= pack("number", v.y, 0);
             return this;
         },
-        length: function(){
+        dot: function (v) {
+            return this.x * pack("number", v.x, 1) + this.y * pack("number", v.y, 1);
+        },
+        square: function () {
+            return this.x * this.x + this.y * this.y;
+        },
+        length: function () {
             return Math.sqrt(this.x * this.x + this.y * this.y);
         }
     };
 
-    function Vector2D(x, y){
+    function Vector2D (x, y) {
         if(!isNumber(x) || !isNumber(y)){
             throw new Error("x and y not a number.");
         }
@@ -256,7 +421,18 @@
         return this;
     }
     Vector2D.prototype = Vector.prototype;
-    Vector2D.prototype.horizontal = function(v){
+    Vector2D.prototype.angle = function (_) {
+        var args = [].slice.call(arguments);
+        var r;
+        if (args.length) {
+            r = this.length();
+            this.x = r * mathCos(args[0]);
+            this.y = r * mathSin(args[0]);
+            return this;
+        }
+        return mathAtan2(this.y, this.x);
+    };
+    Vector2D.prototype.horizontal = function (v) {
         var x1 = this.x,
             y1 = this.y;
         var x2 = v.x,
@@ -275,17 +451,17 @@
         //return isNumber(c) ? c : false;// === 0;
     };
 
-    function Vector3D(x, y, z){
+    function Vector3D (x, y, z) {
         this.x = x;
         this.y = y;
         this.z = z;
     }
 
-    if(typeof module === "object" && module.exports){
+    if (typeof module === "object" && module.exports) {
         module.exports = Vector;
     }
-    else if(typeof define === "function" && define.amd){
-        define(function(){
+    else if (typeof define === "function" && define.amd) {
+        define(function () {
             return Vector;
         });
     }
@@ -533,12 +709,19 @@
     }
     return Heap;
 }).call(typeof window !== "undefined" ? window : this);;
-    Dalaba.KDTree = (function(global) {
-    var descending = function(a, b) {
+    Dalaba.KDTree = (function (global) {
+    var descending = function (a, b) {
         return a - b;
     };
 
-    var Tree = function(node, parent, dim) {
+    var ascending = function (a, b, dim) {
+        if (dim) {
+            return b[dim] - a[dim];
+        }
+        return b - a;
+    };
+
+    var Tree = function (node, parent, dim) {
         this.node = node;
         this.left = null;
         this.right = null;
@@ -546,11 +729,11 @@
         this.dim = dim;
     };
 
-    function factoy(Heap) {
-        var heap = new Heap(function(a, b) {
-            return b.distance - a.distance;
+    function factoy (Heap) {
+        var heap = new Heap(function (a, b) {
+            return ascending(a, b, "distance");
         });
-        function buildTree(points, depth, parent, dimensions){
+        function buildTree (points, depth, parent, dimensions) {
             var length = points.length,
                 d = depth % Math.max(1, dimensions.length),
                 dim,
@@ -565,7 +748,7 @@
 
             if (dimensions.length) {
                 dim = dimensions[d];//dimensions size
-                sorted = function(a, b){
+                sorted = function (a, b){
                     return a[dim] - b[dim];
                 };
             }
@@ -577,20 +760,20 @@
             return node;
         }
 
-        var KDTree = function(points, dimensions) {
+        var KDTree = function (points, dimensions) {
             return new KDTree.init(points.slice(0), dimensions);
         };
 
-        KDTree.init = function(points, dimensions) {
+        KDTree.init = function (points, dimensions) {
             this.build(points, dimensions);
             return this;
         };
         KDTree.prototype = {
-            build: function(points, dimensions) {
+            build: function (points, dimensions) {
                 this.dimensions = dimensions || ["x", "y"];
                 this.root = buildTree(points, 0, null, this.dimensions);
             },
-            nearest: function(point, callback, k) {
+            nearest: function (point, callback, k) {
                 var dimensions = this.dimensions,
                     dl = dimensions.length;
                 var ret = [];
@@ -617,32 +800,32 @@
                         bValue;
                     var node;
 
-                    if(dl){
+                    if (dl) {
                         dimensions.forEach(function(item, i){
                             maps[item] = i === tree.dim ? point[item] : tree.node[item];
                         });
                     }
-                    else{
+                    else {
                         maps = point;
                     }
                     bValue = callback(maps, tree.node);
                     //console.log(tree.node.x1, tree.node.x0, tree.node.y0, tree.node.y1)
                     //parent
-                    if(tree.right === null && tree.left === null){
-                        if(heap.size() < k || aValue < heap.peek().distance){
+                    if (tree.right === null && tree.left === null) {
+                        if (heap.size() < k || aValue < heap.peek().distance) {
                             put(tree, aValue);
                         }
                         return null;
                     }
 
-                    if(tree.right === null){
+                    if (tree.right === null) {
                         node = tree.left;
                     }
-                    else if(tree.left === null){
+                    else if (tree.left === null) {
                         node = tree.right;
                     }
                     //left && right
-                    else{
+                    else {
                         node = (dl ? point[dimensions[tree.dim]] < tree.node[dimensions[tree.dim]] : point < tree.node)
                             ? tree.left
                             : tree.right;
@@ -650,11 +833,11 @@
 
                     find(node);
 
-                    if(heap.size() < k || aValue < heap.peek().distance){
+                    if (heap.size() < k || aValue < heap.peek().distance) {
                         put(tree, aValue);
                     }
 
-                    if(heap.size() < k || Math.abs(bValue) < heap.peek().distance){
+                    if (heap.size() < k || Math.abs(bValue) < heap.peek().distance) {
                         var child = node === tree.left ? tree.right : tree.left;
                         child !== null && find(child);
                     }
@@ -669,12 +852,12 @@
                 return ret;
             },
             //TODO
-            insert: function(){
+            insert: function () {
 
             },
             //TODO
-            remove: function(){},
-            destroy: function(){
+            remove: function () {},
+            destroy: function () {
                 //destory
                 /*while(heap.size()){
                     heap.pop();
@@ -688,15 +871,14 @@
         return KDTree;
     }
     return {
-        deps: function() {
-            var args = Array.prototype.slice.call(arguments, 0);
-            return factoy.apply(global, [].concat(args));
+        deps: function () {
+            return factoy.apply(global, [].slice.call(arguments));
         }
     };
 })(typeof window !== "undefined" ? window : this).deps(Dalaba.Heap);
 
     Dalaba.Geometry = (function (global) {
-    function factoy (global, Dalaba) {
+    function factoy () {
         var Intersection = {
             /*
              * Euclidean distance
@@ -710,8 +892,36 @@
 
                 return Math.sqrt((x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2));
             },
+            inBounds: function (x, y, rect) {
+                return x >= rect.x && x < rect.width && y >= rect.y && y < rect.height;
+            },
             line: function (p0, p1) {
                 return this.distance(p0, p1) <= p1.width;
+            },
+            segment: function (p0, p1, p2) {
+                var spx = p2.x - p1.x,
+                    spy = p2.y - p1.y;
+                var start = new Vector(p2.x, p2.y).sub(p1),// segment ent point --> start point
+                    end = new Vector(p0.x, p0.y).sub(p1);// point --> start point
+                var t;
+                var dist;
+
+                if (start.x === 0 && start.y === 0) {
+                    return false;
+                }
+                t = end.dot(start) / start.square();
+                
+                if (t < 0) {
+                    dist = p1;// start point
+                }
+                else if (t > 1) {
+                    dist = p2;// end point
+                }
+                else {
+                    dist = new Vector(p1.x + start.x * t, p1.y + start.y * t);
+                }
+                dist = new Vector(dist.x, dist.y).sub(p0).length();
+                return dist <= 1;
             },
             circle: function (p0, p1) {
                 var dx = p1.x - p0.x,
@@ -727,15 +937,14 @@
              * @param checkin and checkout is callback
             */
             pie: function (p0, p1) {
-                var PI2 = Math.PI * 2;
                 var dx = p0.x - p1.x,
                     dy = p0.y - p1.y;
 
                 var inPie = this.distance(p0, p1) <= p1.radius;
-                if(inPie && typeof p1.innerRadius === "number")
+                if (inPie && isNumber(p1.innerRadius, true))
                     inPie = this.distance(p0, p1) >= p1.innerRadius;
 
-                if(inPie){
+                if (inPie) {
                     var angle = Math.atan2(dy, dx) + Math.PI / 2;//顺、逆时针开始
                     if(angle < 0)
                         angle += PI2;
@@ -758,37 +967,37 @@
                 var ry = (p0.y - p1.y) * (p0.y - p1.height);
                 return rx <= 0.0 && ry <= 0.0;
             },
-            aabb: function (x1, y1, w1, h1, x2, y2, w2, h2) {
+            aabb: function (p0, p1) {
                 return !(
-                    x2 > x1 + w1 ||
-                    x2 + w2 < x1 ||
-                    y2 > y1 + h1 ||
-                    y2 + h2 < y1
+                    p1.x > p0.x + p0.width ||
+                    p1.x + p1.width < p0.x ||
+                    p1.y > p0.y + p0.height ||
+                    p1.y + p1.height < p0.y
                 );
             },
             polygon: function (p0, points) {
                 var n = 0;
-                for(var i = 0, length = points.length, j = length - 1; i < length; j = i, i++){
+                for (var i = 0, length = points.length, j = length - 1; i < length; j = i, i++) {
                     var source = points[i],
                         target = points[j];
                     //点与多边形顶点重合或在多边形的边上
-                    if(
+                    if (
                         (source.x - p0.x) * (p0.x - target.x) >= 0 &&
                         (source.y - p0.y) * (p0.y - target.y) >= 0 &&
                         (p0.x - source.x) * (target.y - source.y) === (p0.y - source.y) * (target.x - source.x)
-                    ){
+                    ) {
                         return true;
                     }
                     //点与相邻顶点连线的夹角
                     var angle = Math.atan2(source.y - p0.y, source.x - p0.x) - Math.atan2(target.y - p0.y, target.x - p0.x);
                     //确保夹角不超出取值范围（-π 到 π）
-                    if(angle >= Math.PI)
-                        angle -= Math.PI * 2;
-                    else if(angle <= -Math.PI)
-                        angle += Math.PI * 2;
+                    if (angle >= PI)
+                        angle -= PI2;
+                    else if (angle <= -Math.PI)
+                        angle += PI2;
                     n += angle;
                 }
-                return Math.round(n / Math.PI) !== 0;//当回转数为 0 时，点在闭合曲线外部。
+                return Math.round(n / PI) !== 0;//当回转数为 0 时，点在闭合曲线外部。
             }
         };
         /**
@@ -956,7 +1165,7 @@
                     curPoint.rightContX = rightContX;
                     curPoint.rightContY = rightContY;
                 }
-                if(prevPoint){
+                if (prevPoint) {
                     ret = {
                         x1: prevPoint.rightContX || prevPoint.x,
                         y1: prevPoint.rightContY || prevPoint.y,
@@ -1022,6 +1231,79 @@
                         height: h
                     };
                 }
+            },
+            circle: function (x, y, w, h) {
+                return function (context) {
+                    context.beginPath();
+                    context.arc(x, y, w, 0, PI2, true);
+                    return {
+                        x: x,
+                        y: y,
+                        width: w,
+                        height: h
+                    };
+                };
+            },
+            triangle: function (x, y, w, h) {
+                return function (context) {
+                    context.beginPath();
+                    context.moveTo(x - w / 2, y + h / 2);
+                    context.lineTo(x, y - h / 2);
+                    context.lineTo(x + w / 2, y + h / 2);
+                    context.closePath();
+                    context.stroke()
+                    return {
+                        x: x,
+                        y: y,
+                        width: w,
+                        height: h
+                    };
+                };
+            },
+            hexagon: function (x, y, w, h) {
+                var sin = Math.sin, cos = Math.cos;
+                var r = Math.max(w, h);
+                return function (context) {
+                    var i = -1, n = 6, a;
+                    r /= 2;
+                    context.beginPath();
+                    context.moveTo(x + cos(0) * r, y + sin(0) * r);
+                    while (++i < n) {
+                        context.lineTo(
+                            x + cos(a = i / n * PI2) * r,
+                            y + sin(a) * r
+                        );
+                    }
+                    context.closePath();
+                };
+            },
+            diamond: function (x, y, w, h) {
+                return function (context) {
+                    context.beginPath();
+                    context.moveTo(x - w / 2, y);
+                    context.lineTo(x, y - h / 2);
+                    context.lineTo(x + w / 2, y);
+                    context.lineTo(x, y + h / 2);
+                    context.lineTo(x - w / 2, y);
+                    context.stroke();
+
+                    return {
+                        x: x,
+                        y: y,
+                        width: w,
+                        height: h
+                    };
+                };
+            },
+            ellipse: function (x, y, w, h) {
+                var cpw = 0.166 * w;
+                return function (context) {
+                    context.beginPath();
+                    context.moveTo(x + w / 2, y);
+                    context.bezierCurveTo(x + w + cpw, y, x + w + cpw, y + h, x + w / 2, y + h);
+                    context.bezierCurveTo(x - cpw, y + h, x - cpw, y, x + w / 2, y);
+                    context.closePath();
+                };
             }
         };
 
@@ -1034,16 +1316,15 @@
         return Geometry;
     }
     var exports = {
-        deps: function(){
-            var args = Array.prototype.slice.call(arguments, 0);
-            return factoy.apply(global, [global].concat(args));
+        deps: function () {
+            return factoy.apply(global, [].slice.call(arguments));
         }
     };
-    if(typeof module === "object" && module.exports){
+    if (typeof module === "object" && module.exports) {
         module.exports = exports;
     }
-    else if(typeof define === "function" && define.amd){
-        define(function(){
+    else if (typeof define === "function" && define.amd) {
+        define(function () {
             return exports;
         });
     }
@@ -1262,7 +1543,7 @@
                 }
                 return function (x) {
                     var l = 1, r = length, m;
-                    while(l < r){
+                    while (l < r) {
                         m = l + r >> 1;
                         x < domain[m] ? (r = m) : (l = m + 1);
                     }
@@ -1305,13 +1586,13 @@
         },
         linear: function (x1, y1, x2, y2) {
             var context = Color.GRADIENT_CONTEXT;
-            if(defined(context)){
+            if (defined(context)) {
                 var gradient = context.createLinearGradient(
                     this.x1 * x1, this.y1 * y1,
                     this.x2 * x2, this.y2 * y2
                 );
-                this.stops.forEach(function(item){
-                    gradient.addColorStop(item[0], item[1]);
+                this.stops.forEach(function (stop) {
+                    gradient.addColorStop(stop[0], stop[1]);
                 });
                 return gradient;
             }
@@ -1421,10 +1702,11 @@
     var sin = Math.sin,
         cos = Math.cos,
         abs = Math.abs;
+    var PI = Math.PI;
 
     var _toString = Object.prototype.toString;
 
-    var isArray = function(v){
+    var isArray = function (v) {
         return _toString.call(v) === "[object Array]";
     };
 
@@ -1494,24 +1776,24 @@
                 fontFamily
             ].join(" ");
 
-            if(String(text).length === 0){
+            if (String(text).length === 0) {
                 return 0;
             }
             text = "" + (text || "Eg");
 
             var id = text + "-" + font;
-            if(Text._cache.height[id]){
+            if (Text._cache.height[id]) {
                 return Text._cache.height[id];
             }
             var context = Text._context,
                 canvas;
-            if(context){
+            if (context) {
                 canvas = context.canvas;
-                if(typeof (Text._cache.height[id] = context.measureText(text).emHeightAscent) === "number"){
+                if (typeof (Text._cache.height[id] = context.measureText(text).emHeightAscent) === "number") {
                     return Text._cache.height[id];
                 }
             }
-            else{
+            else {
                 Text._context = context = (canvas = document.createElement("canvas")).getContext("2d");
             }
 
@@ -1521,7 +1803,7 @@
             var data;
             var hasNumber = typeof height === "number";
             if (!hasNumber || (hasNumber && height <= 0) || isNaN(height) || !isFinite(height))
-                height = 12;
+                return Text._cache.height[id] = (height = 12);
 
             context.save();
             context.font = font;
@@ -1533,11 +1815,11 @@
             context.restore();
 
             top = bottom = -1;
-            for(var y = 0; y <= height; y++){
-                for(var x = 0; x < width; x++){
+            for (var y = 0; y <= height; y++) {
+                for (var x = 0; x < width; x++) {
                     var i = x + y * width << 2;
-                    if(data[i] + data[i + 1] + data[i + 2] > 0){
-                        if(top === -1) top = y;//once
+                    if (data[i] + data[i + 1] + data[i + 2] > 0) {
+                        if (top === -1) top = y;//once
                         bottom = y;
                         break;
                     }
@@ -1554,12 +1836,12 @@
                 left: 0, top: 0,
                 width: width, height: height
             };
-            if(!(text = String(text)).length)
+            if (!(text = String(text)).length)
                 return bbox;
             bbox.width = width = Text.getWidth(text, style);
             bbox.height = height = Text.getHeight(text, style);
-            if(style && typeof angle === "number" && isFinite(angle) && !isNaN(angle)){
-                var x0 = abs(sin(angle = angle * Math.PI / 180) * width),
+            if (style && typeof angle === "number" && isFinite(angle) && !isNaN(angle)) {
+                var x0 = abs(sin(angle = angle * PI / 180) * width),
                     x1 = abs(cos(angle) * width);
                 var y0 = abs(sin(angle) * height),
                     y1 = abs(cos(angle) * height);
@@ -1568,28 +1850,28 @@
             }
             return bbox;
         },
-        multipText: function(word, maxWidth, options){
+        multipText: function (word, maxWidth, options) {
             var ellipsis = (options = options || {}).ellipse || "..";
             var context = Text._context;
-            if(!context){
+            if (!context) {
                 Text._context = context = (document.createElement("canvas")).getContext("2d");
             }
             
             var textWidth = (Text.getWidth(word, options));//context.measureText(word).width,
                 //curWidth = 0;
-            if(textWidth <= maxWidth)
+            if (textWidth <= maxWidth)
                 return word;
             maxWidth -= Text.getWidth(ellipsis);
             var l = 0, r = word.length, m;
-            while(l < r){
+            while (l < r) {
                 m = (l + r >>> 1) + 1;
-                if(Text.getWidth(word.slice(0, m), options) < maxWidth) l = m;
+                if (Text.getWidth(word.slice(0, m), options) < maxWidth) l = m;
                 else r = m - 1;
             }
             return word.slice(0, l) + ellipsis;
         }
     };
-    Text.HTML = function(nodes, g, options){
+    Text.HTML = function (nodes, g, options) {
         var fontSize = (options = options || {}).fontSize || "12px",
             fontFamily = options.fontFamily || "Arial, sans-serif",
             fontWeight = options.fontWeight || "100",//normal | bold | bolder | lighter | auto | inherit | 100 | 200 | 300 | 400 | 500 | 600 | 700 | 800 | 900
@@ -1601,32 +1883,32 @@
             x = 0,
             y = 0;
         var lastHeight = 0;
-        function parse(nodes, isTag, render){
+        function parse (nodes, isTag, render) {
             var i, length = nodes.length | (i = 0);
             var curFontWeight = fontWeight,
                 curFontStyle = fontStyle,
                 node;
 
-            for(; i < length; i++){
+            for (; i < length; i++) {
                 node = nodes[i];
                 
-                if(node.type === "br"){
+                if (node.type === "br") {
                     x = 0;
                     y += bbox.height;
                     continue;
                 }
-                if(node.type === "b"){
+                if (node.type === "b") {
                     g.font = [curFontStyle, curFontWeight = "bold", fontSize, fontFamily].join(" ");
                 }
-                else if(node.type === "i"){
+                else if (node.type === "i") {
                     g.font = [curFontStyle = "italic", curFontWeight, fontSize, fontFamily].join(" ");
                 }
-                else if(node.type === "normal" && !isTag){
+                else if (node.type === "normal" && !isTag) {
                     curFontWeight = fontWeight;
                     g.font = [curFontStyle, curFontWeight, fontSize, fontFamily].join(" ");
                 }
                 
-                if(node.type === "normal"){
+                if (node.type === "normal") {
                     render && render.call(g, node.value, x, height);
                     bbox = Text.measureText(node.value, options);
                     width = Math.max(width, bbox.width);
@@ -1635,10 +1917,10 @@
                     
                     lastHeight = Math.max(lastHeight, bbox.height);
                 }
-                if(node.type === "i" ||
+                if (node.type === "i" ||
                     node.type === "u" ||
                     node.type === "b"
-                ){
+                ) {
                     (isArray(node.value)) && parse(node.value, true, render);
                     curFontStyle = fontStyle;
                     curFontWeight = fontWeight;
@@ -1646,7 +1928,7 @@
             }
         }
         var tag = {
-            getBBox: function(){
+            getBBox: function () {
                 x = y = width = height = 0;
                 parse(nodes, false);
                 
@@ -1657,7 +1939,7 @@
                     height: options.rotation ? lastHeight : height
                 };
             },
-            toCanvas: function(){
+            toCanvas: function () {
                 x = y = width = height = 0;
                 g.save();
                 typeof options.x === "number" && typeof options.y === "number" && g.translate(options.x, options.y);
@@ -1666,7 +1948,7 @@
                 });
                 g.restore();
             },
-            toHTML: function(){
+            toHTML: function () {
                 var html = "";   
                 (function fn(nodes){
                     var i, length = nodes.length | (i = 0);
@@ -1808,16 +2090,17 @@
     return Text;
 })(typeof window !== "undefined" ? window : global);
 
-    Dalaba.Cluster = (function() {
+    Dalaba.Cluster = (function () {
     var indexOf = Array.prototype.indexOf;
+
+    var mathMin = Math.min;
 
     var Cluster = {};
 
-    Cluster.hirschbergs = (function(){
-        var min = Math.min;
+    Cluster.hirschbergs = (function () {
 
         //a0[p0,p1) and a1[q0,q1)
-        function left(a0, a1, p1, p2, q1, q2, compare, memo) {
+        function left (a0, a1, p1, p2, q1, q2, compare, memo) {
             var i, j;
             var diag;
 
@@ -1832,13 +2115,13 @@
                     diag = memo[(i - 1) % 2][j - 1];
                     if (!compare(a0[i - 1], a1[j - 1]))
                         diag += 1;
-                    memo[i % 2][j] = min(diag, min(memo[(i - 1) % 2][j] + 1, memo[i % 2][j - 1] +  1));
+                    memo[i % 2][j] = mathMin(diag, mathMin(memo[(i - 1) % 2][j] + 1, memo[i % 2][j - 1] +  1));
                 }
             }
         }
 
         //reverse(a0[p1..p2)) and reverse(a1[q1..q2))
-        function right(a0, a1, p1, p2, q1, q2, compare, memo) {
+        function right (a0, a1, p1, p2, q1, q2, compare, memo) {
             var i, j;
             var diag;
 
@@ -1853,13 +2136,13 @@
                     diag = memo[(i + 1) % 2][j + 1];
                     if (!compare(a0[i], a1[j]))
                         diag += 1;
-                    memo[i % 2][j] = min(diag, min(memo[(i + 1) % 2][j] + 1, memo[i % 2][j + 1] + 1));
+                    memo[i % 2][j] = mathMin(diag, mathMin(memo[(i + 1) % 2][j] + 1, memo[i % 2][j + 1] + 1));
                 }
             }
         }
 
         //align a0[p1..p2) with a1[q1..q2)
-        function align(a0, a1, p0, p1, q0, q1, score0, score1, compare, append) {
+        function align (a0, a1, p0, p1, q0, q1, score0, score1, compare, append) {
             var ret = [];
             var item, memo = 0;
             var i, j;
@@ -1928,7 +2211,7 @@
          * @param filter{Function}
          * Returns Array
         */
-        partition: function(data, filter) {
+        partition: function (data, filter) {
             var length = (data = data || []).length,
                 i = 0, j;
             var groups = [], group;
@@ -1938,7 +2221,7 @@
 
             for (; i < length; i++) {
                 group = [a = data[i]];
-                for(j = i + 1; j < length; j++) if (filter && filter.call(data, a, b = data[j], i, j) === true) {
+                for (j = i + 1; j < length; j++) if (filter && filter.call(data, a, b = data[j], i, j) === true) {
                     group.push(b);
                     visited[j] = true;
                 }
@@ -1954,7 +2237,7 @@
          * @param filter{Function}
          * Returns Array
         */
-        filter: function(data, filter) {
+        filter: function (data, filter) {
             var length = data.length,
                 i = -1;
             var newData = [], a;
@@ -1970,8 +2253,8 @@
          * @param filter{Function}
          * Returns Array
         */
-        indexOf: function(data, key){
-            return indexOf ? indexOf.call(data, key) : (function() {
+        indexOf: function (data, key) {
+            return indexOf ? indexOf.call(data, key) : (function () {
                 var i = -1, n = data.length;
                 while (++i < n && data[i] !== key);
                     return i < n ? i : -1;
@@ -1983,7 +2266,7 @@
          * @param place{.} All js data type
          * Returns Array
         */
-        fill: function(n, place) {
+        fill: function (n, place) {
             return Array.prototype.fill ? new Array(n = Math.max(0, n) || 0).fill(place) : (function(){
                 var array = [];
                 while (n--) array.push(place);
@@ -2003,16 +2286,16 @@
     }
     return Cluster;
 }).call(typeof global !== "undefined" ? global : this);;
-    Dalaba.Cluster.List.diff = (function(global) {
+    Dalaba.Cluster.List.diff = (function (global) {
     var forEach = Array.prototype.forEach;
 
-    function defaultCompare(fn) {
+    function defaultCompare (fn) {
         return typeof fn === "function" ? fn : function(a, b) {
             return a === b;
         };
     }
 
-    function append(c, newIndex, oldIndex) {
+    function append (c, newIndex, oldIndex) {
         var o = { op: c, newIndex: newIndex };
         if (c === "=") {
             o.oldIndex = oldIndex;
@@ -2020,18 +2303,18 @@
         return o;
     }
 
-    function factoy(hirschbergs) {
+    function factoy (hirschbergs) {
         /**
          * @param{Array} a0 is first array
          * @param{Array} a1 is second array
          * @param{Function} compare function
         */
 
-        var diff = function(a0, a1, compare) {
+        var diff = function (a0, a1, compare) {
             return new diff.fn.compareTo(a0, a1, compare = defaultCompare(compare));
         };
         diff.fn = diff.prototype = {
-            compareTo: function(a0, a1, compare) {
+            compareTo: function (a0, a1, compare) {
                 var l0 = a0.length,
                     l1 = a1.length,
                     lm = Math.min(l0, l1),
@@ -2059,31 +2342,31 @@
             },
             length: 0,
             splice: [].splice,
-            forEach: function(callback) {
+            forEach: function (callback) {
                 var i = 0, length = this.length;
                 for (; i < length; i++)
                     callback.call(this, this[i], this);
             },
-            add: function(callback) {
-                this.adder = function(newIndex) {
+            add: function (callback) {
+                this.adder = function (newIndex) {
                     return callback.call(this, newIndex);
                 };
                 return this;
             },
-            remove: function(callback) {
-                this.remover = function(newIndex) {
+            remove: function (callback) {
+                this.remover = function (newIndex) {
                     return callback.call(this, newIndex);
                 };
                 return this;
             },
-            modify: function(callback) {
-                this.modifer = function(newIndex, oldIndex) {
+            modify: function (callback) {
+                this.modifer = function (newIndex, oldIndex) {
                     return callback.call(this, newIndex, oldIndex);
                 };
                 return this;
             },
-            each: function(callback) {
-                this.forEach(function(item) {
+            each: function (callback) {
+                this.forEach(function (item) {
                     var ret;
                     item.op === "+" && (ret = this.adder && this.adder.call(item, item.newIndex));
                     item.op === "-" && (ret = this.remover && this.remover.call(item, item.newIndex));
@@ -2101,16 +2384,15 @@
     }
 
     var exports = {
-        deps: function() {
-            var args = Array.prototype.slice.call(arguments, 0);
-            return factoy.apply(global, [].concat(args));
+        deps: function () {
+            return factoy.apply(global, [].slice.call(arguments, 0));
         }
     };
     if (typeof module === "object" && module.exports) {
         module.exports = exports;
     }
     else if (typeof define === "function" && define.amd) {
-        define(function() {
+        define(function () {
             return exports;
         });
     }
@@ -2244,7 +2526,7 @@
          * N = FN + R ln[tan(π/4 + φ/2)]
          * -----------------------------  
         */
-        mercator(lat, lng) {
+        mercator: function (lat, lng) {
             return [lat, Math.log(Math.tan(PI / 4 + lng / 2))];
         },
         simple: function (lat, lng) {
@@ -2254,7 +2536,7 @@
     };
 
     var Feature = {
-        Point: function (p, stream){
+        Point: function (p, stream) {
             stream.point(p);
         },
         MultiPoint: function (coordinates, stream) {
@@ -2442,6 +2724,18 @@
                     coords = [x / count, y / count];
                     return coords;
                 },
+                bounds: function (geoJson) {
+                    var bounds = [[Infinity, Infinity], [-Infinity, -Infinity]]; 
+                    this.feature(geoJson, null, function (p, point) {
+                        var x = point[0],
+                            y = point[1];
+                        if (x < bounds[0][0]) bounds[0][0] = x;
+                        if (x > bounds[1][0]) bounds[1][0] = x;
+                        if (y < bounds[0][1]) bounds[0][1] = y;
+                        if (y > bounds[1][1]) bounds[1][1] = y;
+                    });
+                    return bounds;
+                },
                 centerAndZoom: function (geoJson) {
                     var center = this._center;
                     var width = this.width,
@@ -2517,6 +2811,7 @@
             return factoy.call(global, Dalaba);
         };
     })(this);
+
     if (typeof module === "object" && module.exports) {
         module.exports = exports;
     }
@@ -2537,9 +2832,9 @@
  * Dalaba.Chart, new Dalaba.Chart method
 **/
 (function (Dalaba) {
-    var defined = Dalaba.defined,
-        extend = Dalaba.extend,
-        pack = Dalaba.pack;
+    var defined = Dalaba.defined;
+
+    var pack = Dalaba.pack;
 
     var document = global.document;
     /*
@@ -2609,7 +2904,7 @@
         }
         lineWidth = round(lineWidth);
         
-        args.forEach(function(y){
+        args.forEach(function (y) {
             v2 = round(y * 2);
             r.push(((v2 + lineWidth) % 2 === 0 ? v2 : (v2 + (sub || -1))) / 2);
         });
@@ -2619,60 +2914,11 @@
     /**
      * Chart static constructor
     */
-    var Chart = function(canvas, options) {
+    var Chart = function (canvas, options) {
         return new Dalaba.Chart.fn.init(canvas, options);
     };
-
-    /**
-     * Shape
-     *
-    */
-    Chart.LineSegment = {
-        none: function (context, points, options) {
-            var dashStyle = pack("string", (options = options || {}).dashStyle, "solid");
-            var DashLine = Geometry.Line.Dash;
-            var length = (points || []).length, i, j;
-            var x, y, moveX, moveY;
-            var point;
-            if(!length)
-                return;
-
-            context.beginPath();
-            context.moveTo(moveX = points[i = 0].x, moveY = points[0].y);
-            for(; i < length; i++){
-                point = points[i];
-                x = point.x;
-                y = point.y;
-
-                if(point.value === null){
-                    //find next point
-                    for(j = i + 1; j < length; j++){
-                        //console.log(points)
-                        if(points[j].value !== null){
-                            x = points[j].x;
-                            y = points[j].y;
-                            break;
-                        }
-                    }
-                    context.moveTo(moveX = x, moveY = y);
-                }
-                if(point.value !== null){
-                    DashLine[dashStyle] && dashStyle !== "solid" ? DashLine[dashStyle](
-                        context,
-                        moveX, moveY,
-                        moveX = x, moveY = y
-                    ) : context.lineTo(x, y);
-                }
-            }
-        }
-    };
-
-    extend(Chart, {
-        graphers: {},
-        hasTouch: defined(document) && ("ontouchstart" in document)// document.documentElement.ontouchstart !== undefined;
-    });
     
-    var Arc = (function() {
+    var Arc = (function () {
     var cos = Math.cos,
         sin = Math.sin,
         PI = Math.PI;
@@ -2693,14 +2939,14 @@
      * y = current[7];//next move
      * g.stroke();
     */
-    var arc = (function() {
+    var arc = (function () {
         var arcToSegmentsCache = {},
             segmentToBezierCache = {},
             join = Array.prototype.join,
             argsStr;
 
         // Copied from Inkscape svgtopdf, thanks!
-        function arcToSegments(x, y, rx, ry, large, sweep, rotateX, ox, oy) {
+        function arcToSegments (x, y, rx, ry, large, sweep, rotateX, ox, oy) {
             argsStr = join.call(arguments);
             //console.log(argsStr, arcToSegmentsCache)
             if (arcToSegmentsCache[argsStr]) {
@@ -2742,7 +2988,7 @@
             var th1 = Math.atan2(y1 - yc, x1 - xc);
 
             var th_arc = th1-th0;
-            if (th_arc < 0 && sweep == 1){
+            if (th_arc < 0 && sweep == 1) {
                 th_arc += 2*PI;
             } else if (th_arc > 0 && sweep === 0) {
                 th_arc -= 2 * PI;
@@ -2759,7 +3005,7 @@
             return (arcToSegmentsCache[argsStr] = result);
         }
 
-        function segmentToBezier(cx, cy, th0, th1, rx, ry, sin_th, cos_th) {
+        function segmentToBezier (cx, cy, th0, th1, rx, ry, sin_th, cos_th) {
             argsStr = join.call(arguments);
             if(segmentToBezierCache[argsStr]){
                 return segmentToBezierCache[argsStr];
@@ -2793,7 +3039,7 @@
         }
 
         //<path d="A100{rx}, 100{ry}, 0{rotate}, 1{large}, 0{sweep}, 100{x}, 100{y}"></path>
-        return function(g, x, y, coords){
+        return function (g, x, y, coords) {
             //x, y => g.moveTo(x, y)
             //var segs = arcToSegments(ex, ey, rx, ry, large, sweep, rot, x, y);
             //console.log(x, y, coords);
@@ -2807,20 +3053,20 @@
                 coords[2],//rotation
                 x,
                 y
-            ) || []).forEach(function(item){
+            ) || []).forEach(function (item) {
                 g.bezierCurveTo.apply(g, segmentToBezier.apply(null, item));
             });
         };
     })();
 
-    var angle2arc = function(cx, cy, radius, innerRadius, startAngle, endAngle, open) {
+    var angle2arc = function (cx, cy, radius, innerRadius, startAngle, endAngle, open) {
         var cosStart = cos(startAngle),
             sinStart = sin(startAngle),
             cosEnd = cos(endAngle = endAngle - 0.00000001),
             sinEnd = sin(endAngle),
             longArc = +(endAngle - startAngle > PI);
 
-        return function(context) {
+        return function (context) {
             var moveX, moveY;
             //outerRadius
             context.beginPath();
@@ -2862,6 +3108,7 @@
     };
     return {arc: arc, angle2arc: angle2arc};
 })();
+
     var Event = (function (global) {
     var document = global.document;
     function factory (Dalaba) {
@@ -2953,7 +3200,87 @@
         }
     };
 })(typeof window !== "undefined" ? window : typeof this !== "undefined" ? this : global).deps(Dalaba);
+
+    var Animate = (function (global) {
+
+    var lerp = function (a, b, t) {
+        return a + (b - a) * t;
+    };
+
+    var lerpArray = function (oldArrays, newArrays, timer, that) {
+        var arrays = [];
+        newArrays.forEach(function (newValue, i) {
+            var oldValue = oldArrays[i];
+            var newProps, oldProps, p;
+            if (isObject(newValue)) {
+                for (p in newValue) if (hasOwnProperty.call(newValue, p)) {
+                    newProps = newValue[p];
+                    oldProps = oldValue[p];
+                    if (isArray(newProps)) {
+                        that[i][p] = lerpArray(oldProps, newProps, timer, that[i]);
+                    }
+                    else {
+                        that[i][p] = lerp(oldProps, newProps, timer);
+                    }
+                }
+            }
+            else if (isNumber(newValue, true)) {
+                arrays.push(lerp(oldValue, newValue, timer));
+            }
+        });
+        return arrays;
+    };
+
+    var Animate = function () {
+
+    };
+    Animate.prototype = {
+        animate: function (oldProps, newProps) {
+            this.oldProps = oldProps;
+            this.newProps = newProps;
+        },
+        onframe: function (timer) {
+            var oldProps = this.oldProps,
+                newProps = this.newProps;
+            var newValue, oldValue;
+            var that = this;
+            function caller (oldProps, newProps, that) {
+                for (var p in newProps) if (hasOwnProperty.call(newProps, p)) {
+                    //newProps = oldProps
+                    newValue = newProps[p];
+                    oldValue = oldProps[p];
+                    if (hasOwnProperty.call(oldProps, p)) {
+                        if (isArray(newValue)) {
+                            lerpArray(oldValue, newValue, timer, that[p]);
+                        }
+                        else if (isNumber(newValue, true)) {
+                            that[p] = lerp(oldProps[p], newValue, timer);
+                        }
+                    }
+                }
+            }
+            caller(oldProps, newProps, this);
+        },
+        oncomplete: function () {
+            delete this.oldProps;
+            delete this.newProps;
+        }
+    };
+    return {
+        deps: function () {
+            return function () {
+                return Animate;
+            }.apply(global, [global].concat([].slice.call(arguments, 0)));
+        }
+    };
+})(typeof window !== "undefined" ? window : global).deps();
+
+    Chart.graphers = {};
+    
+    Chart.hasTouch = defined(document) && ("ontouchstart" in document)// document.documentElement.ontouchstart !== undefined;
+
     Chart.Event = Event;
+
     Chart.Event.Handler = (function () {
 
     var dragging = false;
@@ -2962,33 +3289,22 @@
 
     var isClicking = true;
 
-    var fetchData = function (chart, start, end) {
-        //setTimeout(function(){
-            chart.series.forEach(function (item) {
-                item.start = start;
-                item.end = end;
-                item.shapes = item.addShape();
-            });
-            chart.draw();
-        //}, 0);
+    var fetchData = function (event, chart, start, end) {
+        chart.series.forEach(function (series) {
+            series.start = start;
+            series.end = end;
+            series._shapes = series.shapes;
+            series.shapes = series.addShape();
+        });
+        chart.draw(event);
     };
 
     var addTooltip = function () {
-        
         var timer, moving = false;
         
-        function clearBuffer (chart, x, y) {
+        function clearBuffer (chart, event) {
             var tooltip = chart.tooltip;
-
-            //if (tooltip.context === chart.context) {
-                chart.render("hover", {x: x, y: y});//no redraw
-            /*}
-            else {
-                tooltip.context.clearRect(0, 0, chart.width, chart.height);
-                if(chart.legend !== null && tooltip.context === chart.legend.context){
-                    chart.legend.data.length && chart.legend.draw();
-                }
-            }*/
+            chart.render(event);//no redraw
         }
         function axisTo (chart, x, y) {
             chart.colorAxis.forEach(function (axis) {
@@ -2997,18 +3313,18 @@
                 }
             });
             chart.yAxis.forEach(function (axis) {
-                if(axis.options.plotLine){
+                if (axis.options.plotLine) {
                     axis.addTooltip(x, y);
                 }
             });
             chart.xAxis.forEach(function (axis) {
-                if(axis.options.plotLine){
+                if (axis.options.plotLine) {
                     axis.addTooltip(x, y);
                 }
             });
         }
 
-        var tooltipHide = function (chart, pos) {
+        var tooltipHide = function (chart, e, pos) {
             var options = chart.options,
                 panels = chart.panel;
             var tooltipOptions = options.tooltip || {},
@@ -3021,7 +3337,7 @@
                         pane.tooltip.hide();
                     }
                 });
-                pos !== null && clearBuffer(chart, pos.x, pos.y);
+                pos !== null && clearBuffer(chart, extend({}, e, {moveX: pos.x, moveY: pos.y, type: "mousemove"}));
             };
             if (hideDelay > 0) {
                 timer && clearTimeout(timer);
@@ -3038,7 +3354,7 @@
             var n = data.length,
                 i = 0;
             var d, insides = [];
-            for (; i < n; i++) if (defined((d = data[i]).tooltip)) {
+            for (; i < n; i++) if (defined(d = data[i])) {
                 defined(d.tooltip) && Intersection.rect({
                     x: x, y: y
                 }, {
@@ -3049,19 +3365,26 @@
             return insides;
         };
 
-        var tooltipMoved = function (chart, layoutLinked, pos, isShow) {
+        var tooltipMoved = function (chart, e, layoutLinked, pos, isShow, tooltipOptions) {
             var x = pos.x,
                 y = pos.y;
             var linked = layoutLinked; //matrix(layoutLinked);
             var panels, curPanel = tooltipFilter(x, y, chart.panel, panels = [])[0];
+            var event;
+            var points = [];
 
+            var item = chart.getShape(chart.charts, x, y, tooltipOptions.shared);
+            item.forEach(function (shape) {
+                points.push(shape.shape);
+            });
+            moving = item.length !== 0;
+            chart.canvas.style.cursor = moving ? "pointer" : "default";
+            //tooltip enabled = false
             if (defined(curPanel)) {
-                var item = curPanel.tooltip.move(x, y, true)[0],
-                    shape;
+                var shape;
                 var curIndex;
-                moving = curPanel.tooltip.itemLength !== 0;
-                chart.canvas.style.cursor = moving ? "pointer" : "default";
-                if (item && linked === true  && panels.length) {// if exists link to panel
+                item = curPanel.tooltip.move(x, y, true);
+                if ((item = item[0]) && linked === true  && panels.length) {// if exists link to panel
                     curIndex = item.shape.index;
                     panels.forEach(function (pane) {
                         var shapes = pane.series;
@@ -3086,9 +3409,18 @@
                     }
                 });
             }
+            event = extend({}, e, {
+                shapes: points,
+                points: points,
+                moveX: x,
+                moveY: y
+            });
             
-            clearBuffer(chart, x, y);
+            clearBuffer(chart, event);
             axisTo(chart, x, y);
+            if (!moving) {
+                tooltipHide(chart, e, pos);
+            }
         };
 
         var tooltipEnd = function (chart, e) {
@@ -3101,9 +3433,9 @@
                         tooltip.move(xy.x, xy.y);
                     }
                 });
-                tooltipMoved(chart, (chart.options.layout || {}).linked, pos, tooltipOptions.show);
+                tooltipMoved(chart, e, (chart.options.layout || {}).linked, pos, tooltipOptions.show, tooltipOptions);
             }
-            else tooltipHide(chart, pos);
+            else tooltipHide(chart, e, pos);
         };
 
         var getAllCursor = function (chart, pos) {
@@ -3129,7 +3461,7 @@
                     layoutLinked = (chart.options.layout || {}).linked;
                 var pos = Event.normalize(e, chart.container);
 
-                tooltipMoved(chart, layoutLinked, pos, tooltipOptions.show);
+                tooltipMoved(chart, e, layoutLinked, pos, tooltipOptions.show, tooltipOptions);
                 getAllCursor(chart, pos);
             },
             hide: function (e, chart) {
@@ -3141,45 +3473,66 @@
         };
     };
 
-    var onClick = function (e, chart) {
-        var options = chart.options;
+    var onClick = function (e, chart, selector) {
+        var options = chart.options,
+            chartOptions = options.chart || {},
+            plotOptions = options.plotOptions || {};
         var pos = Event.normalize(e, chart.container);
         var x = pos.x,
             y = pos.y;
-        var plotOptions, click;
+        var globalClick = (chartOptions.events || {}).click,
+            click,
+            event;
+        var points = [];
+        var graphics = chart.charts,
+            graphic,
+            series,
+            plotPoint,
+            point;
+        var i, j;
+        var callbacks = [];
+
+        while (i = selector.pop()) delete i.selected;
 
         if (isClicking && chart.globalAnimation.isReady === true) {
-            chart.charts.forEach(function (item) {
-                var shapes = [];
-                (item.series || []).forEach(function (series) {
-                    shapes = [];
-                    plotOptions = (options.plotOptions || {})[series.type] || {};
-                    click = (click = (click = series.events || {}).click || (plotOptions.events || {}).click);
-                    if (isFunction(click)) {
-                        shapes = (item.getShape && item.getShape(x, y)) || [];
-                        plotOptions = (options.plotOptions || {})[item.type] || {};
-                        shapes.forEach(function (item) {
-                            var shape = item.shape;
-                            click = (click = (item.series.events || {}).click || (plotOptions.events || {}).click);
-                            click && click.call({
-                                x: shape.key,
-                                value: shape.value,
-                                color: shape.color,
-                                key: shape.key,
-                                point: shape,
-                                total: shape.total,
-                                percentage: shape.percentage,
-                                series: item.series
-                            }, shape, item.series, e, x, y);
-                        });
+            click = ((plotOptions.point || {}).events || plotOptions.events || {}).click;
+            for (i = 0; i < graphics.length; i++) {
+                graphic = graphics[i];
+                for (j = 0; j < graphics[i].series.length; j++) if ((series = graphic.series[j]).selected !== false) {
+                    plotPoint = (plotOptions[series.type] || {}).point || {};
+                    points = graphic.getShape && graphic.getShape(x, y);
+                    if (points.length) {
+                        click = (series.events || {}).click || (plotPoint.events || {}).click;
+                        callbacks.push([
+                            !!points.length && isFunction(click),
+                            points.map(function (shape) { return shape.shape; }),
+                            click
+                        ]);
                     }
+                }
+            }
+            graphics.forEach(function (graphic) {
+                var shapes = (graphic.getShape && graphic.getShape(x, y)) || [];
+                shapes.forEach(function (shape) {
+                    shape.shape.selected = true;
+                    selector.push(shape.shape);
+                    points.push(shape.shape);
                 });
-                shapes = (item.getShape && item.getShape(x, y)) || [];
-                if (shapes.length && item.setSliced) {
-                    item.setSliced(shapes);
-                    chart.render("click");
+                if (shapes.length && graphic.setSliced) {
+                    graphic.setSliced(shapes);
                 }
             });
+            event = extend({}, e, { moveX: x, moveY: y });
+            for (i = 0; i < callbacks.length; i++) if (graphic = callbacks[i]) {
+                event.shapes = graphic[1], event.points = graphic[1];
+                point = graphic[1][0];
+                point.point = graphic[1][0];
+                graphic[0] && graphic[2].call(graphic[1].length === 1  ? (point || {}) : graphic[1], event);
+            }
+            if (globalClick) {
+                globalClick.call(points, extend({}, e, { points: points, shapes: points, moveX: x, moveY: y }));
+            }
+            chart.render(event);
             chart.toolbar && chart.toolbar.onClick && chart.toolbar.onClick.call(chart.container, e);
         }
     };
@@ -3190,11 +3543,11 @@
         var sx, sy;
         draggable.start(this, e);
         sx = draggable.getX(), sy = draggable.getY();
-        dragging = true;
+        dragging = e.buttons === 1;
         isClicking = true;
         
         chart.rangeSlider.forEach(function (slider, i) {
-            var pane = panel[Math.min(panel.length - 1, slider.panelIndex | 0)];
+            var pane = panel[mathMin(panel.length - 1, slider.panelIndex | 0)];
             var rangeSelector = chart.rangeSelector[i];
             rangeSelector.maxWidth = pane.plotWidth * (1 + (1 - (rangeSelector.to - rangeSelector.from) / 100));
             rangeSelector.dragging = slider.getTarget(sx, sy) === -1 && Intersection.rect(
@@ -3241,26 +3594,26 @@
                 //console.log(dm)
                 var t = end - start;
                 if (dir.x > 0) {
-                    start = Math.max(0, start);
-                    end = Math.max(t, end);
+                    start = mathMax(0, start);
+                    end = mathMax(t, end);
                 }
                 else {
                     //left
-                    end = Math.min(100, end);
-                    start = Math.min(100 - t, start);
+                    end = mathMin(100, end);
+                    start = mathMin(100 - t, start);
                 }
                 rangeSelector.from = start;
                 rangeSelector.to = end;
                 slider && slider.startToEnd(start + "%", end + "%");
                 
-                chart.globalEvent.isDragging = chart.globalEvent.isDragging || !chart.globalEvent.isDragging;
-                fetchData(chart, start, end);
+                chart.globalEvent.isDragging = false;// chart.globalEvent.isDragging || !chart.globalEvent.isDragging;
+                fetchData(e, chart, start, end);
             }
             slider && slider.onDrag(p.x, p.y, function (sv, ev, start, end) {
-                chart.globalEvent.isDragging = chart.globalEvent.isDragging || !chart.globalEvent.isDragging;
+                chart.globalEvent.isDragging = false;//chart.globalEvent.isDragging || chart.globalEvent.isDragging;
                 rangeSelector.from = parseFloat(start, 10);
                 rangeSelector.to = parseFloat(end, 10);
-                fetchData(chart, start, end);
+                fetchData(e, chart, start, end);
             });
         });
         chart.charts.forEach(function (item) {
@@ -3270,7 +3623,7 @@
             }
         });
         if (!chart.globalEvent.isDragging) {
-            chart.render("drag");//not dragging
+            chart.render(e);//not dragging
         }
     };
 
@@ -3349,7 +3702,7 @@
                 });
                 var rangeSelector = chart.rangeSelector;
                 if (rangeSelector.length && rangeSelector[0].from !== rangeSelector[0].to) {
-                    fetchData(chart, rangeSelector[0].from, rangeSelector[0].to);
+                    fetchData(e, chart, rangeSelector[0].from, rangeSelector[0].to);
                     e.preventDefault && e.preventDefault();
                 }
             }
@@ -3363,7 +3716,7 @@
             timer && clearTimeout(timer);
             timer = setTimeout(function () {
                 height = (width = chart.getSize(chart.renderer)).height;
-                chart.setSize(width.width, height);
+                chart.setSize(width.width, height, e);
             }, 100);
         }
     };
@@ -3397,7 +3750,7 @@
             for (var p in events) if (event = events[p], events.hasOwnProperty(p))
                 (event.el || container)[type](p, event.listener || event, useCapture);
 
-            container[type]("mousemove", globalEvent.drag, useCapture);
+            //container[type]("mousemove", globalEvent.drag, useCapture);
         }
 
         function event (chart) {
@@ -3421,10 +3774,11 @@
             (function (chart) {
                 var container = chart.container;
                 var globalEvent = chart.globalEvent;
+                var selectedPoints = [];
 
                 extend(globalEvent, {
                     click: function (e) {
-                        hasEventDisabled(chart) && onClick.call(this, e, chart);
+                        hasEventDisabled(chart) && onClick.call(this, e, chart, selectedPoints);
                     },
                     mousemove: function (e) {
                         hasAnimateReady(chart) & hasEventDisabled(chart) & hasDragging(chart) && tooltip.show.call(this, e, chart);
@@ -3507,11 +3861,11 @@
 
     return {
         deps: function () {
-            var args = Array.prototype.slice.call(arguments, 0);
-            return factory.apply(global, [].concat(args));
+            return factory.apply(global, [].slice.call(arguments));
         }
     };
 })(typeof window !== "undefined" ? window : this).deps(Dalaba, Event);
+
     Chart.angleInQuadrant = (function(){
     var PI = Math.PI;
     var PI2 = PI * 2;
@@ -3609,100 +3963,182 @@
 })();;
     Chart.angle2arc = Arc.angle2arc;
     Chart.arc = Arc.arc;
+
+    Chart.Clip = (function () {
+
+    var lerp = function (a, b, t) {
+        return a + b * t;
+    };
+
+    function factory (angle2arc) {
+
+        var Horizontal = function (image, clipX, clipY, clipWidth, clipHeight) {
+            var width = clipWidth / DEVICE_PIXEL_RATIO,
+                height = clipHeight / DEVICE_PIXEL_RATIO;
+            return {
+                clip: function (context, timer) {
+                    if (timer > 0) {
+                        context.save();
+                        context.drawImage(
+                            image,
+                            clipX, clipY, clipWidth * timer, clipHeight,
+                            clipX, clipY, width * timer, height
+                        );
+                        context.restore();
+                    }
+                }
+            };
+        };
+
+        var Vertical = function (image, clipX, clipY, clipWidth, clipHeight) {
+            return {
+                clip: function (context, timer) {
+                    if (timer > 0) {
+                        context.save();
+                        context.drawImage(
+                            image,
+                            clipX, clipY, clipWidth, clipHeight * timer,
+                            clipX, clipY, clipWidth / DEVICE_PIXEL_RATIO, clipHeight * timer / DEVICE_PIXEL_RATIO
+                        );
+                        context.restore();
+                    }
+                }
+            }
+        };
+
+        var Quadrant = function (image, clipX, clipY, clipRadius) {
+            var startAngle = 0,
+                endAngle = PI2;
+            var clip = {
+                angle: function (_, __) {
+                    isNumber(_, true) && (startAngle = _), isNumber(__, true) && (endAngle = __);
+                    return clip;
+                }
+            };
+            clip.clip = function (context, timer) {
+                if (timer > 0) {
+                    context.save();
+                    angle2arc(
+                        clipX, clipY,
+                        clipRadius / 2, 0,
+                        startAngle, lerp(startAngle, endAngle, timer),
+                        false//close path
+                    )(context);
+                    //context.fill();
+                    context.clip();
+                    context.drawImage(
+                        image,
+                        0, 0, image.width, image.height,
+                        0, 0, image.width / DEVICE_PIXEL_RATIO, image.height / DEVICE_PIXEL_RATIO
+                    );
+                    context.restore();
+                }
+            };
+            return clip;
+        };
+
+        var Rect = function (clipX, clipY, clipWidth, clipHeight) {
+            return {
+                clip: function (context) {
+                    context.save();
+                    context.beginPath();
+                    context.moveTo(clipX, clipY);
+                    context.lineTo(clipX + clipWidth, clipY);
+                    context.lineTo(clipX + clipWidth, clipY + clipHeight);
+                    context.lineTo(clipX, clipY + clipHeight);
+                    context.lineTo(clipX, clipY);
+                    //context.stroke();
+                    context.clip();
+                    context.restore();
+                }
+            };
+        };
+
+        return {
+            Horizontal: Horizontal,
+            Vertical: Vertical,
+            Quadrant: Quadrant,
+            Rect: Rect
+        };
+    }
+
+    return {
+        deps: function () {
+            return factory.apply(null, [].slice.call(arguments, 0));
+        }
+    };
+})().deps(Arc.angle2arc);
+
     Chart.Series = (function (global) {
-    var mathMax = Math.max,
-        mathMin = Math.min;
+    
+    var clamp = function (v, max) {
+        return mathMax(0, mathMax(pack("number", max, 0), pack("number", v, 0)));
+    };
+    
+    var prediction = function (values) {
+        var n = values.length,
+            sum = 0,
+            mean = false;
+        var each = function (cb) {
+            var l = n & 1,
+                r = n;
+            l && cb(values[0], mean === false ? 0 : mean);
+            while (l < r) {
+                cb(values[l++], values[--r]);
+            }
+        };
+        each(function (a, b) { sum += a; sum += b; });
+        mean = sum / n, sum = 0;
+        each(function (a, b) { sum += (a - mean) * (a - mean), sum += (b - mean) * (b - mean); });
 
-    function factoy (global, Dalaba, List) {
+        return values[n - 1]; //mean;// n ? Math.sqrt(sum / n) : 0;
+    };
 
-        var defined = Dalaba.defined;
+    function factoy (global, Numeric, List, Animate) {
 
         var partition = List.partition;
 
         var indexOf = List.indexOf;
 
-        var isNumber = function (v) {
-            return Dalaba.isNumber(v, true);
-        };
+        var valueOf = Numeric.valueOf;
 
-        var prediction = function (values) {
-            var n = values.length,
-                sum = 0,
-                mean = false;
-            var each = function (cb) {
-                var l = n & 1,
-                    r = n;
-                l && cb(values[0], mean === false ? 0 : mean);
-                while (l < r) {
-                    cb(values[l++], values[--r]);
-                }
-            };
-            each(function (a, b) { sum += a; sum += b; });
-            mean = sum / n, sum = 0;
-            each(function (a, b) { sum += (a - mean) * (a - mean), sum += (b - mean) * (b - mean); });
-
-            return values[n - 1]; //mean;// n ? Math.sqrt(sum / n) : 0;
-        };
-
-        var valueOf = function (v, k) {
-            var value = parseFloat(v, 10),
-                values = v.match(/([\+\-]?\d+[\.eE]?\d*)/g),
-                p = values && values.length;
-
-            if (isNumber(value) && !p) {
-                return value;
-            }
-            if (p && values.length < 2) {
-                return value = parseFloat(values[0], 10);
-            }
-            if (p) {
-                var kdtree = new KDTree(values.map(function (t) {
-                    return {x: parseFloat(t, 10)};
-                }), ["x"]);
-                value = kdtree.nearest({x: k}, function (a, b) {
-                    return (a.x - b.x) * (a.x - b.x);
-                })[0];
-                kdtree.destroy();
-                if (isNumber(value.x)) {
-                    return value = value.x;
-                }
-            }
-            return null;
-        };
-
-        function Series (options) {
-            extend(this, options);
-            this.__options__ = options;
+        function Series (series, options) {
+            this.options = options;
+            extend(this, series);
+            this.__options__ = series;
         }
         Series.prototype = {
             constructor: Series,
-            update: function (options, redraw) {
+            update: function (series, redraw) {
                 var chart = this.chart,
                     newSeries;
-                
+
                 if (defined(chart)) {
-                    newSeries = extend(this, options);
-                    this.__options__ = options;
+                    newSeries = extend(this, series);
+                    this.__options__ = series;
                     this._shapes = this.shapes;
                     this.shapes = this.addShape();
 
-                    redraw !== false && chart.draw();
+                    redraw !== false && chart.draw({ target: chart, type: "update"});
                 }
             },
             addShape: function () {
-                var newSeries = this;
-                var data = pack("array", newSeries.data, []),
+                var options = this.options,
+                    colors = options.colors || [];
+                var data = pack("array", this.data, []),
                     item, value,
                     shapes = [], shape,
-                    minValue, maxValue,
-                    diff = 0;
+                    minValue = MAX_VALUE, maxValue = MIN_VALUE, sumValue = 0,
+                    size = 0;
                 var vari = [];
-                var animationDelay = newSeries.animationDelay;
+                var animationDelay = this.animationDelay;
 
-                var type = newSeries.type;
+                var type = this.type;
                 var length = data.length,
-                    j = 0;
+                    i = 0;
                 var isNULL = false;
+
+                var newSeries = this;
 
                 var start = pack("number", parseFloat(newSeries.start, 10) / 100, 0),
                     end = pack("number", parseFloat(newSeries.end, 10) / 100, 1);
@@ -3711,112 +4147,156 @@
                 newSeries.startIndex = start;
                 newSeries.endIndex = end;
 
-                if (diff = (end - start)) {
-                    minValue = Number.MAX_VALUE,
-                    maxValue = -minValue;
-                    for(; start < end; start++, j++){
-                        item = data[start];
-                        value = item;
-                        shape = {
-                            series: newSeries,
-                            source: item
-                        };
-                        if (newSeries.animationEnabled !== false) {
-                            shape.duration = newSeries.animationDuration;
-                            shape.easing = newSeries.animationEasing;
-                            if (isFunction(animationDelay)) shape.delay = animationDelay.call(item, j);
-                            else if (isNumber(animationDelay)) shape.delay = animationDelay;
-                            else shape.delay = isFunction(newSeries.delay) ? newSeries.delay.call(item, j) : newSeries.delay;
-                        }
+                if (size = (end - start)) for (; start < end; start++, i++) {
+                    item = data[start];
+                    value = item;
+                    shape = {
+                        series: newSeries,
+                        source: item
+                    };
+                    if (newSeries.animationEnabled !== false) {
+                        shape.duration = newSeries.animationDuration;
+                        shape.easing = newSeries.animationEasing;
+                        if (isFunction(animationDelay)) shape.delay = animationDelay.call(item, i);
+                        else if (isNumber(animationDelay)) shape.delay = animationDelay;
+                        else shape.delay = isFunction(newSeries.delay) ? newSeries.delay.call(item, i) : newSeries.delay;
+                    }
 
-                        if (isObject(item)) {
-                            value = defined(item.value) ? item.value : item.y;
-                            if (type === "arearange" && defined(item.high)) {
-                                value = item.high;
-                            }
-                            extend(shape, item);
-                            delete shape.x;
-                            delete shape.y;
-                            defined(item.x) && (shape._x = item.x);
-                            defined(item.y) && (shape._y = item.y);
+                    if (isObject(item)) {
+                        value = defined(item.value) ? item.value : item.y;
+                        if (type === "arearange" && defined(item.high)) {
+                            value = item.high;
                         }
-                        else if (isArray(item)) {
-                            value = defined(item[1]) ? item[1] : item[0];
-                            if(type === "arearange" || defined(item[2])){
-                                value = defined(item[2]) ? item[2] : item[1];
-                            }
-                            extend(shape, {
-                                _x: item[0],
-                                _y: item[1]
-                            });
+                        extend(shape, item);
+                        delete shape.x;
+                        delete shape.y;
+                        defined(item.x) && (shape._x = item.x);
+                        defined(item.y) && (shape._y = item.y);
+                    }
+                    else if (isArray(item)) {
+                        value = defined(item[1]) ? item[1] : item[0];
+                        if (type === "arearange" || isNumber(item[2], true)) {
+                            value = isNumber(item[2], true) ? item[2] : item[1];
                         }
-                        var svalue = value,
-                            $value = svalue;
-                        if (isString(value)) {
-                            var k = vari.length ? vari.length > 2 ? prediction(vari.slice(-10)) : vari[0] : 0;
-                            value = valueOf(svalue = value, k);
-                        }
-                        
-                        if (!isNumber(value) || !isFinite(value)) {
-                            value = svalue = null;
-                            $value = "--";
-                        }
-                        if (isNumber(value)) {
-                            minValue = mathMin(minValue, value);
-                            maxValue = mathMax(maxValue, value);
-                            vari.push(value);
-                        }
-                        isNULL = value === null;
-                        if (type === "candlestick") {
-                            (isNULL = !(
-                                isNumber(+shape.open, true) &&
-                                isNumber(+shape.close, true) &&
-                                isNumber(+shape.low, true) &&
-                                isNumber(+shape.high, true)
-                            )) || ($value = [
-                                "<br>",
-                                "open: " + shape.open + "<br>",
-                                "close: " + shape.close + "<br>",
-                                "low: " + shape.low + "<br>",
-                                "high: " + shape.high + "<br>"
-                            ].join(""));
-                            isNULL && ((isNULL = !(
-                                isNumber(+item[0], true) &&
-                                isNumber(+item[1], true) &&
-                                isNumber(+item[2], true) &&
-                                isNumber(+item[3], true)
-                            )) || ($value = [
-                                "<br>",
-                                "open: " + item[0] + "<br>",
-                                "close: " + item[1] + "<br>",
-                                "low: " + item[2]+ "<br>",
-                                "high: " + item[3] + "<br>"
-                            ].join("")));
-                        }
-                        if (!!~(indexOf(["pie", "funnel", "venn"], type))) {
-                            !defined(shape.name) && (shape.name = svalue);
-                        }
-                        else {
-                            if (type !== "diagram" && type !== "sankey")
-                                shape.name = newSeries.name;
-                            !defined(shape.color) && (shape.color = newSeries.color);
-                        }
-                        shape._value = svalue;//show value
-                        shape.value = value;//cal value
-                        shape.$value = $value;//tooltip value
-                        shape.isNULL = isNULL;
-                        shape.dataLabel = {};
-                        shapes.push(shape);
-                        if ((type === "pie" || type === "funnel")) {
-                            data[start] = isObject(item) || isArray(item) ? item : {value: item};//legend data
+                        extend(shape, {
+                            _x: item[0],
+                            _y: item[1]
+                        });
+                    }
+                    var svalue = value,
+                        $value = svalue;
+                    if (isString(value)) {
+                        value = valueOf(svalue = value, vari.length ? vari.length > 2 ? prediction(vari.slice(-10)) : vari[0] : 0);
+                    }
+                    
+                    if (!isNumber(value, true)) {
+                        value = svalue = null;
+                        $value = "--";
+                    }
+                    if (isNumber(value, true)) {
+                        minValue = mathMin(minValue, value);
+                        maxValue = mathMax(maxValue, value);
+                        item.selected !== false && (sumValue += value);
+                        vari.push(value);
+                    }
+                    isNULL = value === null;
+                    if (type === "candlestick") {
+                        (isNULL = !(
+                            isObject(shape) &&
+                            isNumber(shape.open, true) &&
+                            isNumber(shape.close, true) &&
+                            isNumber(shape.low, true) &&
+                            isNumber(shape.high, true)
+                        )) || ($value = [
+                            "<br>",
+                            "open: " + shape.open + "<br>",
+                            "close: " + shape.close + "<br>",
+                            "low: " + shape.low + "<br>",
+                            "high: " + shape.high + "<br>"
+                        ].join(""));
+                        isNULL && ((isNULL = !(
+                            isArray(item) &&
+                            isNumber(item[0], true) &&
+                            isNumber(item[1], true) &&
+                            isNumber(item[2], true) &&
+                            isNumber(item[3], true)
+                        )) || ($value = [
+                            "<br>",
+                            "open: " + item[0] + "<br>",
+                            "close: " + item[1] + "<br>",
+                            "low: " + item[2]+ "<br>",
+                            "high: " + item[3] + "<br>"
+                        ].join("")));
+                        if (!isNULL) {
+                            minValue = mathMin(minValue, pack("number", item[2], shape.low, minValue));
+                            maxValue = mathMax(maxValue, pack("number", item[3], shape.high, maxValue));
                         }
                     }
+                    if (type === "boxplot") {
+                        (isNULL = isNULL || !(
+                            isObject(shape) &&
+                            isNumber(shape.upper, true) &&
+                            isNumber(shape.q3, true) &&
+                            isNumber(shape.median, true) &&
+                            isNumber(shape.q1, true) && 
+                            isNumber(shape.lower, true)
+                        )) || ($value = [
+                            "<br>",
+                            "upper: " + shape.upper + "<br>",
+                            "Q3: " + shape.q3 + "<br>",
+                            "median: " + shape.median + "<br>",
+                            "q1: " + shape.q1 + "<br>",
+                            "lower: " + shape.lower + "<br>"
+                        ].join(""));
+                        isNULL && ((isNULL = !(
+                            isArray(item) &&
+                            isNumber(item[0], true) &&
+                            isNumber(item[1], true) &&
+                            isNumber(item[2], true) &&
+                            isNumber(item[3], true)
+                        )) || ($value = [
+                            "<br>",
+                            "upper: " + item[4] + "<br>",
+                            "Q3: " + item[3] + "<br>",
+                            "median: " + item[2]+ "<br>",
+                            "Q1: " + item[1] + "<br>",
+                            "lower: " + item[0] + "<br>"
+                        ].join("")));
+                        if (!isNULL) {
+                            minValue = mathMin(minValue, pack("number", item[0], shape.lower, minValue));
+                            maxValue = mathMax(maxValue, pack("number", item[4], shape.upper, maxValue));
+                        }
+                    }
+                    if (type === "arearange") {
+                        minValue = mathMin(minValue, pack("number", item[0], minValue));
+                        maxValue = mathMax(maxValue, pack("number", item[1], maxValue));
+                    }
+                    
+                    shape._value = svalue;//show value
+                    shape.value = value;//cal value
+                    shape.$value = $value;//tooltip value
+                    shape.isNULL = isNULL;
+                    shape.dataLabel = {};
+                    shape.__proto__ = new Animate();
+                    
+                    if (!!~(indexOf(["pie", "funnel", "venn"], type))) {
+                        !defined(shape.name) && (shape.name = svalue);
+                        !defined(shape.color) && (shape.color = colors[i % colors.length]);
+                        data[start] = isObject(item) || isArray(item) ? item : {value: item};//legend data
+                    }
+                    else {
+                        if (type !== "diagram" && type !== "sankey")
+                            shape.name = newSeries.name;
+                        !defined(shape.color) && (shape.color = newSeries.color);
+                    }
+                    shapes.push(shape);
                 }
-                newSeries.minValue = diff ? minValue : 0;
-                newSeries.maxValue = diff ? maxValue : 0;
+                newSeries.minValue = size ? minValue : 0;
+                newSeries.maxValue = size ? maxValue : 0;
+                newSeries.sumValue = size ? sumValue : 0;
                 return shapes;
             },
-            destroy: function(){
+            destroy: function () {
 
             }
         };
@@ -3828,10 +4308,6 @@
                 polarAxis: {},
                 radiusAxis: {},
                 colorAxis: {}
-            };
-
-            var clamp = function (v, max) {
-                return mathMax(0, mathMax(pack("number", max, 0), pack("number", v, 0)));
             };
 
             var add = function (axisSeries, key, value) {
@@ -3856,8 +4332,8 @@
                     
                     if (series.selected !== false) {
                         series.sumLength = mathMax(sumLength, (series.data || []).length | 0);
-                        series.maxLength = mathMax(maxLength, series.shapes.length);
                     }
+                    series.maxLength = mathMax(maxLength, series.shapes.length);
                     //2d axis
                     if (isAxis2D) {
                         add(axisSeries.yAxis, clamp(series.yAxis), series);
@@ -3880,8 +4356,6 @@
          * @param series{Array}
         */
         Series.normalize = function (series) {
-            var MAX_VALUE = Number.MAX_VALUE,
-                MIN_VALUE = -MAX_VALUE;
             var minValue = MAX_VALUE,
                 maxValue = -minValue;
             var minAxisX = minValue,
@@ -3889,14 +4363,16 @@
                 minAxisY = minValue,
                 maxAxisY = maxValue;
             var isX = false, isY = false;
+            var isHigh = false;
             var isNULL = false;
 
             var maxLength = -MAX_VALUE;
+            var axisLength = 0;
 
             var groups = partition(series, function (a, b) {
-                if(a.type !== b.type)
+                if (a.type !== b.type)
                     return false;
-                if(typeof a.stack === "undefined" && typeof b.stack === "undefined")
+                if (typeof a.stack === "undefined" && typeof b.stack === "undefined")
                     return false;
                 return a.stack === b.stack;
             });
@@ -3904,6 +4380,13 @@
 
             var ztree = new ZTree(series, ["type", "stack"]),
                 root;
+
+            for (var i = 0; !isHigh && i < series.length; i++) {
+                root = series[i];
+                isHigh = root.type === "arearange"
+                    || root.type === "candlestick"
+                    || root.type === "boxplot";
+            }
 
             root = ztree.update(function (item) {
                 var minValue = MAX_VALUE,
@@ -3919,7 +4402,7 @@
                 var series = item[0],
                     startIndex = series.startIndex,
                     endIndex = series.endIndex;
-                var isHigh;
+                
                 var m = endIndex - startIndex, n = item.length, i, j;
                 var data, source, value, x = null, y = null;
                 var lowValue, highValue;//no negative
@@ -3942,8 +4425,6 @@
                         series = item[i];
                         isSelected = isSelected || series.selected !== false;
                         if (series.selected !== false) {
-                            isHigh = !!~(indexOf(["arearange", "candlestick"], series.type));
-
                             data = series.shapes[j] || {};
                             source = series.data[~~(startIndex + j)];
                             value = data.value;
@@ -3953,7 +4434,11 @@
                                 isNumber(source[1]) && (lowValue = value = y = source[1], isY = isY || !isY);
                                 isNumber(source[2]) && (highValue = source[2]);
                                 if (isHigh) {
-                                    isY = false;//arearange use value
+                                    isY = false;
+                                    isX = false;
+                                }
+                                if (!(series.type === "arearange" || series.type === "candlestick" || series.type === "boxplot") && isNumber(source[0], true)) {
+                                    axisLength = mathMax(axisLength, source[0]);
                                 }
                             }
                             else if (isObject(source)) {
@@ -3971,11 +4456,11 @@
                             isPositiveY = isPositiveY || y >= 0;
                             isNULL = isNULL || isNumber(value) || (isNumber(lowValue) && isNumber(highValue));
                             if (isHigh) {
-                                positive += highValue;
-                                negative += lowValue;
+                                positive = series.maxValue;//use min & max value
+                                negative = series.minValue;
                                 isPositive = isNegative = true;
                             }
-                            else{
+                            else {
                                 if (isNumber(value)) {
                                     if (value < 0) {
                                         negative += value;
@@ -4026,7 +4511,7 @@
                     minAxisY: minAxisY,
                     maxAxisY: maxAxisY
                 };
-            }, function(newProps, props) {
+            }, function (newProps, props) {
                 var cals = {
                     minValue: [mathMin, MAX_VALUE],
                     maxValue: [mathMax, MIN_VALUE],
@@ -4066,6 +4551,7 @@
                 min: minValue,
                 max: maxValue,
                 length: maxLength,
+                axisLength: axisLength,
                 groups: groups
             };
             if (isX) {
@@ -4084,21 +4570,81 @@
             return factoy.apply(global, [global].concat([].slice.call(arguments, 0)));
         }
     };
-})(typeof window !== "undefined" ? window : global).deps(Dalaba, Dalaba.Cluster.List);
+})(typeof window !== "undefined" ? window : global).deps(Dalaba.Numeric, Dalaba.Cluster.List, Animate);
     Chart.scale = rescale;
     Chart.fixLinePixel = fixLinePixel;
     Chart.fixPixelHalf = fixPixelHalf;
+
+    Chart.Animate = Animate;
 
     Dalaba.Chart = Chart;
 
 })(Dalaba);;
 //global name
+var EVENT_MOUSE_OVER = hasTouch ? "touchstart" : "mouseover";
+
+var EVENT_MOUSE_MOVE = hasTouch ? "touchmove" : "mousemove";
+
+var EVENT_MOUSE_OUT = hasTouch ? "touchend" : "mouseout";
+
+var EVENT_MOUSE_DOWN = "mousedown";
+
+var EVENT_MOUSE_UP = "mouseup";
+
+var PI = Math.PI;
+    
+var PI2 = PI * 2.0;
+
+var TOW_PI = PI2;
+
+var HALF_PI = PI / 2.0;
+
+var QUARTER_PI = PI / 4.0;
+
+var SQRT3 = Math.sqrt(3);
+
+var MAX_VALUE = Number.MAX_VALUE;
+
+var MIN_VALUE = -MAX_VALUE;
+
+var DEVICE_PIXEL_RATIO = Dalaba.DEVICE_PIXEL_RATIO;
+
+var Event = Dalaba.Chart.Event;
+
+var Mathematics = Dalaba.Math;
+
+var Geometry = Dalaba.Geometry;
+
+var Vector = Dalaba.Vector;
+
+var Intersection = Geometry.Intersection;
+
+var DashLine = Geometry.Line.Dash;
+
+var Text = Dalaba.Text;
+
+var Color = Dalaba.Color;
+
+var Numeric = Dalaba.Numeric;
+
+var Formatter = Dalaba.Formatter;
+
+var List = Dalaba.Cluster.List;
+
+var KDTree = Dalaba.KDTree;
+
+var ZTree = Dalaba.ZTree;
+
+var Projection = Dalaba.geo.Projection;
+
+
 var document = global.document;
 
 var defined = Dalaba.defined,
     extend = Dalaba.extend,
     pack = Dalaba.pack,
     noop = function () {};
+
 
 var isObject = Dalaba.isObject,
     isNumber = Dalaba.isNumber,
@@ -4108,20 +4654,6 @@ var isObject = Dalaba.isObject,
     isEmpty = Dalaba.isEmptyObject;
 
 
-var Event = Dalaba.Chart.Event,
-    Mathematics = Dalaba.Math,
-    Geometry = Dalaba.Geometry,
-    Intersection = Geometry.Intersection,
-    DashLine = Geometry.Line.Dash,
-    Text = Dalaba.Text,
-    Color = Dalaba.Color,
-    Numeric = Dalaba.Numeric,
-    Formatter = Dalaba.Formatter,
-    List = Dalaba.Cluster.List,
-    KDTree = Dalaba.KDTree,
-    ZTree = Dalaba.ZTree,
-    Projection = Dalaba.geo.Projection;
-
 var toPrecision = Numeric.toPrecision,
     interpolate = Numeric.interpolate;
 
@@ -4129,11 +4661,21 @@ var arrayFilter = List.filter,
     arrayIndexOf = List.indexOf,
     partition = List.partition;
 
-var mathLog = Mathematics.log;
+var mathLog = Mathematics.log,
+    mathRound = Mathematics.round,
+    mathPow = Mathematics.pow,
+    mathMax = Math.max,
+    mathMin = Math.min,
+    mathCeil = Math.ceil,
+    mathFloor = Math.floor,
+    mathAbs = Math.abs,
+    mathCos = Math.cos,
+    mathSin = Math.sin;
 
 var hasAxis = function (type) {
-    return arrayIndexOf(["line", "spline", "column", "bar", "area", "areaspline", "arearange", "scatter", "heatmap", "candlestick"], type) > -1;
+    return arrayIndexOf(["line", "spline", "column", "bar", "area", "boxplot", "areaspline", "arearange", "scatter", "heatmap", "candlestick"], type) > -1;
 };
+
 var setAttribute = function (domel, props) {
     if (domel) for (var p in props) if (hasOwnProperty.call(props, p) && defined(props[p]))
         domel.setAttribute(p, props[p]);
@@ -4147,18 +4689,33 @@ var setStyle = function (domel, props) {
     }
 };
 
+var getStyle = function (domel, cssProp) {
+    var value = "";
+    var view = document.defaultView;
+    if (view && (view = view.getComputedStyle)) {
+        value = view(domel, null).getPropertyValue(cssProp);
+    }
+    else if (domel.currentStyle) {
+        value = domel.currentStyle[cssProp.replace(/\-(\w)/g, function (_, s) {
+            return s.toUpperCase();
+        })];
+    }
+    return value;
+};
+
 var hasTouch = Dalaba.Chart.hasTouch;
 
 var rescale = Dalaba.Chart.scale;
-
-
-var DEVICE_PIXEL_RATIO = Dalaba.DEVICE_PIXEL_RATIO;
 
 var fixLinePixel = Dalaba.Chart.fixLinePixel;
 
 var fixPixelHalf = Dalaba.Chart.fixPixelHalf;
 
 var TRouBLe = Formatter.TRouBLe;
+
+var Clip = Dalaba.Chart.Clip;
+
+var Series = Dalaba.Chart.Series;
 
 var DataLabels = (function () {
     var hideOverlappingLabels = function (labels) {
@@ -4178,7 +4735,7 @@ var DataLabels = (function () {
             }
         }
 
-        labels.sort(function(a, b) {
+        labels.sort(function (a, b) {
             return (b.labelrank || 0) - (a.labelrank || 0);
         });
 
@@ -4188,41 +4745,39 @@ var DataLabels = (function () {
                 label2 = labels[j];
                 if (label1 && label2 && label1.placed && label2.placed && label1.newOpacity !== 0 && label2.newOpacity !== 0) {
                     padding = 0;
-                    if (Intersection.aabb(
-                        label1.translateX, label1.translateY, label1.width - padding, label1.height - padding,
-                        label2.translateX, label2.translateY, label2.width - padding, label2.height - padding
-                    )) {
+                    if (Intersection.aabb({
+                        x: label1.translateX,
+                        y: label1.translateY,
+                        width: label1.width - padding,
+                        height: label1.height - padding
+                    }, {
+                        x: label2.translateX,
+                        y: label2.translateY,
+                        width: label2.width - padding,
+                        height: label2.height - padding
+                    })) {
                         (label1.labelrank < label2.labelrank ? label1 : label2).newOpacity = 0;
                     }
                 }
             }
         }
         labels.forEach(function (label) {
-            var complete,
-                newOpacity;
-
+            var newOpacity;
             if (label) {
                 newOpacity = label.newOpacity;
-
                 if (label.oldOpacity !== newOpacity && label.placed) {
-                    label.visibled = !!newOpacity;
+                    if (label.visibled !== false) {
+                        label.visibled = !!newOpacity;
+                    }
                 }
             }
         });
     };
     function factoy (Dalaba, Text) {
-        var defined = Dalaba.defined;
-
-        var pack = Dalaba.pack;
-
-        var isFunction = Dalaba.isFunction;
-
-        var isObject = Dalaba.isObject;
 
         function labels () {
             var align = noop, vertical = noop;
             var newValue;
-            
 
             var ret = {
                 vertical: function (_) {
@@ -4256,13 +4811,16 @@ var DataLabels = (function () {
                         color: options.color,
                         "white-space": "nowrap",
                         "font-size": options.fontSize,
-                        visibility: "hidden"
+                        visibility: "hidden",
+                        cursor: "pointer"
                     };
                     var dataLabel = {
                         x: 0, y: 0,
-                        width: 0, height: 0
+                        width: 0, height: 0,
+                        isNULL: shape.isNULL
                     };
-                    //console.log(series.type, options.enabled)
+
+                    newValue = null;
 
                     if (shape.selected !== false && series.selected !== false && options.enabled === true && defined(value)) {
                         var tag, bbox;
@@ -4286,8 +4844,8 @@ var DataLabels = (function () {
                             vertical.call(isObject(shape.dataLabels) ? shape.dataLabels : series.dataLabels, verticalAlign, bbox), shape.y0, shape.y, 0
                         );
 
-                        x = isFunction(xCallback) ? x + pack("number", xCallback.call(shape, x, bbox, shape, value, series)) : (x += options.x);
-                        y = isFunction(yCallback) ? y + pack("number", yCallback.call(shape, y, bbox, shape, value, series)) : (y += options.y);
+                        x = isFunction(xCallback) ? x + pack("number", xCallback.call(shape, x, bbox, shape, value, series)) : (x + options.x);
+                        y = isFunction(yCallback) ? y + pack("number", yCallback.call(shape, y, bbox, shape, value, series)) : (y + options.y);
                         if (rotation) {
                             if (angle > 0 && angle < PI) {
                                 //x = x + bbox.width / 2;
@@ -4297,7 +4855,7 @@ var DataLabels = (function () {
                                 x += bbox.width;
                                 y += bbox.height;
                             }
-                            else if (angle >= PI * 1.5 && angle < PI * 2) {
+                            else if (angle >= PI * 1.5 && angle < PI2) {
                                 x += bbox.width;
                                 y += bbox.height;
                             }
@@ -4306,7 +4864,9 @@ var DataLabels = (function () {
                             }
                         }
                         dataLabel = options;
+                        dataLabel.visibled = dataLabel.allowOverlap === true || (mathCeil(x) >= mathFloor(series.plotX) && x < series.plotX + series.plotWidth && y > series.plotY && y < series.plotY + series.plotHeight);// options.visibled;
                         dataLabel.value = value;
+                        dataLabel.isNULL = shape.isNULL;
                         dataLabel.angle = angle;
                         dataLabel.translateX = x, dataLabel.translateY = y;
                         dataLabel.width = bbox.width, dataLabel.height = bbox.height;
@@ -4315,19 +4875,20 @@ var DataLabels = (function () {
                             dataLabel.valueHTML = tag.outerHTML;
                         }
                     }
+                    newValue = undefined;
                     return dataLabel;
                 },
-                render: function (context, shape) {
-                    var dataLabel = shape.dataLabel,
-                        tag;
-                    if (!shape.isNULL && dataLabel && dataLabel.visibled && dataLabel.useHTML !== true) {
+                render: function (context, dataLabel) {
+                    var tag, fontFamily;
+                    if (!dataLabel.isNULL && dataLabel && dataLabel.visibled && dataLabel.useHTML !== true) {
                         tag = Text.HTML(Text.parseHTML(dataLabel.value), context, dataLabel);
+                        fontFamily = dataLabel.fontFamily === "inherit" ? (getStyle(context.canvas, "font-family") || "Arial") : dataLabel.fontFamily;
                         context.save();
                         context.textAlign = "start";
                         context.textBaseline = "alphabetic";
                         context.fillStyle = dataLabel.color;
-                        context.font = dataLabel.fontStyle + " " + dataLabel.fontWeight + " " + dataLabel.fontSize + " " + (dataLabel.fontFamily);
-                        context.translate(dataLabel.translateX, dataLabel.translateY);
+                        context.font = dataLabel.fontStyle + " " + dataLabel.fontWeight + " " + dataLabel.fontSize + " " + fontFamily;
+                        context.translate(dataLabel.translateX, dataLabel.translateY);//  + dataLabel.height
                         dataLabel.rotation && context.rotate(dataLabel.angle);
                         tag.toCanvas(context);
                         context.restore();
@@ -4351,11 +4912,11 @@ var DataLabels = (function () {
                 fontSize: pack("string", shapeStyle.fontSize, labelStyle.fontSize, "12px"),
                 fontFamily: pack("string", shapeStyle.fontFamily, labelStyle.fontFamily, "Arial"),
                 lineHeight: pack("string", shapeStyle.lineHeight, labelStyle.lineHeight, "normal"),
-                color: dataLabels.color || labelStyle.color || shapeStyle.color || "#000",
+                color: shapeStyle.color || labelStyle.color || shapeStyle.color || "#000",
                 x: isFunction(dataLabels.x) ? dataLabels.x : pack("number", shapeLabels.x, dataLabels.x, 0),
                 y: isFunction(dataLabels.y) ? dataLabels.y : pack("number", shapeLabels.y, dataLabels.y, 0),
-                useHTML: dataLabels.useHTML === true ? true : undefined,
-                allowOverlap: dataLabels.allowOverlap === true ? true : undefined,
+                useHTML: dataLabels.useHTML === true || undefined,
+                allowOverlap: dataLabels.allowOverlap,
                 visibled: true
             };
         };
@@ -4364,13 +4925,10 @@ var DataLabels = (function () {
                 labelValue = shape._value;
             var v = labelValue;
 
-            if(shape._formatterValue)
-                return shape._formatterValue;
-
-            if(defined(newValue)){
+            if (defined(newValue)) {
                 value = v = newValue;
             }
-            if (value !== null && isFunction(formatter) && !defined(shape._formatterValue)) {
+            if (value !== null && isFunction(formatter)) {
                 v = formatter.call({
                     x: shape.key,
                     y: value,
@@ -4384,7 +4942,6 @@ var DataLabels = (function () {
                     total: shape.total,
                     percentage: shape.percentage
                 }, value);
-                shape._formatterValue = v;
             }
             return value !== null && defined(v) ? v : null;
         };
@@ -4397,348 +4954,349 @@ var DataLabels = (function () {
             return factoy.apply(global, [].slice.call(arguments, 0));
         }
     };
-}).call(typeof window !== "undefined" ? window : this).deps(Dalaba, Dalaba.Text);
-
-var EVENT_MOUSE_OVER = hasTouch ? "touchstart" : "mouseover";
-var EVENT_MOUSE_MOVE = hasTouch ? "touchmove" : "mousemove";
-var EVENT_MOUSE_OUT = hasTouch ? "touchend" : "mouseout";
-var EVENT_MOUSE_DOWN = "mousedown";
-var EVENT_MOUSE_UP = "mouseup";
-
-var PI = Math.PI,
-    PI2 = PI * 2;;
+}).call(typeof window !== "undefined" ? window : this).deps(Dalaba, Dalaba.Text);;
 
 (function (global, Dalaba) {
-    var Series = Dalaba.Chart.Series;
 
     var hasOwnProperty = ({}).hasOwnProperty;
 
     //default chart options
-    var defaultOptions = {
-    type: "line",
-    chart: {
-        width: undefined,
-        height: undefined,
-        spacing: hasTouch ? [0, 0, 0, 0] : [10, 10, 15, 10],
-        backgroundColor: "#FFFFFF",
-        style: {
-            fontFamily: "\"Lucida Grande\", \"Lucida Sans Unicode\", Verdana, Arial, Helvetica, sans-serif",
-            fontSize: "12px",
-            fontWeight: "normal",
-            color: "#333333"
+    var defaultOptions = (function () {
+    return {
+        type: "line",
+        chart: {
+            width: undefined,
+            height: undefined,
+            spacing: hasTouch ? [0, 0, 0, 0] : [10, 10, 15, 10],
+            backgroundColor: "#FFFFFF",
+            style: {
+                fontFamily: "\"Lucida Grande\", \"Lucida Sans Unicode\", Verdana, Arial, Helvetica, sans-serif",
+                fontSize: "12px",
+                fontWeight: "normal",
+                color: "#333333"
+            },
+            reflow: true,
+            animation: {
+                duration: 500,
+                easing: "ease-in-out"
+            }
         },
-        reflow: true,
-        animation: {
-            duration: 500,
-            easing: "ease-in-out"
-        }
-    },
-    colors: ["#50E3C2", "#21A6EE", "#807CCC", "#72e6f7", "#8cd49c", "#ffc977", "#b794d5", "#f7a35c", "#434348", "#f15c80", "#e4d354", "#2b908f", "#f45b5b", "#91e8e1"],
-    title: {
-        enabled: true,
-        text: "Chart title",
-        align: "center",
-        margin: [0, 0, 10, 0],
-        style: {
-            fontSize: "16px",
-            fontWeight: "bold"
-        },
-        x: 0,
-        y: 0
-    },
-    subtitle: {
-        enabled: false,
-        text: undefined,
-        align: "center",
-        style: {
-            fontSize: "13px"
-        },
-        x: 0,
-        y: 0,
-        margin: [3, 0, 5, 0]
-    },
-    legend: {
-        enabled: true,
-        style: {
-            color: "#606060",
-            fontWeight: "bold",
-            cursor: "default"
-        }
-    },
-    tooltip: {
-        enabled: true,
-        shared: true,
-        useHTML: true
-    },
-    yAxis: {
+        colors: ["#50E3C2", "#21A6EE", "#807CCC", "#72e6f7", "#8cd49c", "#ffc977", "#b794d5", "#f7a35c", "#434348", "#f15c80", "#e4d354", "#2b908f", "#f45b5b", "#91e8e1"],
         title: {
-            enabled: true
-        },
-        type: "linear",
-        lineColor: "#d3d0cb",
-        lineWidth: 1,
-        tickColor: "#d3d0cb",
-        tickWidth: 1,
-        gridLineColor: "#f3f2f0",
-        gridLineWidth: 1
-    },
-    xAxis: {
-        type: "categories",
-        title: {
-            enabled: false
-        },
-        lineColor: "#d3d0cb",
-        lineWidth: 1,
-        tickColor: "#d3d0cb",
-        tickWidth: 1,
-        gridLineColor: "#f3f2f0",
-        gridLineWidth: 1
-    },
-    colorAxis: {
-        //enabled: true,
-        title: {
-            enabled: false
-        },
-        layout: "vertical",
-        floating: true,
-        verticalAlign: "top",
-        tickLength: 20,
-        lineWidth: 0,
-        labels: {
-            align: "center"
-        },
-        size: 150,
-        x: 10,
-        y: 15,
-        stops: [
-            [0, "#EFEFFF"],
-            [1, "#102D4C"]
-        ]//default stops
-    },
-    polarAxis: {
-        //type: "categories",
-        //enabled: true,
-        startAngle: undefined,//default -90,//top
-        endAngle: undefined,
-        //size: "85%",
-        //center: ["50%", "50%"],//center
-        //tickLength: 6,
-        tickColor: "rgba(0,0,0,.5)",
-    },
-    radiusAxis: {
-        type: "value",
-        enabled: false
-    },
-    plotOptions: {
-        series: {
-            allowOverlap: false
-        },
-        line: {
-            lineWidth: 2,
-            marker: {
-                //enabled: null,//auto
-                radius: 4,
-                //lineColor: "#ffffff",
-                lineWidth: 0
+            enabled: true,
+            text: "Chart title",
+            align: "center",
+            margin: [0, 0, 10, 0],
+            style: {
+                fontSize: "16px",
+                fontWeight: "bold"
             },
-            dataLabels: {
-                enabled: false,
-                style: {
-                    color: "#606060"
-                }
-            }
+            x: 0,
+            y: 0
         },
-        spline: {
-            lineWidth: 2,
-            marker: {
-                radius: 4
+        subtitle: {
+            enabled: false,
+            text: undefined,
+            align: "center",
+            style: {
+                fontSize: "13px"
             },
-            dataLabels: {
-                enabled: false,
-                style: {
-                    color: "#606060"
-                }
+            x: 0,
+            y: 0,
+            margin: [3, 0, 5, 0]
+        },
+        legend: {
+            enabled: true,
+            style: {
+                color: "#606060",
+                fontWeight: "bold",
+                cursor: "default"
             }
         },
-        area: {
-            lineWidth: 2,
-            marker: {
-                radius: 4
+        tooltip: {
+            enabled: true,
+            shared: true,
+            useHTML: true
+        },
+        yAxis: {
+            title: {
+                enabled: true
             },
-            dataLabels: {
-                enabled: false,
-                style: {
-                    color: "#606060"
-                }
-            }
+            type: "linear",
+            lineColor: "#d3d0cb",
+            lineWidth: 1,
+            tickColor: "#d3d0cb",
+            tickWidth: 1,
+            gridLineColor: "#f3f2f0",
+            gridLineWidth: 1
         },
-        areaspline: {
-            lineWidth: 2,
-            marker: {
-                radius: 4
-            },
-            dataLabels: {
-                enabled: false,
-                style: {
-                    color: "#606060"
-                }
-            }
-        },
-        column: {
-            borderColor: "#FFFFFF",
-            borderRadius: 0,
-            borderWidth: 0,
-            dataLabels: {
-                enabled: false,
-                //align: "center",[left|center|right]
-                //verticalAlign: "top",[top|middle|bottom]
-                style: {
-                    color: "#606060"
-                }
-            }
-        },
-        bar: {
-            borderColor: "#FFFFFF",
-            borderRadius: 0,
-            borderWidth: 0,
-            dataLabels: {
-                enabled: false,
-                //align: "right",[left|center|right]
-                //verticalAlign: "middle",[top|middle|bottom]
-                style: {
-                    color: "#606060"
-                }
-            }
-        },
-        pie: {
-            showInLegend: false,
-            borderColor: "#FFFFFF",
-            borderWidth: 1,
-            dataLabels: {
-                enabled: true,
-                distance: hasTouch ? 0 : 15,
-                inside: hasTouch ? true : undefined,
-                connectorWidth: 1,
-                connectorPadding: 10,
-                style: {
-                    color: "#606060"
-                }
-            }
-        },
-        funnel: {
-            showInLegend: false,
-            borderColor: "#FFFFFF",
-            borderWidth: 1,
-            dataLabels: {
-                enabled: true,
-                distance: hasTouch ? 0 : 30,
-                inside: hasTouch ? true : undefined,
-                style: {
-                    color: "#606060"
-                }
-            }
-        },
-        map: {
-            borderColor: "rgb(204, 204, 204)",
-            borderWidth: 1,
-            dataLabels: {
-                enabled: false,
-                align: "center",
-                style: {
-                    color: "#606060"
-                }
-            }
-        },
-        venn: {
-            borderColor: "#FFFFFF",
-            borderWidth: 1,
-            dataLabels: {
-                enabled: true,
-                style: {
-                    color: "#606060"
-                }
-            }
-        },
-        heatmap: {
-            dataLabels: {
+        xAxis: {
+            type: "categories",
+            title: {
                 enabled: false
             },
-            radius: 30,
-            blur: 0.15,
-            fillColor: {
-                linearGradient: {
-                    x1: 0,
-                    y1: 0,
-                    x2: 256,
-                    y2: 1
-                },
-                stops: [
-                    [0.25, "rgb(0,0,255)"],
-                    [0.55, "rgb(0,255,0)"],
-                    [0.85, "yellow"],
-                    [1, "rgb(255,0,0)"]
-                ]
-            }
-        },
-        diagram: {
-            borderColor: "#333333",
-            borderWidth: 1,
+            lineColor: "#d3d0cb",
             lineWidth: 1,
-            dataLabels: {
-                enabled: true,
-                align: "center",
-                style: {
-                    color: "#606060"
-                }
-            }
+            tickColor: "#d3d0cb",
+            tickWidth: 1,
+            gridLineColor: "#f3f2f0",
+            gridLineWidth: 1
         },
-        radar: {
-            lineWidth: 2,
-            marker: {
-                radius: 4,
-                lineWidth: 0
+        colorAxis: {
+            //enabled: true,
+            title: {
+                enabled: false
             },
-            dataLabels: {
-                enabled: false,
-                style: {
-                    color: "#606060"
+            layout: "vertical",
+            floating: true,
+            verticalAlign: "top",
+            tickLength: 20,
+            lineWidth: 0,
+            labels: {
+                align: "center"
+            },
+            size: 150,
+            x: 10,
+            y: 15,
+            stops: [
+                [0, "#EFEFFF"],
+                [1, "#102D4C"]
+            ]//default stops
+        },
+        polarAxis: {
+            //type: "categories",
+            //enabled: true,
+            startAngle: undefined,//default -90,//top
+            endAngle: undefined,
+            //size: "85%",
+            //center: ["50%", "50%"],//center
+            //tickLength: 6,
+            tickColor: "rgba(0,0,0,.5)",
+        },
+        radiusAxis: {
+            type: "linear",
+            enabled: false
+        },
+        plotOptions: {
+            series: {
+                allowOverlap: false
+            },
+            line: {
+                lineWidth: 2,
+                marker: {
+                    //enabled: null,//auto
+                    radius: 4,
+                    //lineColor: "#ffffff",
+                    lineWidth: 0
+                },
+                dataLabels: {
+                    enabled: false,
+                    style: {
+                        color: "#606060"
+                    }
                 }
+            },
+            spline: {
+                lineWidth: 2,
+                marker: {
+                    radius: 4
+                },
+                dataLabels: {
+                    enabled: false,
+                    style: {
+                        color: "#606060"
+                    }
+                }
+            },
+            area: {
+                lineWidth: 2,
+                marker: {
+                    radius: 4
+                },
+                dataLabels: {
+                    enabled: false,
+                    style: {
+                        color: "#606060"
+                    }
+                }
+            },
+            areaspline: {
+                lineWidth: 2,
+                marker: {
+                    radius: 4
+                },
+                dataLabels: {
+                    enabled: false,
+                    style: {
+                        color: "#606060"
+                    }
+                }
+            },
+            column: {
+                borderColor: "#FFFFFF",
+                borderRadius: 0,
+                borderWidth: 0,
+                dataLabels: {
+                    enabled: false,
+                    //align: "center",[left|center|right]
+                    //verticalAlign: "top",[top|middle|bottom]
+                    style: {
+                        color: "#606060"
+                    }
+                }
+            },
+            bar: {
+                borderColor: "#FFFFFF",
+                borderRadius: 0,
+                borderWidth: 0,
+                dataLabels: {
+                    enabled: false,
+                    //align: "right",[left|center|right]
+                    //verticalAlign: "middle",[top|middle|bottom]
+                    style: {
+                        color: "#606060"
+                    }
+                }
+            },
+            pie: {
+                showInLegend: false,
+                borderColor: "#FFFFFF",
+                borderWidth: 1,
+                dataLabels: {
+                    enabled: true,
+                    distance: hasTouch ? 0 : 15,
+                    inside: hasTouch ? true : undefined,
+                    connectorWidth: 1,
+                    connectorPadding: 10,
+                    style: {
+                        color: "#606060"
+                    }
+                }
+            },
+            funnel: {
+                showInLegend: false,
+                borderColor: "#FFFFFF",
+                borderWidth: 1,
+                dataLabels: {
+                    enabled: true,
+                    distance: hasTouch ? 0 : 30,
+                    inside: hasTouch ? true : undefined,
+                    style: {
+                        color: "#606060"
+                    }
+                }
+            },
+            map: {
+                borderColor: "rgb(204, 204, 204)",
+                borderWidth: 1,
+                dataLabels: {
+                    enabled: false,
+                    align: "center",
+                    style: {
+                        color: "#606060"
+                    }
+                }
+            },
+            venn: {
+                borderColor: "#FFFFFF",
+                borderWidth: 1,
+                dataLabels: {
+                    enabled: true,
+                    style: {
+                        color: "#606060"
+                    }
+                }
+            },
+            heatmap: {
+                dataLabels: {
+                    enabled: false
+                },
+                radius: 30,
+                blur: 0.15,
+                fillColor: {
+                    linearGradient: {
+                        x1: 0,
+                        y1: 0,
+                        x2: 256,
+                        y2: 1
+                    },
+                    stops: [
+                        [0.25, "rgb(0,0,255)"],
+                        [0.55, "rgb(0,255,0)"],
+                        [0.85, "yellow"],
+                        [1, "rgb(255,0,0)"]
+                    ]
+                }
+            },
+            diagram: {
+                borderColor: "#333333",
+                borderWidth: 1,
+                lineWidth: 1,
+                dataLabels: {
+                    enabled: true,
+                    align: "center",
+                    style: {
+                        color: "#606060"
+                    }
+                }
+            },
+            radar: {
+                lineWidth: 2,
+                marker: {
+                    radius: 4,
+                    lineWidth: 0
+                },
+                dataLabels: {
+                    enabled: false,
+                    style: {
+                        color: "#606060"
+                    }
+                }
+            },
+            scatter: {
+                marker: {
+                    enabled: true,
+                    radius: 4
+                }
+            },
+            candlestick: {
+                lineWidth: 0,
+                color: ["green", "red"],
+                lineColor: ["green", "red"]
+            },
+            boxplot: {
+                maxPointWidth: 50
             }
         },
-        candlestick: {
-            lineWidth: 0,
-            color: ["green", "red"],
-            lineColor: ["green", "red"]
-        }
-    },
-    credits: {
-        enabled: true,
-        text: "Dalaba",
-        style: {
-            cursor: "pointer",
-            color: "#909090",
-            fontSize: "10px"
+        credits: {
+            enabled: true,
+            text: "Dalaba",
+            style: {
+                cursor: "pointer",
+                color: "#909090",
+                fontSize: "10px"
+            },
+            href: undefined,
+            position: {
+                align: "right",
+                x: -10,
+                y: -5,
+                verticalAlign: "bottom"
+            }
         },
-        href: undefined,
-        position: {
-            align: "right",
-            x: -10,
-            y: -5,
-            verticalAlign: "bottom"
+        rangeSelector: {
+            //enabled: false,
+            //start: "0%",
+            //end: "100%"
+        },
+        layout: {
+            type: "flow"//grid, border, box
+        },
+        toolbar: {
+            enabled: false
         }
-    },
-    rangeSelector: {
-        //enabled: false,
-        //start: "0%",
-        //end: "100%"
-    },
-    layout: {
-        type: "flow"//grid, border, box
-    },
-    toolbar: {
-        enabled: false
-    }
-};
+    };
+})();;
 
     var setChartLayout = (function () {
     var percentage = Numeric.percentage;
@@ -4757,6 +5315,7 @@ var PI = Math.PI,
                 py = ci * (height / row) + top,
                 pw = width / col - right - left,
                 ph = height / row - bottom - top;
+
             panel.push({
                 x: px,
                 y: py,
@@ -4766,7 +5325,7 @@ var PI = Math.PI,
         }
         return panel;
     }
-    return function (panel, row, col, width, height, margin) {
+    return function (panel, row, col, width, height, margin, viewport) {
         var grid = [];
         if (defined(panel) && isArray(panel)) {
             panel.forEach(function (pane) {
@@ -4790,6 +5349,8 @@ var PI = Math.PI,
         }
 
         grid.forEach(function (pane) {
+            pane.x += viewport.left;
+            pane.y += viewport.top;
             pane.plotX = pane.x;
             pane.plotY = pane.y;
             pane.plotWidth = pane.width;
@@ -4823,7 +5384,7 @@ var PI = Math.PI,
             });
         };
         var add = function (newData, oldData, added) {
-            for (var i = Math.max(0, ~-oldData.length); i < newData.length; i++) {
+            for (var i = Math.max(0, oldData.length); i < newData.length; i++) {
                 added && added(newData[i], oldData[i], i);
             }
         };
@@ -4859,6 +5420,7 @@ var PI = Math.PI,
             "-webkit-user-select": "none",
             "user-select": "none",
             cursor: "default"
+            //"font-size": "9px"
         });
         //rescale(this.context, width, height, DEVICE_PIXEL_RATIO);
 
@@ -4983,13 +5545,12 @@ var PI = Math.PI,
         }
         else {
             this.context = this.canvas.getContext("2d");
-            rescale(this.context, width, height, DEVICE_PIXEL_RATIO);
         }
-        //make layer
-        this.layer = [];
         if (element.nodeType === 1 && element.constructor === global.HTMLCanvasElement) {
             this.renderer = element;
             this.imageData = this.context.getImageData(0, 0, width, height);
+        }
+        if (!this.is3D) {
             rescale(this.context, width, height, DEVICE_PIXEL_RATIO);
         }
 
@@ -5000,6 +5561,8 @@ var PI = Math.PI,
             );
         }
 
+        //make layer
+        this.layer = [];
         this.layer.push(this.canvas);
 
         this.type = this.options.type || "line";
@@ -5022,7 +5585,6 @@ var PI = Math.PI,
 
         this.isAxis2D = false;
         this.srcOptions = options;
-        this.eventAction = "update";
 
         var animationOptions = chartOptions.animation;
         if (!isObject(animationOptions)) {
@@ -5031,13 +5593,18 @@ var PI = Math.PI,
 
         this.globalAnimation = extend({
             isReady: false,
-            enabled: animationOptions.enabled !== false//default true
+            enabled: animationOptions.enabled !== false,//default true
+            instance: null
         }, animationOptions);
         this.globalAnimation.initialize = true;//initial once
 
         this.globalEvent = {
             click: noop,
             isDragging: false
+        };
+
+        this.globalHTML = {
+            dataLabels: null
         };
     }, chartProto;
 
@@ -5196,8 +5763,8 @@ var PI = Math.PI,
                 var start = rangeSelector.start,
                     end = rangeSelector.end;
                 if (isObject(rangeSelector)) {
-                    start = Math.min(100, Math.max(0, pack("number", parseFloat(start, 10), 0)));
-                    end = Math.min(100, Math.max(0, pack("number", parseFloat(end, 10), 100)));
+                    start = mathMin(100, mathMax(0, pack("number", parseFloat(start, 10), 0)));
+                    end = mathMin(100, mathMax(0, pack("number", parseFloat(end, 10), 100)));
                     rs.start = start + "%";
                     rs.end = end + "%";//xAxis=0
                 }
@@ -5227,6 +5794,7 @@ var PI = Math.PI,
                 animationDelay: animation.delay,
                 animationEasing: animation.easing,
                 animationEnabled: animation.enabled,
+                animationCompleted: true,
                 transform: transform,
                 states: {
                     hover: {}
@@ -5244,7 +5812,7 @@ var PI = Math.PI,
                 newSeries,
                 {color: newData.color}
             );
-            newSeries = new Series(mergeOptions);
+            newSeries = new Series(mergeOptions, this.options);
             newSeries.shapes = newSeries.addShape();
             newSeries.chart = this;
 
@@ -5350,6 +5918,10 @@ var PI = Math.PI,
                 return type === "categories";
             };
 
+            var logar = function (type) {
+                return type === "logarithmic";
+            };
+
             var x = function (s) {
                 return s.isX === true;
             };
@@ -5373,7 +5945,7 @@ var PI = Math.PI,
                     enabled = axisOptions.enabled,
                     categories = axisOptions.categories,
                     tickAmount = axisOptions.tickAmount,
-                    type = axisOptions.type || axis.type,
+                    type = axis.type,
                     logBase = pack("number", (axisOptions.logarithmic || {}).base, 10);
                 var softMax = axisOptions.softMax,
                     softMin = axisOptions.softMin;
@@ -5397,6 +5969,9 @@ var PI = Math.PI,
                         minDomain = 0, maxDomain = seriesOptions.length;
                     },
                     function (name, type) {
+                        if (xAxis(name) && linear(type)) {
+                            return false;
+                        }
                         return xAxis(name) && !categor(type) && x(seriesOptions);
                     }, function () {
                         minDomain = minValue = seriesOptions.minX;
@@ -5411,15 +5986,15 @@ var PI = Math.PI,
                     function (name, type) {
                         return seriesFirst.minAxisZero && linear(type);
                     }, function () {
-                        minDomain = minValue = Math.min(0, seriesOptions.min);//bar & column base value 0
+                        minDomain = minValue = mathMin(0, seriesOptions.min);//bar & column base value 0
                     },
-                    function () {
-                        return isNumber(softMin, true) && softMin < minValue;
+                    function (name, type) {
+                        return (linear(type) || logar(type)) && isNumber(softMin, true) && softMin < minValue;
                     }, function () {
                         minDomain = minValue = softMin;
                     },
-                    function () {
-                        return isNumber(softMax, true) && softMax < maxValue;
+                    function (name, type) {
+                        return (linear(type) || logar(type)) && isNumber(softMax, true) && softMax < maxValue;
                     }, function () {
                         maxDomain = maxValue = softMax;
                     },
@@ -5439,17 +6014,17 @@ var PI = Math.PI,
                         tickAmount = axisOptions.tickAmount;
                     },
                     function (name, type) {
-                        return categor(type) || isArray(categories);
+                        return categor(type) || (!linear(type) && isArray(categories));
                     }, function () {
                         var categoriesLength = pack("number", categories && categories.length, seriesOptions.length, tickAmount, 0);
-                        minDomain = Math.max(0, Math.min(~~(categoriesLength * start / 100), categoriesLength - 1));
-                        maxDomain = Math.max(Math.ceil(categoriesLength * end / 100), minDomain + 1);
+                        minDomain = mathMax(0, mathMin(~~(categoriesLength * start / 100), categoriesLength - 1));
+                        maxDomain = mathMax(mathCeil(categoriesLength * end / 100), minDomain + 1);
                         if (isNumber(tickAmount, true)) {
                             tickAmount = maxDomain - minDomain;//defined axis tickAmount
                         }
                     },
                     function () {
-                        return seriesOptions.length === 0;
+                        return !(seriesOptions.length !== 0 || (isArray(categories) && categories.length));
                     }, function () {
                         minDomain = maxDomain = 0;
                     }
@@ -5460,19 +6035,19 @@ var PI = Math.PI,
                 }
 
                 seriesOptions = extend({series: series}, Series.normalize(series));
-                seriesOptions.length = seriesFirst.sumLength;
+                //seriesOptions.length = seriesFirst.sumLength;
                 start = pack("number", parseFloat(seriesFirst.start, 10), 0);
                 end = pack("number", parseFloat(seriesFirst.end, 10), 100);
                 minValue = seriesOptions.min, maxValue = seriesOptions.max;
                 minDomain = minValue, maxDomain = maxValue;
-                
+
                 n = opera.length;
                 while ((j += 2) < n) if (isTrued = opera[j].apply(null, [name, type])) {
                     opera[-~j](isTrued);
                 }
 
                 mergeOptions = {
-                    length: seriesOptions.length,
+                    length: seriesOptions.axisLength,//seriesOptions.length,// 不使用数据长度
                     domain: [minDomain, maxDomain],
                     minValue: minValue,
                     maxValue: maxValue,
@@ -5487,11 +6062,13 @@ var PI = Math.PI,
                     mergeOptions.endValue = isNumber(rangeSelectorOptions.endValue, true) ? rangeSelectorOptions.endValue : null;
                 }
                 axis.setOptions && axis.setOptions(mergeOptions);
-
                 isNumber(axis.minValue, true) && (minValue = axis.minValue);
                 isNumber(axis.maxValue, true) && (maxValue = axis.maxValue);
+
                 axis.options.maxValue = maxValue;
                 axis.options.minValue = minValue;
+                axis.options.minLength = axis.minLength;
+                axis.options.maxLength = axis.options.length = axis.maxLength;
                 axis.options.plot = {
                     x: [seriesOptions.minX, seriesOptions.maxX],
                     y: [seriesOptions.minY, seriesOptions.maxY],
@@ -5509,7 +6086,7 @@ var PI = Math.PI,
                 axis.options.enabled = enabled === true || ((enabled !== false) && isTrued);
             };
 
-            (function dfs(root) {
+            (function dfs (root) {
                 var children = root.children,
                     i = -1,
                     n;
@@ -5520,7 +6097,7 @@ var PI = Math.PI,
                     next = !1;
                 }
                 
-                if (next && children && (n = children.length)) while(++i < n) {
+                if (next && children && (n = children.length)) while (++i < n) {
                     dfs(children[i]);
                 }
             })(this.chartTree);
@@ -5587,20 +6164,24 @@ var PI = Math.PI,
                     seriesColors = options.colors || [];
                 if (options.legend.enabled !== false) {
                     this.series.forEach(function (series, i) {
-                        var data = series.data;
-                        if((series.type === "pie" || series.type === "funnel") && series.showInLegend === true){
-                            data.forEach(function(item, j){
-                                if(item !== null && (isObject(item) && item.value !== null)){
-                                    var value = extend({type: series.type, seriesIndex: i, dataIndex: j}, item);//new Data
-                                    !defined(value.color) && (value.color = seriesColors[j % seriesColors.length]);
-                                    !defined(value.name) && (value.name = value.value);
+                        var data = series.shapes;
+                        if ((series.type === "pie" || series.type === "funnel") && series.showInLegend === true) {
+                            data.forEach(function (item, j) {
+                                if (item !== null && (isObject(item) && item.value !== null)) {
+                                    var value = item;// extend({type: series.type, seriesIndex: i, dataIndex: j}, item);//new Data
+                                    value.type = series.type;
+                                    value.seriesIndex = i;
+                                    value.dataIndex = j;
                                     !defined(value.showInLegend) && (value.showInLegend = series.showInLegend);
                                     seriesData.push(value);
+                                }
+                                else {
+                                    seriesData.push({ type: series.type, /*seriesIndex: i, dataIndex: j, */disabled: true });
                                 }
                             });
                         }
                         else {
-                            series.showInLegend !== false && seriesData.push(series);
+                            series.showInLegend !== false && isArray(series.data) && data.length && seriesData.push(series);
                         }
                     });
 
@@ -5626,11 +6207,9 @@ var PI = Math.PI,
             var viewport = this.getViewport().getView(),
                 width = viewport.width,
                 height = viewport.height;
-            var margin = TRouBLe(grid.margin).map(function (d, i) {
-                return [viewport.top, 0, 0, viewport.left][i];
-            });
+            var margin = TRouBLe(grid.margin);
             var chart = this;
-            var panel = setChartLayout(layout.panel, pack("number", grid.row, 1), pack("number", grid.col, 1), width, height, margin);
+            var panel = setChartLayout(layout.panel, pack("number", grid.row, 1), pack("number", grid.col, 1), width, height, margin, viewport);
             var n = panel.length;
             
             var index = function (i, n) {
@@ -5646,7 +6225,7 @@ var PI = Math.PI,
             });
             partition(this.title, function (a, b) {
                 return index(a.panelIndex, ~-n) === index(b.panelIndex, ~-n);
-            }).forEach(function(groups){
+            }).forEach(function (groups) {
                 var pane = panel[clamp(groups[0].panelIndex, ~-n)],
                     titleBBox;
                 if (groups[0]) {
@@ -5691,7 +6270,20 @@ var PI = Math.PI,
             }
             return this.panel = panel;
         },
-        renderAll: function () {
+        getShape: function (graphers, x, y, shared) {
+            var shapes = [];
+            graphers.forEach(function (chart) {
+                pack("array", pack("function", chart.getShape, noop).call(chart, x, y, shared)).forEach(function (shape) {
+                    shapes.push({
+                        shape: shape.shape,
+                        series: shape.series,
+                        key: shape.shape.key
+                    });
+                });
+            });
+            return shapes;
+        },
+        renderAll: function (event) {
             var options = this.options;
             var context = this.context,
                 chart = this;
@@ -5760,11 +6352,6 @@ var PI = Math.PI,
                 },
                 toolbar: function () {
                     chart.toolbar && chart.toolbar.render();
-                },
-                legend: function () {
-                    if(chart.legend !== null && chart.legend.data.length){
-                        chart.legend.draw();
-                    }
                 },
                 rangeSlider: function() {
                     chart.rangeSlider.forEach(function(slider){
@@ -5850,9 +6437,9 @@ var PI = Math.PI,
             };
             onRenderer();
         },
-        renderChart: function (charts, redraw) {
+        renderChart: function (charts, initialize) {
             charts.forEach(function (graphic) {
-                graphic.draw();
+                graphic.draw(initialize);
             });
         },
         clear: function () {
@@ -5866,36 +6453,34 @@ var PI = Math.PI,
                 }
             });
         },
-        draw: function () {
+        addPlotSeries: function (types) {
+            var chartType = this.type;
+            var panel = this.panel;
+            var chart = this;
+
+            this.series.forEach(function (series) {
+                var type = series.type || chartType;
+                var pane = panel[mathMin(series.panelIndex | 0, ~-panel.length)];
+                series.plotX = pack("number", pane.plotX, pane.x, 0);
+                series.plotY = pack("number", pane.plotY, pane.y, 0);
+                series.plotWidth = pack("number", pane.plotWidth, pane.width);
+                series.plotHeight = pack("number", pane.plotHeight, pane.height);
+                series.plotCenterX = pack("number", pane.plotCenterX, pane.width / 2, 0);
+                series.plotCenterY = pack("number", pane.plotCenterY, pane.height / 2, 0);
+                series.plotRadius = pack("number", pane.plotRadius, mathMin(pane.width, pane.height), 0);
+                types && (types[type] = type);
+            });
+        },
+        draw: function (event) {
             var options = this.options,
                 newOptions = extend({}, options);
             var Graphers = Dalaba.Chart.graphers;
             var chart = this;
+            var types = {};
+            if (isEmpty(types)) {
+                types[this.type] = this.type;
+            }
 
-            var addPlotSeries = function (chart) {
-                var series = chart.series,
-                    panel = chart.panel;
-                var width = chart.width,
-                    height = chart.height;
-                var types = {};
-
-                series.forEach(function (series) {
-                    var type = series.type || chart.type;
-                    var pane = panel[Math.min(series.panelIndex | 0, ~-panel.length)];
-                    series.plotX = pack("number", pane.plotX, pane.x, 0);
-                    series.plotY = pack("number", pane.plotY, pane.y, 0);
-                    series.plotWidth = pack("number", pane.plotWidth, pane.width, width);
-                    series.plotHeight = pack("number", pane.plotHeight, pane.height, height);
-                    series.plotCenterX = pack("number", pane.plotCenterX, pane.width / 2, 0);
-                    series.plotCenterY = pack("number", pane.plotCenterY, pane.height / 2, 0);
-                    series.plotRadius = pack("number", pane.plotRadius, Math.min(pane.width, pane.height), 0);
-                    types[type] = type;
-                });
-                if (isEmpty(types)) {
-                    types[chart.type] = chart.type;
-                }
-                return types;
-            };
             var addChartor = function (chart, types, options) {
                 var charts = chart.charts;
                 var creator = {};
@@ -5924,7 +6509,7 @@ var PI = Math.PI,
             };
 
             if (isEmpty(this.srcOptions) && this.globalAnimation.initialize && !(this.globalAnimation.initialize = false)) {
-                this.renderAll();//title & credits
+                this.renderAll(event);//title & credits
                 return this;
             }
 
@@ -5949,14 +6534,20 @@ var PI = Math.PI,
             newOptions.series = this.series;
             newOptions.panel = this.panel;
 
-            addChartor(this, addPlotSeries(this), newOptions);
+            this.addPlotSeries(types);
+            addChartor(this, types, newOptions);
             this.panel.forEach(function (pane) {
-                defined(pane.tooltip) && pane.tooltip.setChart(chart.charts);
+                defined(pane.tooltip) && pane.tooltip.setChart(chart);
             });
             this.addOverlap();
-            this.render("update");
+            this.render(event);
         },
-        render: function (redraw, moused) {
+        redraw: function (event) {
+            this.linkAxis();
+            this.addOverlap();
+            this.render(event);
+        },
+        render: function (event) {
             var options = this.options,
                 events = (options.chart || {}).events || {},
                 charts = this.charts,
@@ -5967,13 +6558,13 @@ var PI = Math.PI,
             var tooltipOptions = options.tooltip || {};
 
             var onLoad = function () {
-                defined(events.load) && events.load.call(chart);
+                defined(events.load) && events.load.call(chart, event);
             };
             var onReady = function () {
-                defined(events.ready) && events.ready.call(chart);
+                defined(events.ready) && events.ready.call(chart, event);
             };
             var onRedraw = function () {
-                defined(events.redraw) && events.redraw.call(chart, redraw, moused);
+                defined(events.redraw) && events.redraw.call(chart, event);
             };
             
             var filterAnimation = function (chart, type) {
@@ -5994,9 +6585,9 @@ var PI = Math.PI,
                 var list = [].slice.call(arguments, 0, -1),
                     initialize = !!arguments[list.length];
                 var shapes = [];
-                list.forEach(function(item) {
-                    item.forEach(function(item) {
-                        item.animateTo && item.animateTo(context, initialize, chart.eventAction).forEach(function (shape) {
+                list.forEach(function (item) {
+                    item.forEach(function (graphic) {
+                        graphic.animateTo && graphic.animateTo(initialize).forEach(function (shape) {
                             shapes.push(shape);
                         });
                     });
@@ -6006,18 +6597,49 @@ var PI = Math.PI,
             var drawAixs = function () {
                 chart.yAxis.concat(chart.xAxis).forEach(function (axis) {
                     if (axis.options.enabled !== false) {
-                        axis.draw();
-                        axis._ticks = axis.ticks;
+                        axis.setCrosshair(event.moveX, event.moveY).draw();
                     }
                 });
+            };
+            var drawLegend = function () {
+                var legend = chart.legend;
+                var setState = function (item, isSeted) {
+                    var series = chart.series,
+                        shape = item;
+                    if (item.type === "pie" || item.type === "funnel") {
+                        var shapes = pack("object",
+                            series[pack("number", item.seriesIndex, -1)], {}
+                        ).shapes || [];
+                        shapes.forEach(function (shape) {
+                            delete shape.state;
+                        });
+                        isSeted !== false && ((shape = shapes[pack("number", item.dataIndex, -1)] || {}).state = !0);
+                    }
+                    else {
+                        series.forEach(function (series) {
+                            delete series.state;
+                        });
+                        isSeted !== false && (shape.state = !0);
+                    }
+                };
+                if (legend !== null) {
+                    if (event.type === "mousemove" && globalAnimation.isReady) {
+                        legend.onState(event, function (item) {
+                            setState(item);
+                        }, function (item) {
+                            setState(item, false);
+                        });
+                    }
+                    legend.draw();
+                }
             };
             var tooltipFilter = function (pos, data, ret) {
                 var n = data.length,
                     i = 0;
                 var d, insides = [];
-                for (; i < n; i++) if (defined((d = data[i]).tooltip)) {
+                for (; i < n; i++) if (defined(d = data[i])) {
                     defined(d.tooltip) && pos && Intersection.rect({
-                        x: pos.x, y: pos.y
+                        x: pos.moveX, y: pos.moveY
                     }, {
                         x: d.x, y: d.y,
                         width: d.x + d.width, height: d.y + d.height
@@ -6027,16 +6649,15 @@ var PI = Math.PI,
             };
 
             var drawTooltip = function () {
-                var panels, curPanel = tooltipFilter(moused, chart.panel, panels = [])[0];
+                var panels, curPanel = tooltipFilter(event, chart.panel, panels = [])[0];
                 var linked = (options.layout || {}).linked;
                 var positioner = tooltipOptions.positioner;
 
                 if (defined(curPanel)) {
-                    if (redraw !== "hover") {
-                        var item = curPanel.tooltip.move(moused.x, moused.y, true)[0],
+                    if (event.type !== "mousemove") {
+                        var item = curPanel.tooltip.move(event.moveX, event.moveY, true)[0],
                             shape;
                         var curIndex;
-
                         if (item && panels.length) {
                             curIndex = item.shape.index;
                             panels.forEach(function (pane) {
@@ -6067,36 +6688,44 @@ var PI = Math.PI,
                 }
             };
 
-            function paintComponent (arr, ani, once) {
+            function paintComponent (charts, ani, once) {
                 chart.clear();
-                chart.renderAll();
+                chart.renderAll(event);
                 drawAixs();
-                ani && ani();
-                chart.renderChart(arr, redraw);
-                chart.legend && chart.legend.draw();
+                chart.series.forEach(function (series) {
+                    series.animationCompleted = globalAnimation.isReady;
+                });
+                if (ani) {
+                    ani();
+                }
+                else {
+                    chart.renderChart(charts);
+                }
+                drawLegend();
+
                 !once && drawTooltip();
             }
 
-            var isEventing = function (redraw) {
-                return redraw === "hover" || redraw === "resize" || redraw === "drag" || redraw === "click";
+            var isEventing = function (event) {
+                var type = event.type;
+                return type === "mousemove" || type === "resize" || type === "click";
             };
             var isAnimationReady = function (chart) {
                 return chart.globalAnimation.isReady === true;
             };
             var isDragging = function (chart) {
-                return !chart.globalEvent.isDragging;
+                return chart.globalEvent.isDragging === false;
             };
 
             var Animation;
 
             var animateTo = function (charts, onStep, onLoad) {
                 var noAnimationCharts, animationCharts = filterNotAnimation(charts, noAnimationCharts = []);
-
                 globalAnimation.isReady = false;
                 if (noAnimationCharts.length) {
                     defined(background) && defined(background.image) && background.completed !== true ?
-                        new function() {
-                            background.image.onload = function() {
+                        new function () {
+                            background.image.onload = function () {
                                 background.loaded();
                                 paintComponent(noAnimationCharts);
                             };
@@ -6109,29 +6738,17 @@ var PI = Math.PI,
                         : paintComponent(noAnimationCharts);
                 }
                 if (defined(Dalaba.Animation) && animationCharts.length) {
-                    Animation = new Dalaba.Animation();
-                    //Animation.stop();
-                    getAnimationList(animationCharts, true).forEach(function (item) {
-                        var shape = item[0],
-                            step = item[1];
-                        var animationEnabled = shape.animationEnabled;
-                        if(!defined(animationEnabled) && shape.series){
-                            animationEnabled = shape.series.animationEnabled;
-                        }
-                        Animation.addAnimate(shape, {
-                            step: function (target, timer) {
-                                if (!animationEnabled) timer = 1;
-                                step(timer);
-                            },
+                    globalAnimation.instance = new Dalaba.Animation();
+                    getAnimationList(animationCharts, chart.xAxis, chart.yAxis, chart.polarAxis, true).forEach(function (shape) {
+                        globalAnimation.instance.addAnimate(shape, {
                             complete: function () {
-                                
                             },
                             duration: pack("number", shape.duration, globalAnimation.duration, 500),
                             easing: pack("string", shape.easing, globalAnimation.easing, "ease-in-out"),
                             delay: pack("number", shape.delay, globalAnimation.delay, 0)
                         });
                     });
-                    Animation.fire(function () {
+                    globalAnimation.instance.fire(function () {
                         globalAnimation.isReady = false;
                         onStep && onStep(noAnimationCharts, animationCharts);
                     }, function () {
@@ -6140,131 +6757,151 @@ var PI = Math.PI,
                         onLoad();
                     });
                 }
-                animationCharts.length | noAnimationCharts.length || (chart.renderAll(), drawAixs(), onLoad(), onReady());
-                !animationCharts.length & !!noAnimationCharts.length && (onLoad(), onReady());
-                globalAnimation.isReady = true;
+                animationCharts.length | noAnimationCharts.length || (globalAnimation.isReady = true, chart.renderAll(event), drawAixs(), onLoad(), onReady());
+                !animationCharts.length & !!noAnimationCharts.length && (globalAnimation.isReady = true, onLoad(), onReady());
+                //globalAnimation.isReady = true;
             };
 
             if (this.is3D) {
-                var animationCharts = filterNotAnimation(charts);
-                chart.renderChart(animationCharts, redraw);
+                chart.renderChart(filterNotAnimation(charts));
                 globalAnimation.isReady = true;
                 return;
             }
 
             if (globalAnimation.initialize === true && !(globalAnimation.initialize = false)) {
-                animateTo(charts, function(noAnimationCharts, animationCharts) {
+                animateTo(charts, function (noAnimationCharts, animationCharts) {
                     paintComponent(noAnimationCharts, function () {
-                        animationCharts.forEach(function (item) {
-                            item.onFrame && item.onFrame(context, true);
-                        });
+                        chart.renderChart(animationCharts, true);
                     }, true);
-                }, function() {
+                }, function () {
                     onLoad(), onReady();
                 });
             }
             else {
-                if (redraw === "update") {
+                if (event.type === "update" || event.type === "selected") {
                     var noAnimationCharts, animationCharts = filterNotAnimation(charts, noAnimationCharts = []);
-
+                    if (event.type === "selected") {
+                        chart.addPlotSeries();
+                        charts.forEach(function (graphic) {
+                            graphic.redraw();
+                        });
+                    }
                     if (noAnimationCharts.length) {
                         paintComponent(noAnimationCharts);
                     }
-                    if (defined(Dalaba.Animation) && animationCharts.length) {
-                        Animation = new Dalaba.Animation();
-                        Animation.stop();
-                        var shapes = getAnimationList(animationCharts, chart.yAxis, chart.xAxis, false);
-                        shapes.forEach(function(item){
-                            var shape = item[0],
-                                step = item[1];
-                            Animation.addAnimate(shape, {
-                                duration: 
-                                    chart.eventAction === "update"
-                                    ? pack("number", shape.duration, globalAnimation.duration, 500)
-                                    : chart.eventAction === "selected" ? 300 : 300,
+                    if (animationCharts.length) {
+                        var shapes = getAnimationList(animationCharts, chart.xAxis, chart.yAxis, this.polarAxis, false);
+                        if (globalAnimation.instance === null) {
+                            globalAnimation.instance = new Dalaba.Animation();
+                        }
+                        globalAnimation.instance.stop(false, true);
+                        shapes.forEach(function (shape) {
+                            globalAnimation.instance.addAnimate(shape, {
+                                duration: event.type === "selected" ? 300 : pack("number", shape.duration, globalAnimation.duration, 500),
                                 delay: 0,
                                 easing: "linear",
-                                step: function (target, timer) {
-                                    step(timer);
-                                },
                                 complete: function () {}
                             });
                         });
-                        Animation.fire(function(){
+                        /*if (event.type === "update") {
+                            globalAnimation.instance.stop(false, true);
+                            shapes.forEach(function (shape) {
+                                globalAnimation.instance.addAnimate(shape, {
+                                    duration: pack("number", shape.duration, globalAnimation.duration, 500),
+                                    delay: 0,
+                                    easing: "linear",
+                                    complete: function () {}
+                                });
+                            });
+                        }
+                        else if (event.type === "selected") {
+                            globalAnimation.instance.setOptions({
+                                duration: 300
+                            }).stop();
+                        }*/
+
+                        globalAnimation.instance.fire(function () {
                             globalAnimation.isReady = false;
-                            chart.clear();
-                            chart.renderAll();
-                            chart.yAxis.concat(chart.xAxis).forEach(function(axis){
-                                if(axis.options.enabled !== false){
-                                    axis.onFrame();
-                                }
-                            });
-                            chart.renderChart(noAnimationCharts);
-                            animationCharts.forEach(function(item){
-                                item.onFrame && item.onFrame(context, false);
-                            });
-                            chart.legend && chart.legend.draw();
-                            //drawTooltip();
+                            paintComponent(charts, null, true);
                             onRedraw();
                         }, function () {
                             globalAnimation.isReady = true;
-                            chart.clear();
-                            chart.renderAll();
-                            chart.yAxis.concat(chart.xAxis).forEach(function (item) {
-                                if (item.options.enabled !== false) {
-                                    item.draw();
-                                }
-                            });
-                            chart.renderChart(charts);
-                            chart.legend && chart.legend.draw();
-                            drawTooltip();
+                            paintComponent(charts, null);
                             onRedraw(), onReady();
                         });
                     }
+                    event.type === "update" && (noAnimationCharts.length & !animationCharts.length) && (onRedraw());
                 }
-                if (isAnimationReady(chart) && isDragging(chart) && isEventing(redraw)) {
+                if (isAnimationReady(chart) && isDragging(chart) && isEventing(event)) {
                     paintComponent(charts);
                     onRedraw();
                 }
             }
         },
-        addOverlap: function (type) {
-            var points = [];
+        addOverlap: function () {
             var labels = [];
             var useHTML;
-            var domHTML = [];
+            var container = this.container;
+            var domDataLabels = [],
+                domLabel;
+
+            var labelPoints = function (shape, dataLabel, labels, points) {
+                if (dataLabel) {
+                    dataLabel.placed = true;
+                    dataLabel.labelrank = shape.labelrank || dataLabel.height;
+                    dataLabel.allowOverlap !== true && labels.push(dataLabel);
+                    dataLabel.useHTML === true && points.push(dataLabel);
+                }
+            };
+
+            while (domLabel = (this.globalHTML.dataLabels || []).pop()) {
+                container.removeChild(domLabel);
+            }
+
             this.series.forEach(function (series) {
                 var dataLabels = series.dataLabels;
+                var pointHTML = [];
                 if (defined(dataLabels) && dataLabels.enabled !== false) {
                     useHTML = useHTML || dataLabels.useHTML === true;
                     series.shapes.forEach(function (shape) {
-                        var dataLabel = shape.dataLabel;
-                        if (dataLabel) {
-                            dataLabel.placed = true;
-                            dataLabel.labelrank = shape.labelrank || dataLabel.height;
-                            dataLabel.allowOverlap !== true && labels.push(dataLabel);
-                            points.push(shape);
+                        var boxDataLabels = shape.boxDataLabels;
+                        if (isArray(boxDataLabels)) {
+                            boxDataLabels.forEach(function (dataLabel, i) {
+                                labelPoints(shape, dataLabel, labels, pointHTML);
+                            });
                         }
+                        labelPoints(shape, shape.dataLabel, labels, pointHTML);
                     });
+                    if (useHTML) {
+                        domLabel = document.createElement("div");
+                        isString(dataLabels.className) && setAttribute(domLabel, { "class": dataLabels.className});
+                        setStyle(domLabel, {
+                            position: "absolute",
+                            top: "0px",
+                            left: "0px"
+                        });
+                        container.appendChild(domLabel);
+                        domDataLabels.push({
+                            dom: domLabel,
+                            labels: pointHTML
+                        });
+                    }
                 }
             });
-            DataLabels.overlapping(labels);
-            if (useHTML === true) {
-                points.forEach(function (point) {
-                    var dataLabel = point.dataLabel;
-                    if (dataLabel.visibled !== false && defined(dataLabel.valueHTML)) {
-                        domHTML.push(dataLabel.valueHTML);
-                    }
+            this.globalHTML.dataLabels = domDataLabels.map(function (d) { return d.dom; });
+            DataLabels.overlapping(labels); // global checked
+            if (domDataLabels.length) {
+                domDataLabels.forEach(function (item) {
+                    var domHTML = [];
+                    item.labels.forEach(function (dataLabel) {
+                        if (dataLabel.visibled !== false && defined(dataLabel.valueHTML)) {
+                            domHTML.push(dataLabel.valueHTML);
+                        }
+                    });
+                    item.dom.innerHTML = domHTML.join("");
+                    domHTML = null;
                 });
-                var domDataLabels = this.dataLabels || (this.container.appendChild(this.dataLabels = document.createElement("div")));
-                setStyle(domDataLabels, {
-                    position: "absolute",
-                    top: "0px",
-                    left: "0px"
-                });
-                domDataLabels.innerHTML = domHTML.join("");
             }
-            domHTML = null;
         },
         getViewport: function () {
             var options = this.options,
@@ -6386,48 +7023,33 @@ var PI = Math.PI,
             var series = [];
             var seriesOptions,
                 axisOptions,
-                chartOptions;
+                chartOptions = options.chart || {};;
             var chart = this;
             extend(this.options, options);
 
-            var remove = function (type, axisOptions) {
-                var oldAxis = chart[type],
-                    newAxis = axisOptions;
-                chart[type].splice(Math.abs(oldAxis.length - newAxis.length));
-            };
-            var modify = function (type, axisOptions) {
-                axisOptions.slice(0, chart[type].length).forEach(function (item, i) {
-                    var axis = chart[type][i];
-                    axis.setOptions(item);
-                    axis._options = item;
-                });
-            };
-            var add = function (type, axis) {
-                axis.forEach(function (item) {
+            var execute = function(type, axisOptions) {
+                var oldAxis = chart[type];
+                axisOptions = pack("array", axisOptions, [axisOptions]);
+                Comparative(axisOptions, oldAxis).update(function (item) {
                     var srcOptions = isObject(item) ? item : {},
                         axisOptions = extend({
                             name: type,
                             //index: chart[name].length,
                             lang: options.lang
-                            }, defaultOptions[type], srcOptions) || {};
-                    chartOptions = options.chart || {};
+                        }, defaultOptions[type], srcOptions) || {};
                     axisOptions.labels = axisOptions.labels || {};
                     axisOptions.labels.style = axisOptions.labels.style || {};
                     for (var p in chartOptions.style) if (!({}).hasOwnProperty.call(axisOptions.labels.style, p)) {
                         axisOptions.labels.style[p] = chartOptions.style[p];
                     }
                     chart.addAxis(type, axisOptions)._options = srcOptions;
+                }, function () {
+                }, function (axis, item) {
+                    axis.setOptions(item);
+                    axis._options = item;
                 });
-            };
-            var execute = function(type, axisOptions) {
-                axisOptions = pack("array", axisOptions, [axisOptions]);
-                axisOptions.length ^ chart[type].length
-                    ? axisOptions.length < chart[type].length
-                        ? (remove(type, axisOptions), modify(type, axisOptions))
-                        : (modify(type, axisOptions), add(type, axisOptions.slice(chart[type].length)))
-                    : modify(type, axisOptions);
                 //reset index
-                chart[type].forEach(function(axis, i){
+                oldAxis.forEach(function(axis, i){
                     axis.index = i;
                 });
             };
@@ -6465,20 +7087,19 @@ var PI = Math.PI,
                 this.tooltip.setOptions(options.tooltip);
             }
             if (defined(options.layout)) {
-                this.render("click", {x: this.globalEvent.x, y: this.globalEvent.y});
+                //this.render("click", {x: this.globalEvent.x, y: this.globalEvent.y});
             }
             if (defined(chartOptions = options.chart) && (isNumber(chartOptions.width, true) || isNumber(chartOptions.height, true))) {
                 this.setSize(
                     isNumber(chartOptions.width, true) ?  Math.max(0, chartOptions.width) : chart.width,
                     isNumber(chartOptions.height, true) ? Math.max(0, chartOptions.height) : chart.height,
-                    false
+                    null
                 );
             }
-
-            redraw !== false && this.draw();
+            redraw !== false && this.draw({ target: this, type: "update"});
             return this;
         },
-        setSize: function (width, height, redraw) {
+        setSize: function (width, height, event) {
             var options = this.options,
                 spacing = TRouBLe(options.chart.spacing || []);
             var panel = this.panel;
@@ -6486,8 +7107,8 @@ var PI = Math.PI,
             var chart = this;
             var oldWidth = this.width,
                 oldHeight = this.height;
-            var ratioWidth = width / oldWidth,
-                ratioHeight = height / oldHeight;
+            var ratioWidth = width - oldWidth,
+                ratioHeight = height - oldHeight;
             var canvas = this.canvas;
             var chart = this;
 
@@ -6511,49 +7132,28 @@ var PI = Math.PI,
                         (width - spacing[1] - spacing[3]) * 0.7//auto
                     )
                 });
-                this.legend.viewport.height = Math.min(
+                this.legend.viewport.height = mathMin(
                     this.legend.maxHeight + (pack("number", this.legend.options.margin, 0)),
                     this.height / 2
                 );
             }
-            this.rangeSlider.forEach(function (slider) {
-                var rangeSelectorOptions;
-                if (slider !== null) {
-                    rangeSelectorOptions = slider._options;
-                    slider.setOptions({
-                        width: pack("number",
-                            rangeSelectorOptions.width,
-                            Numeric.percentage(chart.width, rangeSelectorOptions.width),
-                            chart.width - spacing[1] - spacing[3]
-                        )
-                    });
-                }
-            });
-            
             panel.forEach(function (pane) {
-                pane.plotX = pane.x *= ratioWidth;
-                pane.plotY = pane.y *= ratioHeight;
-                pane.plotWidth = pane.width *= ratioWidth;
-                pane.plotHeight = pane.height *= ratioHeight;
+                //pane.plotX = pane.x *= ratioWidth;
+                //pane.plotY = pane.y *= ratioHeight;
+                //pane.plotWidth = pane.width *= ratioWidth;
+                //pane.plotHeight = pane.height *= ratioHeight;
+                pane.width += ratioWidth;// spacing[1] - spacing[3];
+                pane.height += ratioHeight;
             });
             this.translateAxis();
-            chart.series.forEach(function (series) {
-                var pane = panel[Math.min(series.panelIndex | 0, ~-panel.length)];
-                series.plotX = pack("number", pane.plotX, pane.x);
-                series.plotY = pack("number", pane.plotY, pane.y);
-                series.plotWidth = pack("number", pane.plotWidth, pane.width);
-                series.plotHeight = pack("number", pane.plotHeight, pane.height);
-                series.plotCenterX = pack("number", pane.plotCenterX, pane.width / 2, 0);
-                series.plotCenterY = pack("number", pane.plotCenterY, pane.height / 2, 0);
-                series.plotRadius = pack("number", pane.plotRadius, Math.min(pane.width, pane.height), 0);
-                series.plotRadius = pane.plotRadius;
-            });
+            this.addPlotSeries();
+
             this.charts.forEach(function (graphic) {
                 graphic.redraw();
             });
             this.addOverlap();
 
-            redraw !== false && chart.render("resize");
+            event !== null && chart.render(event);
         },
         getSize: function (container) {
             var options = this.options,
@@ -6564,6 +7164,8 @@ var PI = Math.PI,
             var bbox = container.getBoundingClientRect(),
                 boxWidth = pack("number", bbox.width, container.offsetWidth),
                 boxHeight = pack("number", bbox.height, container.offsetHeight);
+            var padding = getStyle(container, "padding").split(/\s+/).map(parseFloat);
+            padding = TRouBLe(padding);
 
             width = Math.max(0, pack("number", width, Numeric.percentage(boxWidth, width)));
             height = Math.max(0, pack("number", height, Numeric.percentage(boxHeight, height)));
@@ -6574,6 +7176,8 @@ var PI = Math.PI,
             if (width <= 0) {
                 width = pack("number", bbox.width, container.offsetWidth);
             }
+            width = Math.max(0, width - padding[1] - padding[3]);
+            height = Math.max(0, height  - padding[0] - padding[2]);
             return {
                 width: width,
                 height: height
@@ -6583,18 +7187,19 @@ var PI = Math.PI,
             var container = this.container;
 
             Event.Handler.destroy(this);
+            var layer;
 
-            this.layer.forEach(function (layer) {
-                container.removeChild(layer);
-                layer = null;
-            });
+            while (layer = this.layer.pop()) {
+                (layer.parentNode && layer.parentNode === container) && container.removeChild(layer);
+            }
 
             if (this.tooltip !== null) {
-                this.tooltip.useHTML === true && (container.removeChild(this.tooltip.canvas));
+                layer = this.tooltip.canvas;
+                this.tooltip.useHTML === true && ((layer.parentNode && layer.parentNode === container) && container.removeChild(layer));
             }
             container.parentNode && container.parentNode.removeChild(container);
 
-            [container, this.context, this.tooltip, this.legend].concat(
+            [layer, container, this.context, this.tooltip, this.legend].concat(
                 this.xAxis, this.yAxis, this.colorAxis, this.series
             ).forEach(function (item) {
                 item = null;
@@ -6633,7 +7238,7 @@ var PI = Math.PI,
             var Legend = Dalaba.Chart.Legend,
                 legend = null;
 
-            if(defined(Legend) && legendOptions.enabled !== false){
+            if (defined(Legend) && legendOptions.enabled !== false) {
                 legend = new Legend(
                     this.canvas,//this.addLayer(legendOptions.layer),
                     legendOptions.series,
@@ -6712,7 +7317,7 @@ var PI = Math.PI,
                     viewportBottom = 0;
                 item.yAxis.forEach(function (axis) {
                     var axisOptions = axis.options;
-                    var pane = panel[Math.min(axisOptions.panelIndex | 0, panel.length - 1)],
+                    var pane = panel[mathMin(axisOptions.panelIndex | 0, panel.length - 1)],
                         viewport = pane.viewport;
                     var left = viewport.left,
                         right = viewport.right,
@@ -6737,7 +7342,7 @@ var PI = Math.PI,
                 });
                 item.xAxis.forEach(function (axis) {
                     var axisOptions = axis.options;
-                    var pane = panel[Math.min(axisOptions.panelIndex | 0, panel.length - 1)],
+                    var pane = panel[mathMin(axisOptions.panelIndex | 0, panel.length - 1)],
                         viewport = pane.viewport;
                     var top = viewport.top,
                         bottom = viewport.bottom;
@@ -6767,13 +7372,12 @@ var PI = Math.PI,
 
                 var startX;
                 item.yAxis.forEach(function (axis) {
-                    var pane = panel[Math.min(axis.options.panelIndex | 0, panel.length - 1)];
+                    var pane = panel[mathMin(axis.options.panelIndex | 0, panel.length - 1)];
                     var plotHeight = pane.height - pane.viewportTop - pack("number", pane.viewportBottom),
                         plotWidth = pane.width - pane.viewportLeft - pane.viewportRight,
                         plotY = pane.y + pane.viewportTop;
                     var x = pane.x,
                         y = plotY;
-
                     //startX = x;
                     if (axis.options.enabled !== false) {
                         if (axis.options.opposite === true) {
@@ -6799,7 +7403,7 @@ var PI = Math.PI,
                 });
                 item.xAxis.forEach(function (axis) {
                     var axisOptions = axis.options;
-                    var pane = panel[Math.min(axisOptions.panelIndex | 0, panel.length - 1)];
+                    var pane = panel[mathMin(axisOptions.panelIndex | 0, panel.length - 1)];
                     var plotHeight = pane.height - pane.viewportTop - pane.viewportBottom,
                         plotWidth = pane.width - pane.viewportLeft - pane.viewportRight;
                     var y = 0;
@@ -6824,13 +7428,13 @@ var PI = Math.PI,
                     }
                 });
 
-                item.polarAxis.concat(item.radiusAxis).forEach(function(axis, i) {
-                    var pane = panel[Math.min(axis.options.panelIndex | 0, panel.length - 1)];
+                item.polarAxis.concat(item.radiusAxis).forEach(function (axis, i) {
+                    var pane = panel[mathMin(axis.options.panelIndex | 0, panel.length - 1)];
                     var plotHeight = pane.height - pane.viewportTop - pane.viewportBottom,
                         plotWidth = pane.width - pane.viewportLeft - pane.viewportRight,
                         plotY = pane.y + pane.viewportTop;
                     var axisOptions = axis._options;
-                    var size = Math.min(plotHeight, plotWidth) / 2,//default 85%
+                    var size = mathMin(plotHeight, plotWidth) / 2,//default 85%
                         center;
                     
                     size = pack("number", axisOptions.size, Numeric.percentage(size, axisOptions.size), size * 0.85, 0);
@@ -6842,7 +7446,7 @@ var PI = Math.PI,
                         pack("number", center[0], Numeric.percentage(plotWidth, center[0]), size),
                         pack("number", center[1], Numeric.percentage(plotHeight, center[1]), size)
                     ];
-                    if(axis.options.enabled !== false){
+                    if (axis.options.enabled !== false) {
                         axis.scale(0, plotWidth);
                         axis.setOptions({
                             center: center,
@@ -6864,7 +7468,16 @@ var PI = Math.PI,
                         range: [0, size]
                     });
                 });
+                delete item.xAxisTitleFirst;
+                delete item.yAxisTitleFirst;
             });
+        },
+        rangeToPoints: function (bounds) {
+            this.globalEvent.isDragging = false;
+            this.charts.forEach(function (graphic) {
+                graphic.rangeTo && graphic.rangeTo(bounds);
+            });
+            this.render({ target: this, type: "mousemove" });
         },
         export: function (image, width, height, type) {
             var canvas = document.createElement("canvas"),
@@ -6968,59 +7581,20 @@ var PI = Math.PI,
                 }[pack("string", legendOptions.verticalAlign, "bottom")] + pack("number", legendOptions.y, 0)
             });
             var legend = this.addLegend(legendOptions);
-            if(legend !== null){
-                legend.onClick(chart.container, function(item, index){
-                    var series = chart.series,
-                        selected = this.selected,
-                        curSeries;
-                
-                    if(item.type === "pie" || item.type === "funnel"){
-                        pack("object", pack("object",
-                            series[pack("number", item.seriesIndex, -1)], {}
-                        ).data[pack("number", item.dataIndex, -1)], {}).selected = selected;
-                        //item.selected = selected;
-                    }
-                    else{
-                        curSeries = series[index];
-                        curSeries.selected = selected;//modified series
-                        curSeries.action = "click";//hover-on, hover-off, click-on, click-off
-                    }
-                    series.forEach(function(series){
-                        series.shapes = series.addShape();
-                    });
-                    chart.eventAction = "selected";
-
+            if (legend !== null) {
+                legend.onClick(chart.container, function (e, item, index) {
+                    item.selected = this.selected;//modified series //hover-on, hover-off, click-on, click-off
                     legend.noScroll = true;
-                    chart.draw();
-                    curSeries && (curSeries.action = "");
-                }).onState(chart.container, function(item){
-                    var series = chart.series,
-                        shape = item;
-                    if(item.type === "pie" || item.type === "funnel"){
-                        var shapes = pack("object",
-                            series[pack("number", item.seriesIndex, -1)], {}
-                        ).shapes || [];
-                        shapes.forEach(function(shape){
-                            delete shape.state;
-                        });
-                        (shape = shapes[pack("number", item.dataIndex, -1)] || {}).state = !0;
-                    }
-                    else{
-                        series.forEach(function (series) {
-                            delete series.state;
-                        });
-                        shape.state = !0;
-                    }
-                    chart.render("hover");
-                    delete shape.state;
-                }).onScroll(chart.container, function () {
-                    chart.render("click");
+
+                    chart.redraw(extend({}, e, { type: "selected", points: [item], shapes: [item] }));
+                }).onScroll(chart.container, function (e) {
+                    chart.render(e);
                 });
                 this.legend = legend;
             }
 
             var RangeSelector = Dalaba.Chart.RangeSelector;
-            if(defined(options.rangeSelector)){
+            if (defined(options.rangeSelector)) {
                 (isArray(options.rangeSelector) ? options.rangeSelector : [options.rangeSelector]).forEach(function(item){
                     var rangeSelectorOptions = extend({}, item || {}),
                         rangeSlider = null;
@@ -7044,8 +7618,8 @@ var PI = Math.PI,
                         if (defined(RangeSelector) && rangeSelectorOptions.enabled === true) {
                             rangeSlider = new RangeSelector(chart.canvas, rangeSelectorOptions);
                             rangeSlider._options = item || {};
+                            chart.rangeSlider.push(rangeSlider);
                         }
-                        chart.rangeSlider.push(rangeSlider);
                         chart.rangeSelector.push({
                             start: rangeSelectorOptions.start,
                             end: rangeSelectorOptions.end
@@ -7056,7 +7630,10 @@ var PI = Math.PI,
 
             this.toolbar = chart.addToolbar(options.toolbar);
 
-            chart.draw();
+            chart.draw({
+                target: this,
+                type: "load"
+            });
             chart.container.nodeType === 1 && Event.Handler(this);
 
             return this;
@@ -7094,57 +7671,14 @@ var PI = Math.PI,
         positioner: undefined//The return should be an object containing x and y values
     };
 
-    var symbolCallout = function(x, y, w, h, options){
+    var symbolCallout = function (x, y, w, h, options) {
         var arrowLength = 6,
             halfDistance = 6,
             r = Math.min((options && options.r) || 0, w, h),
             safeDistance = r + halfDistance,
             anchorX = options && options.anchorX,
-            anchorY = options && options.anchorY,
-            path;
-
-        path = [
-            "M", x + r, y, 
-            "L", x + w - r, y, // top side
-            "C", x + w, y, x + w, y, x + w, y + r, // top-right corner
-            "L", x + w, y + h - r, // right side
-            "C", x + w, y + h, x + w, y + h, x + w - r, y + h, // bottom-right corner
-            "L", x + r, y + h, // bottom side
-            "C", x, y + h, x, y + h, x, y + h - r, // bottom-left corner
-            "L", x, y + r, // left side
-            "C", x, y, x, y, x + r, y // top-right corner
-        ];
-        if (anchorX && anchorX > w && anchorY > y + safeDistance && anchorY < y + h - safeDistance) { // replace right side
-            path.splice(13, 3,
-                "L", x + w, anchorY - halfDistance, 
-                x + w + arrowLength, anchorY,
-                x + w, anchorY + halfDistance,
-                x + w, y + h - r
-            );
-        } else if (anchorX && anchorX < 0 && anchorY > y + safeDistance && anchorY < y + h - safeDistance) { // replace left side
-            path.splice(33, 3, 
-                "L", x, anchorY + halfDistance, 
-                x - arrowLength, anchorY,
-                x, anchorY - halfDistance,
-                x, y + r
-            );
-        } else if (anchorY && anchorY > h && anchorX > x + safeDistance && anchorX < x + w - safeDistance) { // replace bottom
-            path.splice(23, 3,
-                "L", anchorX + halfDistance, y + h,
-                anchorX, y + h + arrowLength,
-                anchorX - halfDistance, y + h,
-                x + r, y + h
-            );
-        } else if (anchorY && anchorY < 0 && anchorX > x + safeDistance && anchorX < x + w - safeDistance) { // replace top
-            path.splice(3, 3,
-                "L", anchorX - halfDistance, y,
-                anchorX, y - arrowLength,
-                anchorX + halfDistance, y,
-                w - r, y
-            );
-        }
-        //console.log(path);
-        return function(context){
+            anchorY = options && options.anchorY;
+        return function (context) {
             context.beginPath();
             context.moveTo(x + r, y);
             context.lineTo(x + w - r, y);//top side
@@ -7162,12 +7696,12 @@ var PI = Math.PI,
         };
     };
 
-    var symbolHTML = function(tag, text){
-        var style = [].concat(Array.prototype.slice.call(arguments, 2)).join(";");
+    var symbolHTML = function (tag, text) {
+        var style = [].concat([].slice.call(arguments, 2)).join(";");
         return "<" + tag + " style='" + style + "'>" + text + "</" + tag + ">";
     };
 
-    function Tooltip(){
+    function Tooltip () {
         this.init.apply(this, arguments);
     }
     Tooltip.prototype = {
@@ -7204,10 +7738,14 @@ var PI = Math.PI,
                     "z-index": 3,
                     "box-shadow": tooltipOptions.boxShadow
                 };
+                this.canvas = document.createElement("div");
+
                 if (tooltipOptions.animation) {
                     attr.transition = "left .1s linear, top .1s linear";
                 }
-                this.canvas = document.createElement("div");
+                if (isString(tooltipOptions.className)) {
+                    this.canvas.className = tooltipOptions.className;
+                }
                 setStyle(this.canvas, attr);
                 canvas.parentNode.appendChild(this.canvas);
             }
@@ -7465,7 +8003,7 @@ var PI = Math.PI,
             if (length = items.length) {
                 for (; --length >= 0 && !defined(title = items[length].key); );
 
-                shapes = items.map(function(d) { return d.shape; });
+                shapes = items.map(function (d) { return d.shape; });
 
                 if (isFunction(formatter)) {
                     point = shapes[0];
@@ -7476,7 +8014,8 @@ var PI = Math.PI,
                         x: title,
                         key: title,
                         value: point.$value,
-                        points: shapes
+                        points: shapes,
+                        series: point.series
                     } : {
                         mx: x,
                         my: y,
@@ -7486,7 +8025,8 @@ var PI = Math.PI,
                         percentage: point.percentage,
                         total: point.total,
                         point: point,
-                        points: shapes
+                        points: shapes,
+                        series: point.series
                     }, tooltip);
 
                     if (defined(text)) {
@@ -7572,8 +8112,8 @@ var PI = Math.PI,
             extend(this.options, options);
             return this;
         },
-        setChart: function (charts) {
-            this.charts = charts;
+        setChart: function (chart) {
+            this.chart = chart;
             //(pos = this.position()) !== null && this.move(pos.x, pos.y);
         },
         position: function (x, y) {
@@ -7597,19 +8137,7 @@ var PI = Math.PI,
         getShape: function (x, y) {
             var options = this.options,
                 shared = options.shared;
-            var shapes = [];
-            //console.log(this.charts)
-
-            this.charts.forEach(function (chart) {
-                pack("array", pack("function", chart.getShape, noop).call(chart, x, y, shared)).forEach(function (shape) {
-                    shapes.push({
-                        shape: shape.shape,
-                        series: shape.series,
-                        key: shape.shape.key
-                    });
-                });
-            });
-            return shapes;
+            return this.chart.getShape(this.chart.charts, x, y, shared);
         },
         move: function (x, y, isMoving) {
             var options = this.options;
@@ -7739,32 +8267,12 @@ var PI = Math.PI,
     Chart.Tooltip = Tooltip;
 })(typeof window !== "undefined" ? window : this, Dalaba);;
     (function (global, Chart) {
+    var Animate = Chart.Animate;
+
     var Symbol = {
-        circle: function (x, y, w, h) {
-            var PI2 = Math.PI * 2;
-            return function (context){
-                context.beginPath();
-                context.arc(x + w / 2, y + w / 2, w / 2 - 0.5, 0, PI2, true);
-                //context.arc(x, y, h * 0.4, 0, PI2, false);
-                return {
-                    x: x,// + w / 2 - 1,
-                    y: y,// + w / 2 - 1,
-                    width: w,
-                    height: h
-                };
-            };
-        },
+        circle: Geometry.Symbol.circle,
         rect: Geometry.Symbol.rect,
-        ellipse: function (x, y, w, h) {
-            var cpw = 0.166 * w;
-            return function (context) {
-                context.beginPath();
-                context.moveTo(x + w / 2, y);
-                context.bezierCurveTo(x + w + cpw, y, x + w + cpw, y + h, x + w / 2, y + h);
-                context.bezierCurveTo(x - cpw, y + h, x - cpw, y, x + w / 2, y);
-                context.closePath();
-            };
-        },
+        ellipse: Geometry.Symbol.ellipse,
         line: function (x, y, w, h) {
             return function (context) {
                 //Symbol.rect(x - r, y + h / 2, w + r * 2, 3)(context);
@@ -7870,6 +8378,7 @@ var PI = Math.PI,
             this.translateY = 0;
             this.scroller = {next: null, prev: null};
             this.globalAnimation = {
+                instance: null,
                 isFinish: false,
                 startY: 0,
                 current: 0
@@ -7965,13 +8474,14 @@ var PI = Math.PI,
             this.data.forEach(function (item, i) {
                 var text = item.name,
                     selected = item.selected !== false,//默认显示
-                    disabled = item.showInLegend !== false;
+                    disabled = item.disabled !== true && item.showInLegend !== false;
                 var width = 0,
                     textHeight = 0;
                 var legendItem;
                 var legendFormatter;
                 var nowrap = false;
                 if (disabled && context) {
+                    context.save();
                     context.font = [
                         fontStyle.fontStyle,
                         fontStyle.fontWeight,
@@ -7979,6 +8489,7 @@ var PI = Math.PI,
                         fontStyle.fontFamily
                     ].join(" ");
                     bbox = Text.measureText(text, fontStyle);
+                    context.restore();
                     textHeight = symbolWidth;// Math.max(symbolWidth, bbox.height);
 
                     if(bbox.width >= itemWidth){
@@ -8028,8 +8539,8 @@ var PI = Math.PI,
                     var legendItemHTML = [
                         "<p style='",
                             [
-                                "position: absolute",
-                                "left:" + (x) + "px",
+                                "float: left;",
+                                "margin:" + (symbolPadding) + "px",
                                 "top:" + (y + symbolPadding) + "px",
                                 "color:" + (selected ? fontStyle.color : "#ccc"),
                                 "font:" + fontStyle.fontStyle + " " + fontStyle.fontWeight + " " + fontStyle.fontSize + " " + fontStyle.fontFamily,
@@ -8057,7 +8568,7 @@ var PI = Math.PI,
                         itemHTML += legendItemHTML.join("");
                     }
                 }
-                if (!isFormatter || legendFormatter) {
+                if (disabled && !isFormatter || legendFormatter) {
                     x += width + itemDistance * (layout === "horizontal");
                 }
                 sumWidth = Math.max(sumWidth, x);
@@ -8069,13 +8580,13 @@ var PI = Math.PI,
                 this.height = (sumHeight + padding) * (length !== 0);
             }
             this.width = (sumWidth + padding * 2 - itemDistance * (layout === "horizontal")) * (length !== 0);//fix width
-            if(lineNumber < 4){
+            if (lineNumber < 4) {
                 maxHeight = this.height;
             }
-            if(layout === "vertical"){
+            if (layout === "vertical") {
                 maxHeight = this.height;
             }
-            if(isNumber(options.maxHeight)){
+            if (isNumber(options.maxHeight)) {
                 maxHeight = options.maxHeight;
             }
             this.maxHeight = (maxHeight + padding) * (length !== 0);//options.borderWidth * 2
@@ -8088,22 +8599,25 @@ var PI = Math.PI,
             if (useHTML === true && itemHTML.length) {
                 var bbox;
                 canvas.innerHTML = itemHTML;
+                setStyle(canvas, {
+                    overflow: "auto",
+                    "white-space": "nowrap"
+                });
                 bbox = canvas.getBoundingClientRect();
                 this.height = bbox.height;
                 this.width = bbox.width;
                 setStyle(canvas, {
-                    left: (this.x - bbox.width + linePixel.width) + linePixel.x + "px",
-                    top: (this.y - bbox.height + linePixel.height) + linePixel.y + "px",
-                    height: bbox.height + "px",
-                    width: bbox.width + "px",
-                    overflow: "auto"
+                    left: (this.x) + linePixel.x + "px",
+                    top: this.y + "px",
+                    height: this.maxHeight + "px",
+                    width: this.width + "px"
                 });
             }
         },
-        scrollTop: function(y){
+        scrollTop: function (y) {
             this.translateY = y;
         },
-        formatter: function(){
+        formatter: function () {
             var context = this.context,
                 options = this.options,
                 style = pack("object", options.style, {}),
@@ -8127,13 +8641,13 @@ var PI = Math.PI,
 
             context.save();
             context.translate(padding, padding + this.translateY);
-            this.items.forEach(function(item){
+            this.items.forEach(function (item) {
                 var x = item.x,
                     y = item.y;
                 var color = item.selected ? item.color : "#ccc";
                 var tag, bbox;
                 var legendFormatter = isFunction(formatter) && formatter.call(item, item.value, item.index, legend);
-                if(item.disabled) {
+                if (item.disabled) {
                     context.save();
                     //context.textBaseline = "bottom"
                     context.font = [
@@ -8153,22 +8667,22 @@ var PI = Math.PI,
                     if (!isFunction(formatter) || defined(legendFormatter)) {
                         symbolTypes = {
                             column: Symbol.rect(x, y, symbolWidth, symbolWidth, symbolRadius),
-                            pie: Symbol.circle(x, y, symbolWidth, symbolWidth),
+                            pie: Symbol.circle(x, y + symbolWidth / 2, symbolWidth / 2, symbolWidth),
                             line: Symbol.line(x, y, symbolWidth + 4, symbolWidth)
                         };
                         context.lineWidth = 1;
                         context.strokeStyle = color;
-                        if(Color.isColor(color)){
+                        if (Color.isColor(color)) {
                             color = Color.parse(color).alpha(0.55).rgba();
                         }
-                        else if(isObject(color)){
+                        else if (isObject(color)) {
                             color = defined(color.radialGradient)
                                 ? Color.parse(color).radial(x + symbolRadius, y + symbolRadius, symbolRadius)
                                 : defined(color.linearGradient)
                                     ? Color.parse(color).linear(x, y, symbolWidth, symbolWidth)
                                     : "#000";
                         }
-                        else{
+                        else {
                             color = "#000";
                         }
                         
@@ -8234,7 +8748,7 @@ var PI = Math.PI,
                 context.restore();
             }
         },
-        next: function(){
+        next: function () {
             var options = this.options,
                 itemMarginBottom = pack("number", options.itemMarginBottom, 8),
                 width = this.width,
@@ -8243,7 +8757,7 @@ var PI = Math.PI,
             var context = this.context;
             var prev = { p0: {x: 0, y: 0}, p1: {x: 0, y: 0}, type: "prev"},
                 next = { p0: {x: 0, y: 0}, p1: {x: 0, y: 0}, type: "next"};
-            if(defined(options.borderWidth) && options.borderWidth > 0){
+            if (defined(options.borderWidth) && options.borderWidth > 0) {
                 context.beginPath();
                 context.moveTo(width, 0);
                 context.lineTo(width, maxHeight);
@@ -8268,7 +8782,7 @@ var PI = Math.PI,
             this.scroller.prev = prev;
             this.scroller.next = next;
         },
-        onScroll: function(callback){
+        onScroll: function (callback) {
             var options = this.options,
                 //borderWidth = pack("number", options.borderWidth, 0),
                 navigation = options.navigation || {},
@@ -8278,69 +8792,61 @@ var PI = Math.PI,
 
             var canvas = this.canvas,
                 legend = this;
-            if(arguments[1]){
+            if (arguments[1]) {
                 canvas = callback;
                 callback = arguments[1];
             }
             var nextId = 0;
 
-            var animateTo = function(clickedItem){
-                //var length = Math.ceil(legend.height / (legend.maxHeight - 2)),
+            var animateTo = function (e, clickedItem) {
                 var dir = (clickedItem.type === "next" || -1);
                 var isFinish = globalAnimation.isFinish,
                     isLast = false,
-                    //current = globalAnimation.current,
                     startY = globalAnimation.startY,
                     endY;
                 var step = legend.maxHeight - padding;
-
-                //globalAnimation.current = current = Math.min(length - 1, Math.max(0, current += dir));
                 endY = startY + dir * step;
-                if(endY < 0){
+                if (endY < 0) {
                     startY = -1;/*缓动*/
                     endY = 0;
                 }
-                if(endY >= legend.height){
+                if (endY >= legend.height) {
                     endY = startY + 1;
                     isLast = true;
                 }
-                // (current += dir) * (legend.maxHeight - padding - borderWidth*0);
-                //console.log(endY, startY, legend.maxHeight, legend.height);
-                if (defined(Dalaba.Animation)/* && (endY < legend.height)*/) {
-                    var value = 0;
-                    /*Animation ? Animation.stop() : (*/Animation = new Dalaba.Animation();
-                    [[{ }, function (timer) {
-                        value = startY + (endY - startY) * timer;
-                    }]].forEach(function(item){
-                        var step = item[1];
-                        Animation.addAnimate(item[0], {
-                            step: function(target, timer){
-                                step(timer);
-                                legend.translateY = -(value);
-                                callback && callback(legend, value);
-                            },
-                            duration: 300,
-                            delay: 0,
-                            easing: "linear"
-                        });
-                    });
 
-                    Animation.fire(function(){
+                if (defined(Dalaba.Animation) && !globalAnimation.instance/* && (endY < legend.height)*/) {
+                    globalAnimation.instance = new Dalaba.Animation();
+                }
+                if (globalAnimation.instance !== null) {
+                    clickedItem.animate({
+                        translateY: startY
+                    }, {
+                        translateY: endY
+                    });
+                    globalAnimation.instance.addAnimate(clickedItem, {
+                        duration: 300,
+                        delay: 0,
+                        easing: "linear"
+                    }).fire(function () {
+                        var pos = clickedItem.translateY;//startY + (endY - startY) * timer;
+                        legend.translateY = -pos;
+                        callback && callback.call(legend, e, pos);
                         isFinish = true;
-                    }, function(){
-                        if(!isLast)
+                    }, function () {
+                        if (!isLast)
                             globalAnimation.startY = startY = endY;
                         globalAnimation.isFinish = isFinish = false;
                     });
                 }
-                else{
+                else {
                     legend.translateY = -endY;
-                    callback && callback(legend, endY);
-                    if(!isLast)
+                    callback && callback.call(legend, e, endY);
+                    if (!isLast)
                         globalAnimation.startY = startY = endY;
                 }
             };
-            var clipTo = function(clickedItem){
+            var clipTo = function (e, clickedItem) {
                 //var items = legend.items;
                 //var currentY;
                 var length = Math.floor(legend.height / legend.maxHeight);
@@ -8356,12 +8862,12 @@ var PI = Math.PI,
                     }
                 }*/
                 //console.log(nextId, cy);
-                cy = Math.max(0, cy);
+                cy = mathMax(0, cy);
                 legend.translateY = -cy;
                 callback && callback(legend, cy);
             };
 
-            var onClick = function(e){
+            var onClick = function (e) {
                 var buttons = [legend.scroller.prev, legend.scroller.next];
                 var clickedItem = null;
                 var evt = Event.normalize(e, this),
@@ -8369,13 +8875,18 @@ var PI = Math.PI,
                     ey = evt.y,
                     x = legend.x,
                     y = legend.y;
-                if(legend.height < legend.maxHeight){
+                if (legend.height < legend.maxHeight) {
                     return;//no clip
                 }
+                buttons.forEach(function (button) {
+                    if (button !== null) {
+                        button.__proto__ = new Animate();
+                    }
+                });
 
-                for(var i = 0; i < buttons.length; i++){
+                for (var i = 0; i < buttons.length; i++) {
                     var item = buttons[i];
-                    if(item && Intersection.rect({
+                    if (item && Intersection.rect({
                         x: ex,
                         y: ey
                     }, {
@@ -8383,35 +8894,35 @@ var PI = Math.PI,
                         y: item.p0.y - 10 + y,
                         width: item.p1.x + 10 + x,
                         height: item.p1.y + 10 + y
-                    })){
+                    })) {
                         clickedItem = item;
                         break;
                     }
                 }
 
-                if(clickedItem){
+                if (clickedItem) {
                     if(navigation.animation !== false){
-                        animateTo(clickedItem);
+                        animateTo(e, clickedItem);
                     }
                     else{
-                        clipTo(clickedItem);
+                        clipTo(e, clickedItem);
                     }
                 }
             };
-            if(hasTouch) {
+            if (hasTouch) {
                 //new Dalaba.Touch(canvas).on("tap", onClick, false);
                 new Dalaba.Touch(canvas).on({
                     tap: onClick
                 });
             }
-            else if(canvas.nodeType === 1) {
+            else if (canvas.nodeType === 1) {
                 canvas.removeEventListener("click", onClick, false);
                 canvas.addEventListener("click", onClick, false);
             }
             onClick = null;
             return this;
         },
-        destroy: function(){
+        destroy: function () {
             var globalAnimation = this.globalAnimation;
             globalAnimation.isFinish = false;
             globalAnimation.startY = 0;
@@ -8419,6 +8930,7 @@ var PI = Math.PI,
             return this;
         }
     };
+
     (function (Legend) {
         var useCapture = false;
 
@@ -8459,14 +8971,14 @@ var PI = Math.PI,
             } : function(item) {
                 return that.context && filter(that, item, x, y);
             };
-            for(var i = 0; i < items.length; i++){
+            for (var i = 0; i < items.length; i++) {
                 item = items[i];
-                if(flag(item)){
+                if (flag(item)) {
                     clicked = true;
                     break;
                 }
             }
-            callback.call(item, clicked, items);
+            clicked && callback.call(item, clicked, items);
         };
         var getXY = function (e, el) {
             var evt = Event.normalize(e, el),
@@ -8475,26 +8987,26 @@ var PI = Math.PI,
             return [x *= DEVICE_PIXEL_RATIO, y *= DEVICE_PIXEL_RATIO];
         };
         extend(Legend.prototype, {
-            onClick: function(callback){
+            onClick: function (callback) {
                 var canvas = this.canvas,
                     legend = this;
                 var useHTML = this.options.useHTML;
 
-                if(arguments[1]){
+                if (arguments[1]) {
                     canvas = callback;
                     callback = arguments[1];
                 }
                 
-                var onClick = function(e){
+                var onClick = function (e) {
                     var x = getXY(e, this),
                         y = x[1];
                     x = x[0];
 
-                    onAction.apply(legend, (useHTML === true ? [useHTML, e.target] : [x, y]).concat(function(clicked, items) {
+                    onAction.apply(legend, (useHTML === true ? [useHTML, e.target] : [x, y]).concat(function (clicked, items) {
                         var item = this;
-                        if(clicked){
+                        if (clicked) {
                             item.selected = !item.selected;
-                            callback && callback.call(item, item.series, item.index, items);
+                            callback && callback.call(item, e, item.series, item.index, items);
                         }
                     }));
                 };
@@ -8511,36 +9023,34 @@ var PI = Math.PI,
                 //onClick = null;
                 return this;
             },
-            onState: function (callback) {
-                var canvas = this.canvas,
-                    legend = this;
+            onState: function (event, callback, mouseout) {
+                var legend = this,
+                    canvas = this.canvas;
                 var flag;
 
-                if(arguments[1]){
-                    canvas = callback;
+                if (arguments[1]) {
                     callback = arguments[1];
                 }
                 
                 var onState = function (e) {
-                    var x = getXY(e, this),
+                    var x = getXY(e, canvas),
                         y = x[1];
                     x = x[0];
-                    onAction.call(legend, x, y, function(clicked, items){
+                    onAction.call(legend, x, y, function (clicked, items) {
                         var item = this;
-                        if(!clicked){
+                        if (!clicked) {
                             flag = 0;
                         }
-                        if(clicked && !flag){
+                        if (clicked && !flag) {
                             flag = 1;
                             callback && callback.call(item, item.series, item.index, items);
                         }
+                        else {
+                            mouseout && mouseout.call(item, item.series);
+                        }
                     });
                 };
-                if(canvas.nodeType === 1) {
-                    canvas.removeEventListener("mousemove", onState, useCapture);
-                    canvas.addEventListener("mousemove", onState, useCapture);
-                }
-                onState = null;
+                onState(event);
                 return this;
             }
         });
@@ -8552,7 +9062,7 @@ var PI = Math.PI,
         module.exports = Legend;
     }
     else if (typeof define === "function" && define.amd)
-        define(function(){
+        define(function () {
             return Legend;
         });
     else {
@@ -8560,16 +9070,16 @@ var PI = Math.PI,
     }
 })(typeof window !== "undefined" ? window : global, Dalaba.Chart);;
     (function (global, Dalaba) {
+
     var Chart = Dalaba.Chart;
+
+    var Animate = Chart.Animate;
 
     var angle2arc = Chart.angle2arc;
 
     var stringPad = Formatter.String.padding;
 
     var numberFormat = Formatter.String.numberFormat;
-
-    var mathRound = Mathematics.round,
-        mathPow = Mathematics.pow;
 
     var ONE_DAY = 864E5;
     /*millisecond:"%A, %b %e, %H:%M:%S.%L",
@@ -8720,7 +9230,7 @@ var PI = Math.PI,
             {x: x, y: y + h / 2 - arrow},//triangle left top(1/3)
             {x: x, y: y}//left(O)
         ];
-        if(anchor === "top"){
+        if (anchor === "top") {
             path.splice(1, path.length, 
                 {x: x + w / 2 - arrow, y: y},//triangle top left
                 {x: x + w / 2, y: y - arrow},//triangle top middle
@@ -8731,7 +9241,7 @@ var PI = Math.PI,
                 {x: x, y: y}
             );
         }
-        else if(anchor === "bottom"){
+        else if (anchor === "bottom") {
             path.splice(3, path.length,
                 {x: x + w / 2 + arrow, y: y + h},
                 {x: x + w / 2, y: y + h + arrow},
@@ -8740,10 +9250,10 @@ var PI = Math.PI,
                 {x: x, y: y}
             );
         }
-        return function(context){
+        return function (context) {
             context.beginPath();
             context.moveTo((path[0].x), (path[0].y));
-            path.forEach(function(p){
+            path.forEach(function (p) {
                 context.lineTo((p.x), (p.y));
             });
         };
@@ -8827,6 +9337,7 @@ var PI = Math.PI,
                 gridLineWidth = pack("number", options.gridLineWidth, 0),
                 gridLineInterpolation = options.gridLineInterpolation,
                 opposite = !!options.opposite,
+                crosshair = options.crosshair,
                 style = pack("object", labels.style, {}),
                 fontStyle = {
                     fontStyle: style.fontStyle || "normal",
@@ -8836,12 +9347,17 @@ var PI = Math.PI,
                     lineHeight: style.lineHeight || "normal",
                     color: style.color
                 };
-            var isCategories = defined(options.categories) && !!options.categories.length;
+            var isCategories = this.type !== "linear" && defined(options.categories) && !!options.categories.length;
+            if (fontStyle.fontFamily === "inherit") {
+                fontStyle.fontFamily = getStyle(this.canvas, "font-family") || "Arial";
+            }
 
             var context = this.context,
                 name = this.name;
             var minRange = this.minRange,
                 maxRange = this.maxRange;
+            var tx = pack("number", options.x),
+                ty = pack("number", options.y);
             var axis = this;
 
             var setAlign = function (x, maxLabelWidth, width) {
@@ -8921,8 +9437,8 @@ var PI = Math.PI,
                         if (gridLineInterpolation === "polygon") {
                             axis.ticks.forEach(function (tick, i) {
                                 context[i ? "lineTo" : "moveTo"](
-                                    Math.cos(tick.angle * PI / 180) * radius + cx,
-                                    Math.sin(tick.angle * PI / 180) * radius + cy
+                                    MathCos(tick.angle * PI / 180) * radius + cx,
+                                    MathSin(tick.angle * PI / 180) * radius + cy
                                 );
                             });
                             context.closePath();
@@ -8951,45 +9467,167 @@ var PI = Math.PI,
                 }
                 context.restore();
             };
+            tick.crosshair = function (tick) {
+                var x, x1, y, y1, size;
+                var width = options.width,
+                    height = options.height;
+                var color, margin;
+                if (defined(crosshair) && tick) {
+                    x = tick.x + tx, y = tick.y + ty, y1 = y - (size = tick.size), x1 = x - size;
+                    color = crosshair.color || "rgba(41, 121, 255, 0.08)";
+                    margin = mathMin(size, mathMax(0, pack("number", crosshair.margin, Numeric.percentage(size, crosshair.margin), 0)));
+                    context.save();
+                    context.beginPath();
+                    ({
+                        "xAxis": [[x - margin, ty], [x - margin, ty - height], [x1 + margin, ty - height], [x1 + margin, ty]],
+                        "yAxis": [[x, y - margin], [x + width, y - margin], [x + width, y1 + margin], [x, y1 + margin]]
+                    }[axis.name] || []).forEach(function (point, i) {
+                        context[i ? "lineTo" : "moveTo"].apply(context, point);
+                    });
+                    context.closePath();
+                    context.fillStyle = color;
+                    context.fill();
+                    //context.stroke()
+                    context.restore();
+                }
+            };
             tick.plotLines = function () {
-                var tx = pack("number", options.x),
-                    ty = pack("number", options.y);
-                var plotLines = options.plotLines;
+                var plotLines = isArray(options.plotLines) ? options.plotLines : [];
                 var values = axis.values;
                 var maxRange = axis.maxRange;
                 var linePixel;
+                var labelHTML = "";
                 var center = function (p0) {
                     return p0;//isCategories && this.ticks.length ? p0 + (this.ticks[0].size - lineWidth) / 2 : p0;
                 };
+                var setAlign = function (type, x, bbox) {
+                    var w2 = options.width,
+                        w = bbox.width;
+                    if (axis.name === "xAxis") {
+                        w2 = bbox.width;
+                        w *= 2;
+                    }
+                    return {
+                        left: x,
+                        center: x + (w2 - w) / 2,
+                        right: x + w2 - w
+                    }[type] || x;
+                };
+                var setVAlign = function (type, y, bbox) {
+                    var h2 = pack("number", options.height, bbox.height * 2),
+                        h = bbox.height;
+                    if (axis.name === "xAxis") {
+                        h2 = options.height;
+                        h = -h;
+                    }
+                    return {
+                        top: y,
+                        middle: y + (h2 - h) / 2,
+                        bottom: y + h2 - h
+                    }[type] || y;
+                };
+
+                var filterPlotlines = function (plotLines, notValues) {
+                    return arrayFilter(plotLines, function (line) {
+                        var f;
+                        return !(f = isNumber(line.value, true) || line.defaultZero === true) && notValues.push(line), f;
+                    });
+                };
+
+                var addPlotline = function (d, linePixel) {
+                    var lineWidth = pack("number", d.width, 1),
+                        label = d.label,
+                        value = d.value;
+                    var style, fontStyle;
+                    var x, y;
+                    var bbox;
+                    
+                    x = linePixel.x, y = linePixel.y;
+
+                    if (lineWidth > 0 && caller[2](linePixel)) {
+                        lineTo(context, x, y, linePixel[caller[0][0]], linePixel[caller[0][1]], {
+                            lineColor: d.color,
+                            lineWidth: lineWidth,
+                            dashStyle: d.dashStyle
+                        });
+                    }
+                    if (label && defined(label.text)) {
+                        style = label.style || {};
+                        fontStyle = {
+                            fontStyle: style.fontStyle || "normal",
+                            fontWeight: style.fontWeight || "normal",
+                            fontSize: style.fontSize || "12px",
+                            fontFamily: style.fontFamily || "Arial",
+                            lineHeight: style.lineHeight || "normal",
+                            color: style.color
+                        };
+                        if (label.useHTML === true) {
+                            if (label.dom) {
+                                label.dom.innerHTML = label.text;
+                                setStyle(label.dom, label.style || {});
+                                bbox = label.dom.getBoundingClientRect();
+                                setStyle(label.dom, {
+                                    position: "absolute",
+                                    left: setAlign(label.align, x, bbox) + pack("number", label.x) + "px",
+                                    top: setVAlign(label.verticalAlign, y - bbox.height, bbox) + pack("number", label.y) + "px"
+                                });
+                            }
+                        }
+                        else {
+                            context.font = [
+                                fontStyle.fontStyle,
+                                fontStyle.fontWeight,
+                                fontStyle.fontSize + "/" + fontStyle.lineHeight,
+                                fontStyle.fontFamily
+                            ].join(" ");
+                            bbox = Text.measureText(label.text, fontStyle);
+                            context.fillStyle = fontStyle.color;
+                            context.fillText(
+                                label.text,
+                                setAlign(label.align, x, bbox) + pack("number", label.x),
+                                setVAlign(label.verticalAlign, y, bbox) + pack("number", label.y)
+                            );
+                        }
+                    }
+                };
+
+                var notPlotlines, plotlines = filterPlotlines(plotLines, notPlotlines = []);
+
                 var caller = {
                     xAxis: [
                         ["x", "height"],// props
-                        [0, values.length + isCategories, tx, maxRange + tx],// lerp
-                        function (p) { return p.x < maxRange + tx && p.x > tx; }, // inside bound
-                        function (p0, lineWidth) { p0 = center.call(axis, p0, lineWidth); return [p0, ty - options.height, p0, ty, lineWidth]; }
+                        axis.type === "linear"
+                            ? [values[0], values[~-values.length], tx, tx + maxRange]
+                            : [0, plotLines.length, tx, maxRange + tx],// lerp
+                        function (p) { return mathFloor(p.x - 0.5) <= mathCeil(maxRange + tx) && mathCeil(p.x + 0.5) >= mathFloor(tx); }, // inside bound
+                        function (p0, lineWidth) { p0 = center.call(axis, p0, lineWidth); return [p0, ty - options.height, p0, ty, lineWidth]; },
+                        [tx, tx + maxRange]
                     ],
                     yAxis: [
                         ["width", "y"],
-                        [values[0], values[~-values.length], maxRange + ty, ty],
-                        function (p) { return p.y < maxRange + ty && p.y > ty; },
-                        function (p0, lineWidth) { return [tx, p0, tx + options.width, p0, lineWidth]; }
+                        axis.type === "linear"
+                            ? [values[0], values[~-values.length], maxRange + ty, ty]
+                            : [0, plotLines.length, maxRange + ty, ty],
+                        function (p) { return mathFloor(p.y - 0.5) <= mathCeil(maxRange + ty) && mathCeil(p.y - 0.5) >= mathFloor(ty); },
+                        function (p0, lineWidth) { return [tx, p0, tx + options.width, p0, lineWidth]; },
+                        [maxRange + ty, ty]
                     ]
                 }[axis.name];
 
                 context.save();
-                if (caller && isArray(plotLines) && plotLines.length) {
-                    plotLines.forEach(function (d) {
-                        var lineWidth = pack("number", d.width, 1),
-                            value = d.value;
-                        if (lineWidth > 0 && isNumber(value, true) && values.length > 1) {
-                            linePixel = fixLinePixel.apply(null, caller[3](interpolate.apply(null, [d.value].concat(caller[1])), lineWidth));
-                            if (caller[2](linePixel)) {
-                                lineTo(context, linePixel.x, linePixel.y, linePixel[caller[0][0]], linePixel[caller[0][1]], {
-                                    lineColor: d.color,
-                                    lineWidth: lineWidth,
-                                    dashStyle: d.dashStyle
-                                });
-                            }
+                if (caller && plotLines.length) {
+                    notPlotlines.forEach(function (d, i) {
+                        linePixel = fixLinePixel.apply(null, caller[3](interpolate.apply(null,
+                            [i, 0, ~-notPlotlines.length].concat(caller[4])
+                        ), lineWidth));
+                        addPlotline(d, linePixel);
+                    });
+                    plotlines.forEach(function (d, i) {
+                        if (values.length) {
+                            linePixel = fixLinePixel.apply(null, caller[3](interpolate.apply(null,
+                                [d.defaultZero === true ? 0 : d.value, values[0], values[~-values.length]].concat(caller[4])
+                            ), lineWidth));
+                            addPlotline(d, linePixel);
                         }
                     });
                 }
@@ -9044,7 +9682,6 @@ var PI = Math.PI,
                     y = ty + item.y,
                     x = tx + item.x;
                 var linePixel;
-
                 y = Math.max(0, y);
 
                 context.save();
@@ -9093,9 +9730,9 @@ var PI = Math.PI,
                     var x0 = tx,//options.x,
                         y0 = ty,//options.y,
                         x1 = tickLength,
-                        y1 = Math.abs(maxRange - minRange);//vertical
+                        y1 = mathAbs(maxRange - minRange);//vertical
                     if (isHorizontal) {
-                        x1 = Math.abs(maxRange - minRange);
+                        x1 = mathAbs(maxRange - minRange);
                         y1 = tickLength;
                     }
                     linearGradient = context.createLinearGradient.apply(context, [x0, y0].concat(isHorizontal ? [x1, y0] : [x0, y1]));
@@ -9254,7 +9891,7 @@ var PI = Math.PI,
                 if (opposite === true) {
                     tickLength = -tickLength;
                 }
-                if (!defined(angle)) {
+                if (!isNumber(angle, true)) {
                     angle = (isRotation && name === "xAxis") ? autoRotation : 0;//default angle
                 }
                 isCenter = isCenter && isCategories;
@@ -9273,16 +9910,15 @@ var PI = Math.PI,
                         if(opposite === true){
                             width = 0;
                         }
-                        y = Math.max(0, y);
-                        //y = y + height / 2;
-                        if(isCategories){
+                        y = mathMax(0, y);
+                        if (isCategories) {
                             y -= tick.size / 2;
                         }
                         x = x - width - tickLength;
                         x = setAlign(x, maxLabelWidth, text.width)[pack("string", labels.align, "center")];
                     }
                     else if (name === "xAxis") {
-                        x = Math.max(0, x);
+                        x = mathMax(0, x);
                         if(isCenter){
                             x = x + (tickWidth - width) / 2;
                         }
@@ -9294,43 +9930,71 @@ var PI = Math.PI,
                             y = y - height / 2 + tickLength;
                         }
                     }
-                    else if (name === "polarAxis") {
-                        var delta = tick.angle * PI / 180;
-                        x = Math.cos(delta) * (radius + tickLength + 3) + cx;
-                        y = Math.sin(delta) * (radius + tickLength + 3) + cy;
-                    }
-                    
-                    if (isNumber(labels.rotation) || (isRotation && name === "xAxis")) {
+
+                    if ((name === "xAxis" || name === "yAxis") && isNumber(angle, true) || (isRotation && name === "xAxis")) {
+                        var quadr1 = function (tick, name) {
+                            return {
+                                xAxis: [
+                                    tick.x + (isCategories ? (tick.size - text.width) / 2 : -text.width / 2),
+                                    tick.y + text.height + tickLength
+                                ],
+                                yAxis: [
+                                    tick.x + (-text.width * !opposite) - tickLength,
+                                    tick.y - (isCategories ? (tick.size - text.height) / 2 : -text.height / 2)
+                                ]
+                            }[name];
+                        };
+                        var quadr2 = function (tick, name) {
+                            return {
+                                xAxis: [
+                                    (type === "categories")
+                                        ? tick.x + tick.size / 2 - (text.width / 2) * !opposite //(text.width - tick.size) / 2
+                                        : tick.x + text.width / 4,
+                                    tick.y + (text.height * !opposite) + tickLength
+                                ],
+                                yAxis: [
+                                    tick.x - tickLength,
+                                    tick.y - (tick.size - text.height) / 2
+                                ]
+                            }[name];
+                        };
+                        var quadr4 = function (tick, name) {
+                            return {
+                                xAxis: [
+                                    tick.x - text.width / 2,
+                                    tick.y + tickLength
+                                ],
+                                yAxis: [
+                                    tick.x - text.width - tickLength,
+                                    tick.y - text.height / 2
+                                ]
+                            }[name];
+                        };
+                        var quadr3 = function (tick, name) {
+                            return {
+                                xAxis: [
+                                    tick.x + text.width / 2,
+                                    tick.y + text.height
+                                ],
+                                yAxis: [
+                                    tick.x - tickLength,
+                                    tick.y - text.height / 2 - (tick.size - text.height) / 2
+                                ]
+                            }[name];
+                        };
+                        angle %= 360;
                         if (angle < 0) {
                             angle = 360 + angle;
                         }
-                        angle %= 360;
-                        if(angle > 0 && angle <= 90){
-                            x = tick.x + (tick.size - text.width) / 2;
-                            y = tick.y + tickLength;
-                        }
-                        else if(angle >= 180 && angle < 270){
-                            x = tick.x + (tick.size);
-                            y = tick.y + text.height * !opposite + tickLength;
-                        }
-                        else if(angle >= 270 && angle < 360){
-                            x = (type === "categories")
-                                ? tick.x + tick.size / 2 - (text.width / 2) * !opposite //(text.width - tick.size) / 2
-                                : tick.x - text.width / 2;
-                            y = tick.y + (text.height * !opposite) + tickLength;
-                        }
-                        else{
-                            x = tick.x + (tick.size - text.width) / 2;
-                            y = tick.y + text.height + tickLength;
+                        
+                        var quadr = [quadr1, quadr4, quadr3, quadr2][Numeric.indexOfRange([0, 90, 180, 270, 360], angle)];
+                        if (quadr && (quadr = quadr(tick, name))) {
+                            y = quadr[1];
+                            x = quadr[0];
                         }
                     }
-                    /*if(name === "colorAxis"){
-                        options.layout !== "horizontal" ?
-                            (x += tickLength, y += (i !== 0) * textHeight)
-                            : (y += tickLength + textHeight, x -= (i !== 0) * textWidth);
-                    }*/
                     var color = Color.parse(fontStyle.color);
-                    color.a = Math.max(0, Math.min(pack("number", tick.opacity, 1), 1));
+                    color.a = mathMax(0, mathMin(pack("number", tick.opacity, 1), 1));
                     context.save();
                     context.beginPath();
                     context.fillStyle = Color.rgba(color);
@@ -9342,7 +10006,7 @@ var PI = Math.PI,
                         fontStyle.fontSize + "/" + fontStyle.lineHeight,
                         fontStyle.fontFamily
                     ].join(" ");
-                    if(name === "colorAxis"){
+                    if (name === "colorAxis") {
                         ((text.isLast) && (layout !== "horizontal"
                             ? (x = tick.x + (tickLength - text.width) / 2, y = minRange - 2)
                             : (x = tick.x, y = tick.y + text.height + (tickLength - text.height) / 2), !0)
@@ -9356,26 +10020,19 @@ var PI = Math.PI,
                         );
                     }
                     else {
-                        var tag = Text.HTML(Text.parseHTML(text.ellipse), context, {
-                            fontFamily: style.fontFamily,
-                            fontSize: style.fontSize,
-                            fontWeight: style.fontWeight
-                        }),
+                        var tag = Text.HTML(Text.parseHTML(text.ellipse), context, fontStyle),
                         bbox = Text.measureText(text.ellipse, style);
-                        if(name === "yAxis"){
-                            y += bbox.height / 2;
-                        }
-                        else if(name === "polarAxis"){
-                            if(Math.abs(x - cx) / radius < 0.3){
+                        if (name === "polarAxis") {
+                            if (mathAbs(x - cx) / radius < 0.3) {
                                 x -= bbox.width / 2;
                             }
-                            else if(x <= cx){
+                            else if (x <= cx){
                                 x -= bbox.width;
                             }
-                            if(Math.abs(y - cy) / radius < 0.3){
+                            if (mathAbs(y - cy) / radius < 0.3) {
                                 y += bbox.height / 2;//0,180
                             }
-                            else if(y > cy){
+                            else if (y > cy) {
                                 y += bbox.height;
                             }
                         }
@@ -9388,14 +10045,15 @@ var PI = Math.PI,
                         }
 
                         context.translate(tx + x + pack("number", labels.x, 0), ty + y + pack("number", labels.y, 0));
-                        context.rotate(angle * PI / 180);
+                        context.rotate(angle * PI / 180, angle * PI / 180);
+                        //context.translate(-bbox.width, -text.height);
                         tag.toCanvas(context);
                         //context.fillText(text.ellipse, 0, 0);
                     }
-                    if(type === "logarithmic" && isNumber(logarithmic.base) && defined(logarithmic.pow)){
+                    if (type === "logarithmic" && isNumber(logarithmic.base) && defined(logarithmic.pow)) {
                         var dm = 1,
                             powN;
-                        if(isNumber(options.tickAmount) && options.tickAmount > 1){
+                        if (isNumber(options.tickAmount) && options.tickAmount > 1) {
                             dm = axis.maxDomain / ~-options.tickAmount;
                         }
                         powN  = mathRound(axis.startValue + dm * i, 1);
@@ -9437,9 +10095,12 @@ var PI = Math.PI,
             this.labelHeight = 0;
             this.isRotation = false;
 
+            this.shapes = [];// z sort
+
             this.ticks = [];
             this._ticks = [];
             this.tickPositions = [];
+            this.tickPositioner = [];
             this.values = [];
             this.tickInterval = 5;
             this.tickGap = 1;//define categroies
@@ -9454,6 +10115,7 @@ var PI = Math.PI,
 
             !~("logarithmic categories datetime".indexOf(this.type)) && (this.type = "linear");
             this.setTitle();
+            this.setPlotLines();
         },
         translate: function (x, y) {
             var options = this.options;
@@ -9601,15 +10263,16 @@ var PI = Math.PI,
             }
             return ticks;
         },
-        getCategoriesTicks: function (startValue, endValue) {
+        getCategoriesTicks: function (startValue, endValue, maxLength) {
             var options =  this.options,
                 tickAmount = options.tickAmount;
-            var start = Math.max(1, startValue),
-                end = Math.max(endValue, start);
+            var start = mathMax(1, startValue),
+                end = mathMax(endValue, start, maxLength);
             var ticks = [];
             var i;
+            if (start === end) return [];
 
-            if (isNumber(tickAmount, true) && (tickAmount = Math.max(1, ~~tickAmount))) for (i = 0; i < tickAmount; i++) {
+            if (isNumber(tickAmount, true) && (tickAmount = mathMax(1, ~~tickAmount))) for (i = 0; i < tickAmount; i++) {
                 ticks.push(start + i);
             }
             else for (i = start; i <= end; i += 1) {
@@ -9732,7 +10395,7 @@ var PI = Math.PI,
                 date = start.getDate();
             end = end.getTime();
 
-            if(isNumber(tickAmount)){
+            if (isNumber(tickAmount)) {
                 tickAmount = Math.max(1, ~~tickAmount);
                 dm = Math.floor((end - time) / tickAmount);
                 while(i <= tickAmount){
@@ -9783,6 +10446,7 @@ var PI = Math.PI,
                 maxValue = options.maxValue,
                 startValue = options.startValue,
                 endValue = options.endValue;
+            var minLength = 0, maxLength = 0;
             var values = [];
             var ticks;
             var sorted = function (values) {
@@ -9825,11 +10489,16 @@ var PI = Math.PI,
                     /*: type === "categories"
                         ? this.getCategoriesTicks(minDomain, maxDomain)*/
                         : this.getLinearTicks(minValue, maxValue);//min & max value
-                if (type === "logarithmic") {
+                if (type === "linear") {
+                    values = this.getLinearTicks(minDomain, maxDomain);
+                }
+                else if (type === "logarithmic") {
                     values = this.getLogTicks(minDomain, maxDomain, logBase);
                 }
                 else if (type === "categories" || (isArray(categories))) {
-                    values = this.getCategoriesTicks(minDomain, maxDomain);
+                    values = this.getCategoriesTicks(minDomain, maxDomain, options.length);
+                    minLength = 0;
+                    maxLength = values.length;
                 }
                 else if (type === "datetime") {
                     values = this.getTimeTicks(startValue, endValue);
@@ -9865,24 +10534,29 @@ var PI = Math.PI,
                 this.minValue = mathLog(this.minValue, logBase);
                 this.maxValue = mathLog(this.maxValue, logBase);
             }
+            this.minLength = minLength;
+            this.maxLength = maxLength;
             //console.log(values, type, this.name, ticks, this.minValue, this.maxValue, maxDomain);
             return this.values = values;
         },
         setLabels: function () {
             var options = this.options,
                 layout = options.layout || {},
+                tickLength = pack("number", options.tickLength),
                 hasCategories = options.categories && isArray(options.categories) && !!options.categories.length;
 
             var maxRange = this.maxRange,
                 minRange = this.minRange,
                 startValue = this.startValue,
                 endValue = this.endValue;
-            var ticks = this.ticks,
+            var ticks = arrayFilter(this.ticks, function (tick) { return tick.visibled; }),
                 type = this.type,
                 name = this.name;
             var size = 0,
                 length;
             var axis = this;
+            var values = this.values;
+            var firstTick;
 
             var startAngle = pack("number", options.startAngle, -90),
                 center = (
@@ -9892,15 +10566,16 @@ var PI = Math.PI,
                 radius = maxRange;//polar axis
             center[0] = pack("number", center[0], Numeric.percentage(options.width, center[0]));
             center[1] = pack("number", center[1], Numeric.percentage(options.height, center[1]));
+            this.tickPositioner = []
 
             axis.zeroAxis.hidden = type === "categories"
                     || !(startValue <= 0 && endValue > 0)
                     || (name !== "xAxis" && name !== "yAxis");
             if (length = ticks.length) {
-                size = Math.max(minRange, maxRange, 1) / (length);
-                ticks.forEach(function(tick, i){
+                size = mathMax(minRange, maxRange, 1) / (length);
+                ticks.forEach(function (tick, i) {
                     if (name === "xAxis") {
-                        size = maxRange / Math.max(1, length - 1);
+                        size = maxRange / mathMax(1, length - 1);
                         tick.y = 0;
                         if (type === "categories") {
                             size = maxRange / (length - !hasCategories);
@@ -9909,13 +10584,13 @@ var PI = Math.PI,
                         else {
                             tick.x = interpolate(tick.value, startValue, endValue, minRange, maxRange);
                         }
-                        if(tick.value === 0)
+                        if (tick.value === 0)
                             axis.zeroAxis.x = tick.x;
                     }
                     else if (name === "yAxis") {
                         tick.x = 0;
-                        if(type === "logarithmic"){
-                            size = Math.max(minRange, maxRange, 1) / (Math.max(1, length - 1));
+                        if (type === "logarithmic") {
+                            size = mathMax(minRange, maxRange, 1) / (mathMax(1, length - 1));
                             tick.y = (length - i - 1) * size;
                         }
                         else if (type === "categories"){
@@ -9939,7 +10614,7 @@ var PI = Math.PI,
                         }
                     }
                     else if (name === "polarAxis" || name === "radiusAxis") {
-                        var ratio = i / Math.max(1, length - (name === "radiusAxis")),
+                        var ratio = i / mathMax(1, length - (name === "radiusAxis")),
                             innerRadius = radius - radius * ratio,
                             angle = ratio * 360 + startAngle, //(ratio * PI2) + (startAngle / 180 * PI);
                             delta = angle * PI / 180;
@@ -9947,15 +10622,32 @@ var PI = Math.PI,
                             cy = center[1];// (options.height - innerRadius * 2);
                         tick.cx = cx;
                         tick.cy = cy;
-                        tick.x = Math.cos(delta) * radius + cx;
-                        tick.y = Math.sin(delta) * radius + cy;
+                        tick.x = mathCos(delta) * (radius + (name === "polarAxis") * (tickLength + 3)) + cx;
+                        tick.y = mathSin(delta) * (radius + (name === "polarAxis") * (tickLength + 3)) + cy;
                         tick.angle = angle;
                         tick.radius = radius;
                         tick.innerRadius = innerRadius;
                         tick.startAngle = startAngle;
                     }
                     tick.size = size;
+                    if (!i) {
+                        firstTick = tick;
+                    }
+                    else {
+                        tick.size = mathAbs(tick[name === "xAxis" ? "x" : "y"] - firstTick[name === "xAxis" ? "x" : "y"]);
+                        firstTick = tick;
+                    }
                 });
+                ticks.length && firstTick && (ticks[0].size = firstTick.size);
+            }
+            length = values.length;
+            for (var i = 0; i < length; i++) {
+                size = maxRange / (length - !hasCategories);
+                this.tickPositioner.push(
+                    name === "yAxis"
+                        ? { x: 0, y: i * size, size: size }
+                        : { x: i * size, y: 0, size: size }
+                );
             }
             //this.scale();
         },
@@ -9989,38 +10681,44 @@ var PI = Math.PI,
             var values = this.values,
                 tickPositions = this.tickPositions;
             var hasCategories = this.type === "categories";// isArray(categories) && categories.length;
-            var isRotation = isNumber(angle) && !isNaN(angle) && isFinite(angle);
+            var isRotation = isNumber(angle, true) &&  angle !== 0;
 
             var axis = this;
             var context = this.context,
                 type = this.type,
                 name = this.name;
-            if(name === "yAxis"){
-                minTickWidth = this.labelHeight;
-            }
 
             var length = values.length;
+            var visibleLength = 0;
 
-            if(!isNumber(tickInterval))
+            if (fontStyle.fontFamily === "inherit") {
+                fontStyle.fontFamily = getStyle(this.canvas, "font-family") || "Arial";
+            }
+
+            if (name === "yAxis" && length) {
+                minTickWidth = mathMax(10, Text.measureText(hasCategories ? categories[0] : values[0], fontStyle).height * 2);
+            }
+
+            if (!isNumber(tickInterval))
                 tickInterval = 1;
-            if(!isNumber(step)){
-                if(isNumber(tickAmount)){
+            if (!isNumber(step)) {
+                if (isNumber(tickAmount)) {
                     tickInterval = 1;
                 }
-                else if(type === "logarithmic"){
+                else if (type === "logarithmic") {
                     tickInterval = 1;//no auto
                 }
-                else if(name === "colorAxis"){
+                else if (name === "colorAxis") {
                     tickInterval = 1;
                 }
-                else if(~~(maxRange / length) <= minTickWidth){
-                    tickInterval = Math.round(length / maxRange * minTickWidth);
+                else if (~~(maxRange / length) <= minTickWidth) {
+                    tickInterval = mathRound((length) / maxRange * minTickWidth);
                 }
             }
             else {
                 tickInterval = step;
             }
-            tickInterval = Math.max(tickInterval, 1);
+            tickInterval = mathMax(tickInterval, 1);
             for (var i = 0, j = 0; i < length; i++) {
                 var value = values[i];
                 var tick = {
@@ -10028,30 +10726,36 @@ var PI = Math.PI,
                     isLast: i === length - 1,
                     //size: size,
                     value: value,
-                    gap: Math.abs(value - (values[i + 1] || value))
+                    gap: mathAbs(value - (values[i + 1] || value)),
+                    visibled: i % tickInterval === 0
                 };
                 tickPositions[i] = hasCategories && categories[i - 1] || value;
-                if (i % tickInterval === 0) {
+                //if (i % tickInterval === 0) {
                     j++;
                     tick.enabled = true;
                     ticks.push(tick);
+                //}
+                if (tick.visibled) {
+                    tick.__proto__ = new Animate();
+                    visibleLength++;
                 }
             }
             if (length = ticks.length) {
-                size = (maxRange - minRange) / (j);
-                ticks.forEach(function (item, i) {
-                    var text = axis.labelFormatter(item.value, {
+                size = (maxRange - minRange) / visibleLength;
+                ticks.forEach(function (tick, i) {
+                    var text = axis.labelFormatter(tick.value, {
                         isFirst: !i,
                         isLast: !(length - i - 1),
                         index: i
                     }), ellipse = text,
                     bbox,
                     tag;
-
+                    
+                    context.save();
                     context.font = [
                         fontStyle.fontStyle,
                         fontStyle.fontWeight,
-                        fontStyle.fontSize + "/" + (fontStyle.lineHeight),
+                        fontStyle.fontSize,// + "/" + (fontStyle.lineHeight),
                         fontStyle.fontFamily
                     ].join(" ");
                     tag = Text.HTML(Text.parseHTML(text), context, {
@@ -10059,11 +10763,12 @@ var PI = Math.PI,
                         fontWeight: fontStyle.fontWeight,
                         fontSize: fontStyle.fontSize,
                         lineHeight: fontStyle.lineHeight,
-                        fontFamily: fontStyle.fontFamily
+                        fontFamily: fontStyle.fontFamily,
+                        rotation: pack("number", angle)
                     });
                     bbox = tag.getBBox();
-                    if (isNumber(maxWidth)) {
-                        //bbox.width = maxWidth;
+                    if (isNumber(maxWidth, true)) {
+                        bbox.width = maxWidth;
                     }
                     var tickSize = size - 4 * (name === "xAxis"),//margin
                         dm;
@@ -10081,20 +10786,22 @@ var PI = Math.PI,
                         fontWeight: fontStyle.fontWeight,
                         fontSize: fontStyle.fontSize,
                         lineHeight: fontStyle.lineHeight,
-                        fontFamily: fontStyle.fontFamily
+                        fontFamily: fontStyle.fontFamily,
+                        rotation: pack("number", angle)
                     });
                     bbox = tag.getBBox();
                     //bbox.width = context.measureText(ellipse).width;
-                    if (isNumber(logarithmic.base) && defined(logarithmic.pow)) {
+                    if (isNumber(logarithmic.base, true) && defined(logarithmic.pow)) {
                         dm = 1;
                         if (isNumber(options.tickAmount) && options.tickAmount > 1) {
                             dm = axis.maxDomain / ~-options.tickAmount;
                         }
                         bbox.width += context.measureText(mathRound(i * dm, 1)).width * 0.7;
                     }
-                    isRotation = isRotation || (name === "xAxis" && bbox.width >= tickSize);//margin
-                    
-                    item.text = {
+                    if (tick.visibled)
+                        isRotation = isRotation || (name === "xAxis" && bbox.width >= tickSize);//margin
+                    context.restore();
+                    tick.text = {
                         name: text,
                         ellipse: ellipse,
                         width: bbox.width,
@@ -10132,16 +10839,16 @@ var PI = Math.PI,
                         text.height = bbox.height;
                     }
                     if (labels.enabled !== false) {
-                        labelWidth = Math.max(labelWidth, text.width);
-                        labelHeight = Math.max(labelHeight, text.height);
+                        labelWidth = mathMax(labelWidth, text.width);
+                        labelHeight = mathMax(labelHeight, text.height);
                     }
                 });
-                if (!defined(angle)) {
+                if (!isNumber(angle, true)) {
                     angle = 0;//this.name !== "yAxis" ? -45 : 0;//default angle
-                    if(name === "xAxis" && isRotation)
-                        angle = autoRotation;
+                    if (name === "xAxis" && isRotation)
+                        angle = autoRotation;//x axis rotation 45
                 }
-                angle = angle * Math.PI / 180;
+                angle = angle * PI / 180;
                 //labelWidth += !isRotation * options.tickLength;
                 labelHeight += /*!isRotation **/ tickLength;
             }
@@ -10159,9 +10866,8 @@ var PI = Math.PI,
                 this.textBoxSize = this.labelWidth + this.titleWidth;
             }
             else if (name === "xAxis") {
-                this.textBoxSize = this.labelHeight + this.titleWidth;
+                this.textBoxSize = this.labelHeight + this.titleHeight;
             }
-            //console.log(this.labelWidth, this.labelHeight, ticks, this.name, isRotation, axis);
         },
         setTitle: function (rendered) {
             var options = this.options,
@@ -10359,6 +11065,20 @@ var PI = Math.PI,
             context.fillText(text, x + padding, y + bbox.height + arrow);
             context.restore();
         },
+        setPlotLines: function () {
+            var container = this.canvas.parentNode;
+            (this.options.plotLines || []).forEach(function (d) {
+                var label = d.label;
+                if (container && defined(label) && label.useHTML === true) {
+                    var dom = document.createElement("div");
+                    if (defined(label.className)) {
+                        dom.setAttribute("class", label.className);
+                    }
+                    label.dom = dom;
+                    container.appendChild(dom);
+                }
+            });
+        },
         setGrid: function (tick, i, ticks) {
             var options = this.options,
                 gridLineInterpolation = options.gridLineInterpolation;
@@ -10442,6 +11162,47 @@ var PI = Math.PI,
                 context.restore();
             }
         },
+        setCrosshair: function (x, y) {
+            var options = this.options,
+                crosshair = options.crosshair;
+            var tx = pack("number", options.x),
+                ty = pack("number", options.y);
+            var tickPositioner = this.tickPositioner.slice(0),
+                tick;
+            var n = tickPositioner.length,
+                i = 0;
+            var intersected = {
+                yAxis: function (point, prev, tick) {
+                    return point.x >= tx && point.x <= options.width + tx && point.y >= ty && point.y > prev.y + ty && point.y < tick.y + ty;
+                },
+                xAxis: function (point, prev, tick) {
+                    return point.y >= (ty - options.height) && point.y <= ty && point.x >= tx && point.x - tx > prev.x && point.x - tx < tick.x;
+                }
+            };
+            this.crosshair = null;
+            if (defined(crosshair) && isNumber(x, true) && isNumber(y, true) && n) {
+                if (this.type === "categories") {
+                    tickPositioner.push({
+                        x: this.name === "yAxis" ? tickPositioner[0].x : tickPositioner[~-n].x + tickPositioner[0].size,
+                        y: this.name === "yAxis" ? tickPositioner[~-n].y + tickPositioner[0].size : tickPositioner[~-n].y,
+                        size: tickPositioner[0].size
+                    });
+                }
+                n = tickPositioner.length;
+
+                for (i = 1; i < n; i++) {
+                    tick = tickPositioner[i];
+                    if (intersected[this.name] && intersected[this.name]({ x: x, y: y }, tickPositioner[i - 1], tick)) {
+                        this.crosshair = {
+                            zIndex: 2,
+                            shape: tick
+                        };
+                        break;
+                    }
+                }
+            }
+            return this;
+        },
         setOptions: function (options) {
             var domain, range;
             extend(this.options, options);
@@ -10464,8 +11225,7 @@ var PI = Math.PI,
                 ret;//tickPositions
             params = params || {};
             var type = this.type;
-            
-            if (type === "categories") {
+            if (isArray(options.categories) || type === "categories") {
                 ret = pack("array", options.categories, [])[~-value];
                 !defined(ret) && (ret = value);
                 this.tickPositions[value] = ret;
@@ -10503,130 +11263,89 @@ var PI = Math.PI,
                 tick;
             var axis  = this;
             tick = this.Item();
+
             ticks.forEach(function (item, i) {
-                axis.setGrid(item, i, ticks);
-                if (labels.enabled !== false) {
-                    tick.adjustLabel(item, i, {
-                        isCenter: labels.align === "center" && !!ticks.length,
-                        isRotation: axis.isRotation
-                    });
+                if (item.visibled) {
+                    axis.setGrid(item, i, ticks);
+                    if (labels.enabled !== false) {
+                        tick.adjustLabel(item, i, {
+                            isCenter: labels.align === "center" && !!ticks.length,
+                            isRotation: axis.isRotation
+                        });
+                    }
+                    tick.render(item, i);
+                    callback && callback.call(axis, item);
                 }
-                tick.render(item, i);
-                callback && callback.call(axis, item);
             });
             tick.line();
             tick.plotLines();
+            this.crosshair && tick.crosshair(this.crosshair.shape);
         },
         animateTo: function () {
             var options = this.options,
                 labels = options.labels || {},
                 gridLineWidth = pack("number", options.gridLineWidth);
             var oldData = this._ticks,
-                newData = this.ticks;
+                newData = arrayFilter(this.ticks, function (tick) { return tick.visibled; });
+            var axis = this;
             var ticks = [];
-            var animator = [];
+            var previous = [];
             if (labels.enabled !== false || gridLineWidth > 0) {
                 List.diff(newData, oldData, function (a, b) {
                     return a && b && (a.text.ellipse === b.text.ellipse);
                 }).add(function (newIndex) {
-                    var oldTick = oldData[newIndex], mergeTick;
+                    var oldTick = newData[newIndex];
+                    var to;
                     if (oldTick) {
-                        mergeTick = {
-                            isFirst: oldTick.isFirst,
-                            isLast: oldTick.isLast,
-                            size: oldTick.size,
-                            text: oldTick.text,
-                            angle: oldTick.angle,
+                        oldTick.animate({
+                            opacity: 0,
                             x: oldTick.x,
-                            y: oldTick.y,
-                            opacity: 0
-                        };
-                        ticks.push([oldTick, function(){
-                            mergeTick.x = oldTick.x;
-                            mergeTick.y = oldTick.y;// * timer;//oldTick.y;
-                            mergeTick.opacity = 0;//1 - 1 * timer;
-                        }]);
-                        //animateTo(mergeTick, newIndex);
-                        //animator.push(oldTick);
+                            y: oldTick.y
+                        }, to = {
+                            text: oldTick.text,
+                            opacity: 1,
+                            x: oldTick.x,
+                            y: oldTick.y
+                        });
+                        previous.push(to);
+                        ticks.push(oldTick);
                     }
                 }).modify(function (newIndex, oldIndex) {
                     var newTick = newData[newIndex],
-                        oldTick = oldData[oldIndex],
-                        mergeTick;
-                    if(newTick && oldTick){
-                        mergeTick = {
-                            isFirst: newTick.isFirst,
-                            isLast: newTick.isLast,
-                            size: newTick.size,
+                        oldTick = oldData[oldIndex];
+                    var to;
+                    if (newTick && oldTick) {
+                        newTick.animate({
+                            x: oldTick.x || 0,
+                            y: pack("number", oldTick.y, newTick.y, 0)
+                        }, to = {
                             text: newTick.text,
-                            angle: newTick.angle,
-                            x: oldTick.x,
-                            y: oldTick.y
-                        };
-                        ticks.push([newTick, function(timer){
-                            var ox = oldTick.x || 0,//step missing x&y
-                                oy = pack("number", oldTick.y, newTick.y, 0);
-                            mergeTick.x = ox + (newTick.x - ox) * timer;
-                            mergeTick.y = oy + (newTick.y - oy) * timer;
-                        }]);
-                        animator.push(mergeTick);
+                            x: newTick.x,
+                            y: newTick.y
+                        });
+                        ticks.push(newTick);
+                        previous.push(to);
                     }
                 }).remove(function (newIndex) {
-                    var newTick = newData[newIndex],
-                        mergeTick;
-                    if(newTick){
-                        mergeTick = {
-                            isFirst: newTick.isFirst,
-                            isLast: newTick.isLast,
-                            size: newTick.size,
-                            text: newTick.text,
-                            angle: newTick.angle,
-                            x: newTick.x,
-                            y: newTick.y,
-                            //opacity: 0
-                        };
-                        ticks.push([newTick, function () {
-                            mergeTick.x = newTick.x;
-                            mergeTick.y = newTick.y;
-                            //mergeTick.opacity = timer;
-                        }]);
-                        animator.push(mergeTick);
-                    }
+                    var newTick = newData[newIndex];
+                    var to;
+                    newTick.animate({
+                        x: newTick.x,
+                        y: newTick.y
+                    }, to = {
+                        text: newTick.text,
+                        x: newTick.x,
+                        y: newTick.y
+                    });
+                    previous.push(to);
+                    ticks.push(newTick);
                 }).each();
                 
-                this._ticks = this.ticks;
-                this.animator = animator;
+                this._ticks = previous;
             }
             return ticks;
         },
-        onFrame: function () {
-            var options = this.options,
-                labels = this.options.labels || {},
-                gridLineWidth = pack("number", options.gridLineWidth, 0);
-            var tick = this.Item();
-            var axis = this;
-            var oldData = this._ticks,
-                newData = this.ticks;
-            if (labels.enabled !== false || gridLineWidth > 0) {
-                var animateTo = function (mergeTick, i) {
-                    axis.setGrid(mergeTick, i, newData);
-                    tick.render(mergeTick);
-                    if (labels.enabled !== false) {
-                        tick.adjustLabel(mergeTick, i, {
-                            isCenter: labels.align === "center" && !!oldData.length,
-                            isRotation: axis.isRotation
-                        });
-                    }
-                };
-                this.animator.forEach(function(tick, i){
-                    animateTo(tick, i);
-                });
-            }
-            tick.line();
-            tick.plotLines();
-            axis.setTitle(true);
-        },
-        draw: function() {
+        draw: function () {
             this.formatter();
             this.setTitle(true);
         },
@@ -10637,6 +11356,9 @@ var PI = Math.PI,
             var options = this.options,
                 stops = pack("array", options.stops, []),
                 isHorizontal = options.layout === "horizontal",
+                tx = pack("number", options.x),
+                ty = pack("number", options.y),
+                tickLength = pack("number", options.tickLength, 0),
                 name = this.name;
             var startValue = this.startValue,
                 endValue = this.endValue,
@@ -10646,32 +11368,32 @@ var PI = Math.PI,
             var onMove = function(area) {
                 extend(area, {
                     xAxis: {
-                        width: options.x + maxRange,
-                        height: options.y + options.tickLength + axis.labelHeight,
+                        width: tx + maxRange,
+                        height: ty + tickLength + axis.labelHeight,
                         dx: x,
-                        dy: options.y,
-                        k: (x - options.x) / maxRange,
+                        dy: ty,
+                        k: (x - tx) / maxRange,
                         anchor: "bottom"
                     },
                     yAxis: {
-                        width: options.x - options.tickLength - axis.labelWidth,
-                        height: options.y + maxRange,
-                        dx: options.x,
+                        width: tx - tickLength - axis.labelWidth,
+                        height: ty + maxRange,
+                        dx: tx,
                         dy: y,
-                        k: (maxRange - y + options.y) / (maxRange),
+                        k: (maxRange - y + ty) / (maxRange),
                         anchor: "left"
                     },
                     colorAxis: {
-                        width: options.x + (isHorizontal ? maxRange : options.tickLength),
-                        height: options.y + (isHorizontal ? options.tickLength : maxRange),
-                        dx: isHorizontal ? x : options.x + options.tickLength,
-                        dy: isHorizontal ? options.y + options.tickLength : y,
-                        k: (isHorizontal ? x - options.x : maxRange - y + options.y) / (maxRange),
+                        width: tx + (isHorizontal ? maxRange : tickLength),
+                        height: ty + (isHorizontal ? tickLength : maxRange),
+                        dx: isHorizontal ? x : tx + tickLength,
+                        dy: isHorizontal ? ty + tickLength : y,
+                        k: (isHorizontal ? x - tx : maxRange - y + ty) / (maxRange),
                         anchor: isHorizontal ? "top" : "left"
                     }
                 }[name]);
                 if (isNumber(startValue, true) && isNumber(endValue, true) && Intersection.rect({x: x, y: y}, area)) {
-                    var k = Math.min(1, Math.max(0, area.k));
+                    var k = mathMin(1, mathMax(0, area.k));
                     if (k - 0.01 <= 0) k = 0;
                     if (k - 0.99 >= 0) k = 1;
                     var value = startValue + (endValue - startValue) * k,
@@ -10681,16 +11403,14 @@ var PI = Math.PI,
                         color: color,
                         anchor: area.anchor
                     });
-
-                    //console.log(k, value, startValue, endValue);
                     
                     isFunction(callback) && callback.call(axis, value, color, k);
                 }
             };
-            onMove({x: options.x, y: options.y});
+            onMove({x: tx, y: ty});
             return this;
         },
-        destroy: function(){
+        destroy: function () {
             
         }
     };
@@ -10698,8 +11418,6 @@ var PI = Math.PI,
 })(typeof window !== "undefined" ? window : this, Dalaba);;
     (function (global, Dalaba) {
     var Chart = Dalaba.Chart || {};
-
-    var interpolate = Numeric.interpolate;
 
     var mathRound = Mathematics.round;
 
@@ -10960,22 +11678,21 @@ var PI = Math.PI,
                 height = this.height;
             var getDataValue = function (item) {
                 var value = item;
-                if (isObject(item) && (isNumber(item.value) || isNumber(item.y))) {
-                    value = item.value;
-                    isNumber(item.y) && (value = item.y);
+                if (isArray(item)) {
+                    value = { value: item[1] };
                 }
-                else if (isArray(item)) {
-                    value = item[1];
+                if (!isObject(item)) {
+                    value = { value: item };
                 }
-                return isNumber(value) ? value : null;
+                return isNumber(value.value, true) ? value.value : isString(value.value) ? Numeric.valueOf(value.value) : null;
             };
-            var plotX = -Number.MAX_VALUE,
+            var plotX = MIN_VALUE,
                 plotWidth = plotX;
 
             if (hasOwnProperty.call(options, "series")) {
                 options.series.forEach(function (series) {
                     plotX = Math.max(plotX, series.plotX);
-                    plotWidth = Math.max(plotWidth, series.plotWidth);
+                    plotWidth = mathMax(plotWidth, series.plotWidth);
                 });
                 this.x = plotX;
                 this.setWidth(plotWidth);
@@ -10984,7 +11701,7 @@ var PI = Math.PI,
             width = this.width / (options.series.length || 1);
             options.series.forEach(function (series, index) {
                 var x, y;
-                var data = series.shapes;
+                var data = series.data;
                 var length = data.length,
                     i = 0, j;
                 var dx = index * width;
@@ -10994,15 +11711,15 @@ var PI = Math.PI,
                 var size = width / ~-length,
                     value;
 
-                while(value = getDataValue(data[i]), !isNumber(value) && ++i < length);
-                while(value = getDataValue(data[length - 1]), !isNumber(value) && --length >= 0);
+                while (value = getDataValue(data[i]), !isNumber(value) && ++i < length);
+                while (value = getDataValue(data[length - 1]), !isNumber(value) && --length > 0);
                 //console.log(i, length);
                 minValue = maxValue = value = getDataValue(data[j = i]);
-                for(j = i + 1; j < length; j++){
+                for (j = i + 1; j < length; j++) {
                     value = getDataValue(data[j]);
                     isNumber(value) && (minValue > value && (minValue = value), maxValue < value && (maxValue = value));
                 }
-                if(maxValue - minValue === 0)
+                if (maxValue - minValue === 0)
                     return;
                 context.save();            
                 context.beginPath();
@@ -11037,10 +11754,8 @@ var PI = Math.PI,
 
                 context.restore();
             });
-
-            
         },
-        getTarget: function(x, y){
+        getTarget: function (x, y) {
             var range = this.range,
                 height = this.height,
                 startZoom,
@@ -11073,7 +11788,7 @@ var PI = Math.PI,
             }
             return target;
         },
-        getCursor: function(x, y){
+        getCursor: function (x, y) {
             var cursor = null;
             var target = this.getTarget(x, y);
             if(target === 0)
@@ -11135,7 +11850,7 @@ var PI = Math.PI,
                 context.restore();
             }
         },
-        draw: function(){
+        draw: function () {
             this.drawPlot();
             this.drawSeries();
             this.drawNavigator();
@@ -11174,28 +11889,28 @@ var PI = Math.PI,
             var size = z1.x - z0.x,
                 dx, sx, ex;
 
-            if(!this.dragging)
+            if (!this.dragging)
                 return;
 
-            if(target === 1){
+            if (target === 1) {
                 dx = startZoom.left + (x - startZoom.left);
                 this.from = Math.min(width + this.x, Math.max(this.x, dx));
                 this.start = Math.max(0, Math.min(1, (dx - this.x) / width)) * 100 + "%";
             }
-            else if(target === 2){
+            else if (target === 2) {
                 dx = endZoom.left + (x - endZoom.left);
                 this.to = Math.min(width + this.x, Math.max(this.x, dx));
                 this.end = Math.max(0, Math.min(1, (dx - this.x) / width)) * 100 + "%";
             }
-            else if(target === 0){
+            else if (target === 0) {
                 dx = x - this.dx;// + this.ax;
                 sx = dx;
                 ex = dx + size;
-                if(sx <= this.x){
+                if (sx <= this.x){
                     sx = this.x;
                     ex = sx + size;
                 }
-                else if(ex >= this.width + this.x){
+                else if (ex >= this.width + this.x) {
                     ex = this.width + this.x;
                     sx = ex - size;
                 }
@@ -11205,7 +11920,7 @@ var PI = Math.PI,
                 this.end = Math.max(0, Math.min(1, (ex - this.x) / width)) * 100 + "%";
             }
             start = parseFloat(this.start, 10), end = parseFloat(this.end, 10);
-            if(start > end){
+            if (start > end) {
                 dx = start;
                 start = end;
                 end = dx;
@@ -11218,72 +11933,103 @@ var PI = Math.PI,
             this.dragging = false;
             this.target = -1;
             delete this.hasRange;
-
         }
     };
 
     if (defined(Chart)) {
         Chart.RangeSelector = RangeSelector;
     }
-
-    if (typeof module === "object" && module.exports) {
-        module.exports = RangeSelector;
-    }
-    else if (typeof define === "function" && define.amd)
-        define(function() {
-            return RangeSelector;
-        });
-    else {
-        (typeof Chart !== "undefined" ? Chart : global).RangeSelector = RangeSelector;
-    }
 })(typeof window !== "undefined" ? window : typeof global !== "undefined" ? global : this, Dalaba);;
 
     (function (global, Chart) {
 
-    var relayout = (function(global){
+    var relayout = (function (global) {
+
+    var setPoint = function (points, start, end, inverted) {
+        var segment = points.slice(start, end),//[start, end)
+            point,
+            bezierCurve;
+        var smooth = Geometry.Line.smooth;
+
+        for (var k = 0; k < end - start; k++) {
+            bezierCurve = smooth(
+                segment[k - 1],//prev point
+                point = points[start + k],
+                segment[k + 1],//next point
+                inverted
+            );
+            if (bezierCurve) {
+                point.x1 = bezierCurve.x1;
+                point.y1 = bezierCurve.y1;
+                point.x2 = bezierCurve.x2;
+                point.y2 = bezierCurve.y2;
+                point.x = bezierCurve.x;
+                point.y = bezierCurve.y;
+            }
+        }
+    };
+
+    var spline = function (points, series) {
+        var start = 0, end = points.length;
+        var left = 0, right = end;
+        while (left < right) {
+            var point = points[left];
+            if (point.isNULL) {
+                end = left;
+                if (start !== end && end - start > 2) {
+                    setPoint(points, start, end, !!series.inverted);
+                }
+                for (var k = end; k < right; k++) if (!points[k].isNULL) {
+                    end = k;
+                    break;
+                }
+                start = end;
+            }
+            left++;
+        }
+        if (!points[left - 1].isNULL && left - start > 2) {
+            setPoint(points, start, left, !!series.inverted);
+        }
+    };
 
     var isZero = function (min, max) { return min <= 0 && max >= 0; };
 
     function factoy (Mathematics, Numeric) {
         var interpolate = Numeric.interpolate;
-        var mathMin = Math.min,
-            mathMax = Math.max,
-            mathFloor = Math.floor;
         var mathLog = Math.log;
 
-        return function(panels) {
+        function getKey(series, xAxisOptions, index, size) {
+            var categories = xAxisOptions.categories,
+                startIndex = +series.startIndex;// pack("number", series.startIndex, 0);
+            isNaN(startIndex) || (startIndex = 0);
 
-            function getKey(series, xAxisOptions, index, size) {
-                var categories = xAxisOptions.categories,
-                    startIndex = +series.startIndex;// pack("number", series.startIndex, 0);
-                isNaN(startIndex) || (startIndex = 0);
-
-                var key = index;
-                if(categories && categories.length){
-                    key = mathFloor(index + size + startIndex);
-                    if(defined(categories[key]))
-                        key = categories[key];
-                }
-                else{
-                    //key = (minTickValue) + index * (maxTickValue - minTickValue) / length;
-                    key = mathFloor(key + size + startIndex);
-                }
-                return key;
+            var key = index;
+            if(categories && categories.length){
+                key = mathFloor(index + size + startIndex);
+                if(defined(categories[key]))
+                    key = categories[key];
             }
+            else{
+                //key = (minTickValue) + index * (maxTickValue - minTickValue) / length;
+                key = mathFloor(key + size + startIndex);
+            }
+            return key;
+        }
 
-            panels.forEach(function(pane) {
+        return function (panels) {
+            panels.forEach(function (pane) {
                 var series = pane.series;
-                var newData = partition(series, function(a, b){
+                var newData = partition(series, function (a, b) {
                     var axis = (a.yAxis) === (b.yAxis) && (a.xAxis === b.xAxis);
-                    if(axis){
-                        if(typeof a.stack === "undefined" && typeof b.stack === "undefined")
+                    if (axis) {
+                        if (typeof a.stack === "undefined" && typeof b.stack === "undefined")
                             return false;
                         return a.stack === b.stack && a.type === b.type;
                     }
                     return false;
                 });
-                    
-                newData.forEach(function(group){
+
+                newData.forEach(function (group) {
                     var n = group.length,
                         m = group[0].data.length,
                         j,//data size
@@ -11300,28 +12046,29 @@ var PI = Math.PI,
                         reversed;
                     //series properties
                     var inverted, pointPosition,
-                        coordinate;
+                        coordinate,
+                        projection;
                     var isStart;
                     var size;
 
-                    m = pack("number", group[0].maxLength, /*group[0].data.length,*/ group[0].maxLength);
-
-                    for(j = 0; j < m; j++){
+                    m = pack("number",  group[0].maxLength);
+                    for (j = 0; j < m; j++) {
                         positiveTotal = 0;
                         negativeTotal = 0;
-                        for(i = 0; i < n; i++){
+                        for (i = 0; i < n; i++) {
                             series = group[i];//stack series
+                            plotX = series.plotX;
+                            plotY = series.plotY;
+                            plotWidth = series.plotWidth;
+                            plotHeight = series.plotHeight;
+
                             shape = series.shapes[j] || {};
                             value = shape.value;
 
                             inverted = !!series.inverted;
                             coordinate = series.coordinate;
+                            projection = series.projection;
                             pointPosition = series.pointPosition;
-
-                            plotX = series.plotX;
-                            plotY = series.plotY;
-                            plotWidth = series.plotWidth;
-                            plotHeight = series.plotHeight;
 
                             yAxisOptions = series._yAxis || {};// yAxis[series.yAxis | 0];
                             logBase = (yAxisOptions.logarithmic || {}).base || 10;
@@ -11347,21 +12094,21 @@ var PI = Math.PI,
                             yBottom = mathMin(plotHeight + plotY, yBottom);
                             xLeft = plotX;
 
-                            if(series.selected === false || value === 0 || shape.isNULL){
+                            if (shape.isNULL || series.selected === false) {
                                 value = 0;
                             }
-                            else if(value < 0){
+                            else if (value < 0) {
                                 negativeTotal += value;
                             }
-                            else{
+                            else {
                                 positiveTotal += value;
                             }
 
-                            if(yAxisOptions.type === "logarithmic"){
+                            if (yAxisOptions.type === "logarithmic") {
                                 negativeTotal += value;
                                 positiveTotal = mathLog(negativeTotal, logBase);
                             }
-                            if(coordinate === "xy"){
+                            if (projection === "2d" || coordinate === "xy") {//projection 2d
                                 x = interpolate.apply(null, [
                                     isArray(shape.source) ? shape.source[0] : isObject(shape.source) ? shape._x : null,
                                     xAxisOptions.minValue, xAxisOptions.maxValue, 0, plotWidth
@@ -11373,8 +12120,8 @@ var PI = Math.PI,
                                 ].concat(reversed === true ? [0, plotHeight] : [plotHeight, 0]));
                                 y += plotY;
                             }
-                            else{
-                                if(isArray(shape.source) && shape.source.length > 1){
+                            else {
+                                if (isArray(shape.source) && shape.source.length > 1) {
                                     //连续性
                                     x = j * pointWidth;// interpolate.apply(null, [shape.source[0], xAxisOptions.minValue, xAxisOptions.maxValue, 0, plotWidth]);
                                     x += plotX;
@@ -11392,7 +12139,7 @@ var PI = Math.PI,
                                     ) : NaN;
                                     highY += plotY;
                                 }
-                                else if(isNumber(shape._x) && isNumber(shape._y)){
+                                else if (isNumber(shape._x) && isNumber(shape._y)) {
                                     x = plotX + j * pointWidth;//离散性
                                     x += center;
                                     y = interpolate.apply(null,
@@ -11402,10 +12149,9 @@ var PI = Math.PI,
                                     );
                                     y += plotY;
                                 }
-                                else{
-                                    if(inverted){
+                                else {
+                                    if (inverted) {
                                         pointWidth = plotHeight / (m);
-                                        //console.log(inverted, pointWidth);
                                         y = j * pointWidth;
                                         y += plotY;
                                         y += centerY;
@@ -11418,7 +12164,7 @@ var PI = Math.PI,
                                         );
                                         x += plotX;
                                     }
-                                    else{
+                                    else {
                                         x = j * pointWidth;
                                         x += plotX;
                                         x += center;
@@ -11448,8 +12194,8 @@ var PI = Math.PI,
                             }
 
                             total = n > 1 ? value >= 0 ? positiveTotal : negativeTotal : undefined;//series not shared
-                            if(series.selected === false){
-                                //y = plotY + zeroY;
+                            if (series.selected === false) {
+                                y = highY = plotY + zeroY;
                             }
                             y = mathMin(plotY + plotHeight, y);
                             shape.x = shape.x1 = shape.x2 = x;
@@ -11468,41 +12214,40 @@ var PI = Math.PI,
                     }
                 });
 
-                series.forEach(function(item){
-                    if(item.type === "spline" || item.type === "areaspline"){
-                        Renderer.pointSpline(item.shapes, item);
+                series.forEach(function (item) {
+                    if (item.type === "spline" || item.type === "areaspline") {
+                        spline(item.shapes, item);
                     }
                 });
             });
         };
     }
     return {
-        deps: function(){
-            var args = Array.prototype.slice.call(arguments, 0);
-            return factoy.apply(global, [].concat(args));
+        deps: function () {
+            return factoy.apply(global, [].slice.call(arguments));
         }
     };
 }).call(typeof window !== "undefined" ? window : this).deps(Dalaba.Math, Numeric);
 
-    var Linked = (function(){
-    var next = function(points, i, n) {
+    var Linked = (function () {
+    var next = function (points, i, n) {
         var point;
-        while(point = points[i], point.isNULL && i < ~-n) ++i;
+        while (point = points[i], point.isNULL && i < ~-n) ++i;
             return i;
     };
-    var back = function(points, i, n) {
+    var back = function (points, i, n) {
         var point;
-        while(point = points[n - 1], point.isNULL && --n > i);
+        while (point = points[n - 1], point.isNULL && --n > i);
             return n;
     };
-    var find = function(points, s, e) {
+    var find = function (points, s, e) {
         var j = s, point;
         do {
             point = points[j];
-        } while(point.isNULL && j++ < e);
+        } while (point.isNULL && j++ < e);
         return j;
     };
-    var each = function(context, points, step) {
+    var each = function (context, points, step) {
         var length = points.length,
             i = next(points, 0, length),
             j;
@@ -11513,9 +12258,9 @@ var PI = Math.PI,
 
         context.beginPath();
         context.moveTo(moveX = point.x, moveY = point.y);
-        for(; i < length; i++){
+        for (; i < length; i++) {
             point = points[i];
-            if(point.isNULL){
+            if (point.isNULL) {
                 j = find(points, j = i + 1, length);
                 point = points[j];
                 context.moveTo(moveX = point.x, moveY = point.y);
@@ -11525,28 +12270,37 @@ var PI = Math.PI,
     };
 
     var Linked = {
-        line: function(context, points, options) {
+        line: function (context, points, options) {
             var dashStyle = options.dashStyle,
                 onStep = options.onStep;
             var length = points.length,
                 i = next(points, 0, length),//[a, b-1)
                 j;
-            var point;
+            var point, aniattr;
             var x, y, moveX, moveY;
             length = back(points, i, length);//(b, a]
             point = points[i];
+            /*aniattr = point.aniattr();
 
+            if (aniattr) {
+                isNumber(aniattr.x, true) && (moveX = aniattr.x);
+                isNumber(aniattr.y, true) && (moveY = aniattr.y);
+            }*/
             context.beginPath();
-            context.moveTo(moveX = point.x, moveY = point.y);
+            context.moveTo(moveX, moveY);
             for (; i < length; i++) {
                 point = points[i];
                 if (point.isNULL) {
                     j = find(points, j = i + 1, length);
                     point = points[j];
-                    context.moveTo(moveX = point.x, moveY = point.y);
+                    moveX = point.x, moveY = point.y;
+                    //aniattr = point.aniattr();
+                    //aniattr && (isNumber(aniattr.x, true) && (moveX = aniattr.x), isNumber(aniattr.y, true) && (moveY = aniattr.y));
+                    context.moveTo(moveX, moveY);
                 }
                 //step(point, i, moveX, moveY);
                 x = point.x, y = point.y;
+                //(aniattr = point.aniattr()) && (isNumber(aniattr.x, true) && (x = aniattr.x), isNumber(aniattr.y, true) && (y = aniattr.y));
                 DashLine[dashStyle] && dashStyle !== "solid" ? DashLine[dashStyle](
                     context,
                     moveX, moveY,
@@ -11555,7 +12309,7 @@ var PI = Math.PI,
                 onStep && onStep(point);
             }
         },
-        spline: function(context, points, options) {
+        spline: function (context, points, options) {
             var onStep = options.onStep;
             var length = points.length,
                 i = next(points, 0, length),
@@ -11564,9 +12318,10 @@ var PI = Math.PI,
             var point;
             length = back(points, i, length);
             point = points[i];
+            x = point.x, y = point.y;
 
             context.beginPath();
-            context.moveTo(point.x, point.y);
+            context.moveTo(x, y);
             for (; i < length; i++) {
                 point = points[i];
                 x = point.x, y = point.y;
@@ -11579,14 +12334,16 @@ var PI = Math.PI,
                     y = y1 = y2 = point.y;
                     context.moveTo(x, y);
                 }
-                else context.bezierCurveTo(x1, y1, x2, y2, x, y);
+                else {
+                    context.bezierCurveTo(x1, y1, x2, y2, x, y);
+                }
                 onStep && onStep(point);
             }
         },
-        step: function(context, points, options) {
+        step: function (context, points, options) {
             var type = options.step,
                 onStep = options.onStep;
-            each(context, points, function(point, i) {
+            each(context, points, function (point, i) {
                 var curt = points[i],
                     prev = points[i - 1];
                 if (prev && !prev.isNULL && !curt.isNULL) {
@@ -11607,7 +12364,7 @@ var PI = Math.PI,
                 }
             });
         },
-        arearange: function(context, points, options){
+        arearange: function (context, points, options) {
             var onStep = options.onStep;
             var length = points.length,
                 i = next(points, 0, length),
@@ -11621,9 +12378,9 @@ var PI = Math.PI,
 
             context.beginPath();
             context.moveTo(moveX = point.x, moveY = point[key]);
-            for(; i < length; i++){
+            for (; i < length; i++) {
                 point = points[i];
-                if(point.isNULL){
+                if (point.isNULL) {
                     j = find(points, j = i + 1, length);
                     point = points[j];
                     context.moveTo(moveX = point.x, moveY = point[key]);
@@ -11641,13 +12398,13 @@ var PI = Math.PI,
     return Linked;
 })();;
 
-    var Fill = (function() {
-    var find = function(points, start, end) {
+    var Fill = (function () {
+    var find = function (points, start, end) {
         for(var k = end, b; k >= start && (b = points[k]).isNULL; k++);
             return k;
     };
 
-    var each = function(points, call) {
+    var each = function (points, call) {
         var n = points.length,
             i;
         var left = (i = 0),
@@ -11666,56 +12423,59 @@ var PI = Math.PI,
         !points[0].isNULL && call(0, n - 1);
     };
 
-    var begin = function(context, points, start, end, draw, call) {
+    var begin = function (context, points, start, end, draw, call) {
         var point = points[start];
         var n = end,
             i = start;
-
         context.moveTo(point.x, point.y);
 
-        for (; i <= n || call(start, i); i++)
+        for (; i <= n || call(start, i); i++) {
             draw(points[i]);
+        }
     };
-    var stop = function(context, points, start, end, inverted, call) {
+    var stop = function (context, points, start, end, inverted, call) {
         var point = points[end -= 1];
         context.lineTo(inverted ? point.xLeft : point.x, point.yBottom);
         call(start, end);
     };
-    var close = function(context, points, start, end, draw) {
+    var close = function (context, points, start, end, draw) {
         var i = end;
         for(; i > start; --i)
             draw(points[i], start, i);
     };
 
     var Fill = {
-        line: function(context, points, options) {
+        line: function (context, points, options) {
             var inverted = options.inverted,
                 type = options.type;
-            each(points, function(start, end) {
-                begin(context, points, start, end, function(point) {
+            each(points, function (start, end) {
+                begin(context, points, start, end, function (point) {
                     context.lineTo(point.x, point.y);
-                }, function(start, end) {
-                    stop(context, points, start, end, inverted, function(start, end) {
-                        close(context, points, ~-start, end, function(point) {
+                }, function (start, end) {
+                    stop(context, points, start, end, inverted, function (start, end) {
+                        close(context, points, ~-start, end, function (point) {
                             context.lineTo.apply(context, type === "arearange" ? [point.x, point.highY] : inverted ? [point.xLeft, point.y] : [point.x, point.yBottom]);
                         });
                     });
                 });
             });
         },
-        spline: function(context, points, options) {
+        spline: function (context, points, options) {
             var inverted = options.inverted;
-            each(points, function(start, end) {
-                begin(context, points, start, end, function(point) {
-                    context.bezierCurveTo(point.x1, point.y1, point.x2, point.y2, point.x, point.y);
-                }, function(start, end) {
+            each(points, function (start, end) {
+                begin(context, points, start, end, function (point) {
+                    var x = point.x, y = point.y,
+                        x1 = point.x1, y1 = point.y1,
+                        x2 = point.x2, y2 = point.y2;
+                    context.bezierCurveTo(x1, y1, x2, y2, x, y);
+                }, function (start, end) {
                     var startX = points[start];
-                    stop(context, points, start, end, inverted, function(start, end) {
-                        close(context, points, start, end, function(point, start, end) {
+                    stop(context, points, start, end, inverted, function (start, end) {
+                        close(context, points, start, end, function (point, start, end) {
                             if (point.prevShape) {
                                 var b = points[end - 1];
                                 if (b) {
-                                    if(b.isNULL){
+                                    if (b.isNULL) {
                                         b = points[find(points, start, end)];
                                     }
                                     b = b.prevShape; 
@@ -11737,100 +12497,52 @@ var PI = Math.PI,
                 });
             });
         },
-        range: function(context, points, options) {
+        range: function (context, points, options) {
             Fill.line(context, points, options);
         }
     };
     return Fill;
 })();;
-
-    var smooth = Geometry.Line.smooth;
-
-    var setPoint = function (points, start, end, inverted) {
-        var segment = points.slice(start, end),//[start, end)
-            point,
-            bezierCurve;
-        for (var k = 0; k < end - start; k++) {
-            bezierCurve = smooth(
-                segment[k - 1],//prev point
-                point = points[start + k],
-                segment[k + 1],//next point
-                inverted
-            );
-            if (bezierCurve) {
-                point.x1 = bezierCurve.x1;
-                point.y1 = bezierCurve.y1;
-                point.x2 = bezierCurve.x2;
-                point.y2 = bezierCurve.y2;
-                point.x = bezierCurve.x;
-                point.y = bezierCurve.y;
-            }
-        }
-    };
     
     var Renderer = {
-        pointSpline: function(points, series){
-            var start = 0, end = points.length;
-            var left = 0, right = end;
-            while (left < right) {
-                var point = points[left];
-                if (point.isNULL) {
-                    end = left;
-                    if (start !== end && end - start > 2) {
-                        setPoint(points, start, end, !!series.inverted);
-                    }
-                    for (var k = end; k < right; k++) if (!points[k].isNULL) {
-                        end = k;
-                        break;
-                    }
-                    start = end;
-                }
-                left++;
-            }
-            if (!points[left - 1].isNULL && left - start > 2) {
-                setPoint(points, start, left, !!series.inverted);
-            }
-        },
-        line: function(context, shapes, series, options){
+        line: function (context, shapes, series, options) {
             var dashStyle = pack("string", series.dashStyle, "solid"),
                 lineWidth = pack("number", series.lineWidth, 2),
-                step = series.step,
+                lineColor = series.lineColor || series.color;
+            var step = series.step,
                 type = series.type;
             var key = options.y || "y";
-            //console.log(series.state)
-            if(shapes.length){
+            if (series.animationEnabled && (!series.animationCompleted || series.selected !== false) && shapes.length) {
                 context.save();
-                if(type === "spline" || type === "areaspline"){
+                if (type === "spline" || type === "areaspline") {
                     Linked.spline(context, shapes, {});
                 }
-                else if(type === "arearange"){
+                else if (type === "arearange") {
                     Linked.arearange(context, shapes, {
                         key: key,
                         dashStyle: dashStyle
                     });
                 }
-                else{
+                else {
                     Linked[defined(step) ? "step" : "line"](context, shapes, {
                         step: step,
-                        dashStyle: dashStyle,
-                        //onStep: function(shape){ }
+                        dashStyle: dashStyle
                     });//line step
                 }
-                series.selected !== false && (lineWidth) > 0 && (
+                (context.lineWidth = lineWidth) > 0 && (
                     context.shadowColor = series.shadowColor,
                     isNumber(series.shadowBlur) && (context.shadowBlur = series.shadowBlur),
                     isNumber(series.shadowOffsetX) && (context.shadowOffsetX = series.shadowOffsetX),
                     isNumber(series.shadowOffsetY) && (context.shadowOffsetY = series.shadowOffsetY),
-                    context.strokeStyle = series.lineColor || series.color,
+                    context.strokeStyle = lineColor,
                     context.lineCap = "round",
                     context.lineJoin = "round",
-                    context.lineWidth = lineWidth,// + 1 * !!series.state,
                     context.stroke()
                 );
                 context.restore();
             }
         },
-        area: function(context, shapes, series){
+        area: function (context, shapes, series) {
             var type = series.type;
             var color = series.color,
                 opacity = series.opacity,
@@ -11839,16 +12551,16 @@ var PI = Math.PI,
                 return;
             }
             
-            var minY = Number.MAX_VALUE,
+            var minY = MAX_VALUE,
                 maxY = -minY;
             var minX = null, maxX = null;
 
             shapes.forEach(function(shape, i) {
                 var last = shapes[shapes.length - i - 1];
-                if(isNumber(shape.yBottom) && shape.yBottom === shape.yBottom){
-                    minY = Math.min(minY, shape.yBottom);
+                if (isNumber(shape.yBottom) && shape.yBottom === shape.yBottom) {
+                    minY = mathMin(minY, shape.yBottom);
                 }
-                maxY = Math.max(maxY, shape.y);
+                maxY = mathMax(maxY, shape.y);
                 if (minX === null && isNumber(shape.x, true)) {
                     minX = shape.x;
                 }
@@ -11857,15 +12569,15 @@ var PI = Math.PI,
             });
             
 
-            if(defined(fillColor = series.fillColor) && shapes.length > 1){
-                if(Color.isColor(fillColor)){
+            if (defined(fillColor = series.fillColor) && shapes.length > 1) {
+                if (Color.isColor(fillColor)) {
                     color = fillColor;
                 }
-                else if(defined(fillColor.linearGradient)) {
+                else if (defined(fillColor.linearGradient)) {
                     color = Color.parse(fillColor).linear(minX, minY, maxX, maxY);
                 }
             }
-            else{
+            else {
                 color = Color.parse(color).alpha(pack("number", opacity, 0.75)).rgba();
             }
 
@@ -11885,12 +12597,12 @@ var PI = Math.PI,
             context.fill();
             context.restore();
         },
-        hover: function(context, shape, series){
+        hover: function (context, shape, series) {
             var marker = series.marker || {},
                 fillColor = shape.color || series.color,
                 hoverColor = Color.parse(fillColor);
                 hoverColor.a = 0.5;
-            var fill = function(x, y) {
+            var onfill = function(x, y) {
                 context.fillStyle = Color.rgba(hoverColor);
                 context.beginPath();
                 context.arc(x, y, 8, 0, PI2);
@@ -11906,33 +12618,11 @@ var PI = Math.PI,
             if (marker.enabled !== false && isNumber(shape.current) && shape.current !== -1) {
                 [].slice.call(arguments, -2).forEach(function(key) {
                     context.save();
-                    fill(shape.x, shape[key]);
+                    onfill(shape.x, shape[key]);
                     context.restore();
                 });
             }
             delete shape.current;
-        },
-        xClip: function(t, context, canvas, x, y){
-            if(0 !== t){
-                context.save();
-                t > 0 && context.drawImage(
-                    canvas,
-                    x, y, canvas.width * t, canvas.height,
-                    x, y, canvas.width * t / DEVICE_PIXEL_RATIO, canvas.height / DEVICE_PIXEL_RATIO
-                );
-                context.restore();
-            }
-        },
-        yClip: function(t, context, canvas, x, y){
-            if(0 !== t){
-                context.save();
-                t > 0 && context.drawImage(
-                    canvas,
-                    x, y, canvas.width, canvas.height * t,
-                    x, y, canvas.width / DEVICE_PIXEL_RATIO, canvas.height * t / DEVICE_PIXEL_RATIO
-                );
-                context.restore();
-            }
         }
     };
     /*
@@ -11946,10 +12636,10 @@ var PI = Math.PI,
         this.series = [];
         this.shapes = [];
         this.init(options);
-	}
-	Line.prototype = {
+    }
+    Line.prototype = {
         constructor: Line,
-		init: function (options) {
+        init: function (options) {
             var canvas = this.canvas,
                 type = this.type,
                 animation = (options.chart || {}).animation;
@@ -11967,9 +12657,6 @@ var PI = Math.PI,
                 for (j = 0, nn = panel[i].series.length; j < nn; j++) if ((series = panel[i].series[j]).type === this.type) {
                     newSeries.push(series);
                     this.series = this.series.concat(series);
-                    series._diffValues = List.diff(series.shapes, series._shapes || [], function(a, b) {
-                        return a && b && a.value === b.value;
-                    });
                 }
                 panels.push({series: newSeries});
             }
@@ -11980,8 +12667,7 @@ var PI = Math.PI,
 
             if ((animation === true || (animation && animation.enabled !== false))
                     && canvas.nodeType === 1) {
-
-                this.series.forEach(function(series) {
+                this.series.forEach(function (series) {
                     var image = document.createElement("canvas"),
                         context = image.getContext("2d");
                     Chart.scale(
@@ -11991,17 +12677,15 @@ var PI = Math.PI,
                         DEVICE_PIXEL_RATIO
                     );
                     series._image = image;
-                    if(type === "area" || type === "areaspline" || type === "arearange"){
+                    if (type === "area" || type === "areaspline" || type === "arearange") {
                         Renderer.area(context, series.shapes, series);
-                        if(type === "arearange"){
+                        if (type === "arearange") {
                             Renderer.line(context, series.shapes, series, {
                                 y: "highY"
                             });
                         }
                     }
-                    Renderer.line(context, series.shapes, series, {
-                        y: "y"
-                    });
+                    Renderer.line(context, series.shapes, series, { y: "y" });
                 });
             }
             this.reflow();
@@ -12015,229 +12699,104 @@ var PI = Math.PI,
                 });
             });
         },
-        draw: function () {
+        draw: function (initialize) {
             var context = this.context,
                 chart = this;
-            this.series.forEach(function (series) {
-                var shapes = series.shapes;
-                //draw line
-                Renderer.line(context, shapes, series, {
-                    y: "y",
-                    //addMarker: function(shape){}
+            var chart = this;
+
+            if (initialize === true) {
+                this.series.forEach(function (series) {
+                    var shapes = series.shapes;
+                    series._image && Clip[series.inverted ? "Vertical" : "Horizontal"](series._image, 0, 0, series._image.width, series._image.height).clip(context, pack("number", shapes[0].timer, 1));
                 });
-                shapes.forEach(function (shape) {
-                    chart.drawMarker(context, shape, series, "y");//draw marker
+            }
+            else {
+                this.series.forEach(function (series) {
+                    Renderer.line(context, series.shapes, series, { y: "y" });
                 });
-            });
-            this.series.forEach(function (series) {
-                series.shapes.forEach(function (shape) {
-                    DataLabels.render(context, shape, series);//draw data labels
-                    Renderer.hover(context, shape, series, "y");//hover points
+                this.series.forEach(function (series) {
+                    if (series.animationEnabled && (!series.animationCompleted || series.selected !== false)) {
+                        series.shapes.forEach(function (shape) {
+                            DataLabels.render(context, shape.dataLabel, series);//draw data labels
+                        });
+                    }
                 });
-            });
+                this.series.forEach(function (series) {
+                    if (series.animationEnabled && (!series.animationCompleted || series.selected !== false)) {
+                        series.shapes.forEach(function (shape) {
+                            chart.drawMarker(context, shape, series, "y");//draw marker
+                            Renderer.hover(context, shape, series, "y");//hover points
+                        });
+                    }
+                });
+            }
         },
         redraw: function () {
             relayout(this.panels, this.options);
             this.reflow();
         },
-        animateTo: function (context, initialize) {
-            var chart = this;
+        animateTo: function (initialize) {
             var shapes = [];
-            chart.series.forEach(function (series ){
+            this.series.forEach(function (series) {
                 var newData = series.shapes,
                     oldData = series._shapes || [];
-                var animators = [];
-                if(initialize === true){
-                    var mergeShape = series;
-                    shapes.push([series, function (timer) {
-                        mergeShape._timer = timer;
-                    }]);
-                    animators.push(mergeShape);
-                }
-                else{
-                    series._diffValues.add(function (newIndex) {
-                        var oldShape = oldData[newIndex],
-                            mergeShape = {
-                                value: oldShape.value,
-                                _value: oldShape._value,
-                                isNULL: oldShape.isNULL,
-                                color: oldShape.color,
-                                x: oldShape.x,
-                                y: oldShape.y,
-                                x1: oldShape.x1,
-                                y1: oldShape.y1,
-                                x2: oldShape.x2,
-                                y2: oldShape.y2,
-                                highY: oldShape.highY,
-                                yBottom: oldShape.yBottom,
-                                marker: oldShape.marker,
-                                dataLabels: oldShape.dataLabels,
-                                dataLabel: oldShape.dataLabel
-                            };
-                        if(defined(oldShape.prevShape)){
-                            mergeShape.prevShape = {
-                                x: oldShape.prevShape.x,
-                                y: oldShape.prevShape.y,
-                                x1: oldShape.prevShape.x1,
-                                y1: oldShape.prevShape.y1,
-                                x2: oldShape.prevShape.x2,
-                                y2: oldShape.prevShape.y2,
-                                highY: oldShape.prevShape.highY
-                            };
-                        }
-                        //timer = Math.min(1, countLength * timer);
-                        //console.log(item, newData[item.newIndex].value)
-                        if(oldShape.value === oldData[0].value){
-                            //mergeShape.x = mergeShape.x * timer;// oldShape.x1 - (oldShape.x1 - oldShape.x0) * timer;//forward
-                        }
-                        else/* if(oldShape.value === oldData[oldData.length - 1].value)*/{
-                            
-                        }
-                        mergeShape.x = NaN;// oldShape.x + (newShape.x - oldShape.x) * timer;//back
-                        //mergeShape.y = oldShape.y + (newShape.y - oldShape.y) * timer;
-                        animators.push(mergeShape);
-                    }).remove(function (newIndex) {
-                        var newShape, oldShape,
-                            mergeShape;
-                        newShape = newData[newIndex];
-                        oldShape = oldData[newIndex];
-                        mergeShape = {
-                            value: newShape.value,
-                            _value: newShape._value,
-                            isNULL: newShape.isNULL,
-                            color: newShape.color,
-                            x: newShape.x,
-                            y: newShape.y,
-                            x1: newShape.x1,
-                            y1: newShape.y1,
-                            x2: newShape.x2,
-                            y2: newShape.y2,
-                            highY: newShape.highY,
-                            yBottom: newShape.yBottom,
-                            marker: newShape.marker,
-                            dataLabels: newShape.dataLabels,
-                            dataLabel: newShape.dataLabel
-                        };
-                        if(defined(newShape.prevShape)){
-                            mergeShape.prevShape = {
-                                x: newShape.prevShape.x,
-                                y: newShape.prevShape.y,
-                                x1: newShape.prevShape.x1,
-                                y1: newShape.prevShape.y1,
-                                x2: newShape.prevShape.x2,
-                                y2: newShape.prevShape.y2,
-                                highY: newShape.prevShape.highY
-                            };
-                        }
-                        shapes.push([newShape, function (timer) {
-                            var xGap = series.plotWidth / newData.length * (newData.length - oldData.length),
-                                xStart,
-                                xEnd;
-                            xEnd = newData[newData.length - 1].x;
-                            xStart = xEnd - xGap;
-                            xGap -= series.plotX;
-
-                            xStart = xStart + (xEnd - xStart) * timer;
-                            xEnd = xEnd - xStart;
-                            
-                            mergeShape.x1 = newShape.x1;// + xGap * (1 - timer);
-                            mergeShape.y1 = newShape.y1;
-                            mergeShape.x2 = newShape.x2;// + xGap * (1 - timer);
-                            mergeShape.y2 = newShape.y2;
-                            mergeShape.x = newShape.x;// + xGap * (1 - timer);
-                            mergeShape.y = newShape.y;
-                        }]);
-                        animators.push(mergeShape);
-                    }).modify(function(newIndex, oldIndex){
-                        var newShape = newData[newIndex],
-                            oldShape = oldData[oldIndex],
-                            mergeShape;
-                        
-                        if(oldShape && newShape){
-                            mergeShape = {
-                                value: newShape.value,
-                                _value: newShape._value,
-                                isNULL: newShape.isNULL,
-                                color: newShape.color,
-                                x: oldShape.x,
-                                y: oldShape.y,
-                                x1: oldShape.x1,
-                                y1: oldShape.y1,
-                                x2: oldShape.x2,
-                                y2: oldShape.y2,
-                                highY: oldShape.highY,
-                                yBottom: newShape.yBottom,
-                                marker: newShape.marker,
-                                dataLabels: newShape.dataLabels,
-                                dataLabel: newShape.dataLabel
-                            };
-                            if(defined(newShape.prevShape)){
-                                mergeShape.prevShape = {
-                                    x: newShape.prevShape.x,
-                                    y: newShape.prevShape.y,
-                                    x1: newShape.prevShape.x1,
-                                    y1: newShape.prevShape.y1,
-                                    x2: newShape.prevShape.x2,
-                                    y2: newShape.prevShape.y2,
-                                    highY: newShape.prevShape.highY
-                                };
-                            }
-                            shapes.push([newShape, function(timer){
-                                var x = (oldShape.x || newShape.x) + (newShape.x - (oldShape.x || newShape.x)) * timer;
-                                var y = (oldShape.y || newShape.y) + (newShape.y - (oldShape.y || newShape.y)) * timer;
-                                var y1 = (oldShape.y1 || newShape.y1) + (newShape.y1 - (oldShape.y1 || newShape.y1)) * timer;
-                                var y2 = (oldShape.y2 || newShape.y2) + (newShape.y2 - (oldShape.y2 || newShape.y2)) * timer;
-                                var x1 = (oldShape.x1 || newShape.x1) + (newShape.x1 - (oldShape.x1 || newShape.x1)) * timer;
-                                var x2 = (oldShape.x2 || newShape.x2) + (newShape.x2 - (oldShape.x2 || newShape.x2)) * timer;
-                                var highY = (oldShape.highY || newShape.highY) + (newShape.highY - (oldShape.highY || newShape.highY)) * timer;
-
-                                mergeShape.x = x;
-                                mergeShape.y = y;
-                                //console.log(oldShape.y, newShape.y)
-                                mergeShape.x1 = x1;
-                                mergeShape.x2 = x2;
-                                mergeShape.y1 = y1;
-                                mergeShape.y2 = y2;
-                                mergeShape.highY = highY;
-                            }]);
-                            animators.push(mergeShape);
-                        }
-                    }).each();
-                }
-                series._animators = animators;
-                series._shapes = series.shapes;
+                var previous = [];
+                
+                List.diff(newData, oldData, function (a, b) {
+                    return a && b && a.value === b.value;
+                }).add(function (newIndex) {
+                }).remove(function (newIndex) {
+                    var newShape = newData[newIndex];
+                    var to;
+                    newShape.animate({
+                        timer: 0
+                    }, to = {
+                        value: newShape.value,
+                        timer: 1,
+                        x1: newShape.x1,
+                        y1: newShape.y1,
+                        x2: newShape.x2,
+                        y2: newShape.y2,
+                        x: newShape.x,
+                        y: newShape.y,
+                        highY: newShape.highY,
+                        selected: series.selected
+                    });
+                    previous.push(to);
+                    shapes.push(newShape);
+                }).modify(function (newIndex, oldIndex) {
+                    var newShape = newData[newIndex],
+                        oldShape = oldData[oldIndex],
+                        mergeShape;
+                    var to;
+                    newShape.animate({
+                        x: oldShape.x,
+                        y: oldShape.y,
+                        x1: oldShape.x1,
+                        x2: oldShape.x2,
+                        y1: oldShape.y1,
+                        y2: oldShape.y2,
+                        highY: oldShape.highY
+                    }, to = {
+                        value: newShape.value,
+                        x: newShape.x,
+                        y: newShape.y,
+                        x1: newShape.x1,
+                        x2: newShape.x2,
+                        y1: newShape.y1,
+                        y2: newShape.y2,
+                        highY: newShape.highY,
+                        selected: series.selected
+                    });
+                    series.animationEnabled = !((series.selected === false) && (oldShape.selected === false));
+                    previous.push(to);
+                    shapes.push(newShape);
+                }).each();
+                series._shapes = previous;
             });
             return shapes;
         },
-        onFrame: function(context, initialize){
-            var chart = this;
-            this.series.forEach(function(series){
-                var animators = series._animators;
-                if(initialize === true){
-                    animators.forEach(function(series){
-                        series._image && Renderer[series.inverted ? "yClip" : "xClip"](series._timer, context, series._image, 0, 0);
-                    });
-                }
-                else{
-                    if(series.type === "area" || series.type === "areaspline" || series.type === "arearange"){
-                        Renderer.area(context, animators, series);
-                        if(series.type === "arearange"){
-                            Renderer.line(context, animators, series, {
-                                y: "highY"
-                            });
-                        }
-                    }
-                    Renderer.line(context, animators, series, {
-                        y: "y"
-                    });
-                    animators.forEach(function (shape) {
-                        chart.drawMarker.apply(null, [context, shape, series].concat(series.type === "arearange" ? ["y", "highY"] : ["y"]));
-                        DataLabels.render(context, shape, series);
-                    });
-                }
-            });
-        },
-        drawShape: function (context, shape, series){
+        drawShape: function (context, shape, series) {
             if (shape && !shape.isNULL) {
                 Renderer.hover(context, shape.x, shape.y, series);
             }
@@ -12248,7 +12807,7 @@ var PI = Math.PI,
                 var t = pack("string", type, "center"),
                     x = shape.x,
                     w = bbox.width;
-                if(isNaN(x))
+                if (isNaN(x))
                     return -9999;
                 return {
                     left: x - w - radius / 2,
@@ -12259,7 +12818,7 @@ var PI = Math.PI,
                 var t = pack("string", type, "top"),
                     y = shape.y,
                     h = bbox.height;
-                if(isNaN(y))
+                if (isNaN(y))
                     return -9999;
                 return {
                     top: y - h - radius,
@@ -12281,8 +12840,8 @@ var PI = Math.PI,
                 usemarker = shapeMarker.enabled === true || seriesMarker.enabled === true;
             }
 
-            [].slice.call(arguments, -2).forEach(function(key){
-                if(series.selected !== false & shape.value !== null & usemarker){
+            [].slice.call(arguments, -2).forEach(function (key) {
+                if(series.selected !== false & !shape.isNULL & usemarker){
                     context.save();
                     context.fillStyle = fillColor;
                     context.beginPath();
@@ -12394,7 +12953,7 @@ var PI = Math.PI,
                     }
                 });
                 return Spline;
-            }.apply(global, [].concat([].slice.call(arguments, 0)));
+            }.apply(global, [].slice.call(arguments, 0));
         }
     };
 })().deps(Dalaba, Line);
@@ -12414,30 +12973,43 @@ var PI = Math.PI,
         }
         extend(Area.prototype, Line.prototype, {
             constructor: Area,
-            init: function(options) {
+            init: function (options) {
                 this.series = arrayFilter(pack("array", options.series, []), function(series){
                     return series.type === "area";
                 });
                 Line.prototype.init.call(this, options);
             },
-            draw: function() {
+            draw: function (initialize) {
                 var context = this.context,
                     chart = this;
-                this.series.forEach(function(series){
-                    var shapes = series.shapes;
-                    Renderer.area(context, shapes, series);
-                    Renderer.line(context, shapes, series, {
-                        y: "y"
+                if (initialize === true) {
+                    this.series.forEach(function (series) {
+                        var shapes = series.shapes;
+                        series._image && Clip[series.inverted ? "Vertical" : "Horizontal"](series._image, 0, 0, series._image.width, series._image.height).clip(context, pack("number", shapes[0].timer, 1));
                     });
-
-                    shapes.forEach(function(shape){
-                        chart.drawMarker(context, shape, series, "y");//draw marker
-                        DataLabels.render(context, shape, series);//draw data labels
-                        Renderer.hover(context, shape, series, "y");//hover points
+                }
+                else {
+                    this.series.forEach(function(series){
+                        var shapes = series.shapes;
+                        Renderer.area(context, shapes, series);
+                        Renderer.line(context, shapes, series, {
+                            y: "y"
+                        });
                     });
-                });
+                    this.series.forEach(function (series) {
+                        series.shapes.forEach(function(shape){
+                            DataLabels.render(context, shape, series);//draw data labels
+                        });
+                    });
+                    this.series.forEach(function (series) {
+                        series.shapes.forEach(function (shape) {
+                            chart.drawMarker(context, shape, series, "y");//draw marker
+                            Renderer.hover(context, shape, series, "y");//hover points
+                        });
+                    });
+                }
             },
-            redraw: function(){
+            redraw: function () {
                 Line.prototype.redraw.apply(this, arguments);
             }
         });
@@ -12445,9 +13017,8 @@ var PI = Math.PI,
     }
 
     return {
-        deps: function() {
-            var args = Array.prototype.slice.call(arguments, 0);
-            return factoy.apply(global, [].concat(args));
+        deps: function () {
+            return factoy.apply(global, [].slice.call(arguments));
         }
     };
 })().deps(Dalaba, Line, Renderer.area);
@@ -12483,11 +13054,7 @@ var PI = Math.PI,
 
     var AreaRange = (function () {
     function factoy (Dalaba, AreaSpline) {
-        var extend = Dalaba.extend;
-
-        var arrayFilter = Dalaba.Cluster.List.filter;
-
-
+        
         function AreaRange (canvas, options) {
             this.canvas = canvas;
             this.context = canvas.getContext("2d");
@@ -12497,9 +13064,6 @@ var PI = Math.PI,
         }
         extend(AreaRange.prototype, AreaSpline.prototype, {
             init: function (options) {
-                this.series = arrayFilter(pack("array", options.series, []), function (series) {
-                    return series.type === "arearange";
-                });
                 Area.prototype.init.call(this, options);
             },
             draw: function () {
@@ -12507,21 +13071,26 @@ var PI = Math.PI,
                     chart = this;
                 this.series.forEach(function (series) {
                     var shapes = series.shapes;
-                    Renderer.area(context, series.shapes, series);
+                    Renderer.area(context, shapes, series);
                     Renderer.line(context, shapes, series, {
                         y: "highY"
                     });                    
                     Renderer.line(context, shapes, series, {
                         y: "y"
                     });//draw line
-
-                    shapes.forEach(function (shape) {
+                });
+                this.series.forEach(function (series) {
+                    series.shapes.forEach(function (shape) {
+                        DataLabels.render(context, shape.dataLabel, series);
+                    });
+                });
+                this.series.forEach(function (series) {
+                    series.shapes.forEach(function (shape) {
                         var params = [context, shape, series, "y"];
-                        if(series.type === "arearange"){
+                        if (series.type === "arearange") {
                             params.push("highY");
                         }
                         chart.drawMarker.apply(null, params);//draw marker
-                        DataLabels.render(context, shape, series);//draw data labels
                         Renderer.hover.apply(null, params);//hover points
                     });
                 });
@@ -12540,13 +13109,13 @@ var PI = Math.PI,
     var graphers = (Chart.graphers = Chart.graphers || {}),
         charts,
         type;
-    for(type in (charts || (charts = {
+    for (type in (charts || (charts = {
         Line: Line,
         Spline: Spline,
         Area: Area,
         AreaSpline: AreaSpline,
         AreaRange: AreaRange
-    }))){
+    }))) {
         graphers[type.toLowerCase()] = Chart[type] = charts[type];
     }
 
@@ -12555,11 +13124,9 @@ var PI = Math.PI,
 
     var Symbol = Geometry.Symbol;
 
-    var addLayout = (function(global) {
+    var addLayout = (function (global) {
 
-    var mathLog = Mathematics.log;
-
-    var isZero = function(min, max) {
+    var isZero = function (min, max) {
         return min <= 0 && max >= 0;
     };
 
@@ -12962,7 +13529,7 @@ var PI = Math.PI,
         var groupLength = 0,
             groupCounting = -1;
 
-        var counter = function(data) {
+        var counter = function (data) {
             var flag = !1;
             var n = data.length,
                 i = 0,
@@ -12974,7 +13541,7 @@ var PI = Math.PI,
             return flag;
         };
 
-        return function (panels, modified) {
+        return function (panels, isResized) {
             panels.forEach(function (pane) {
                 var series = pane.series;
                 groupLength = 0,
@@ -12988,7 +13555,7 @@ var PI = Math.PI,
                 groups.forEach(function (group) {
                     counter(group) && groupLength++;
                 });
-                groupLength = Math.max(1, groupLength);
+                groupLength = mathMax(1, groupLength);
                 groups.forEach(function (group) {
                     counter(group) && groupCounting++;
                     //console.log(groupCounting, groupLength, group[0].panelIndex, group)
@@ -13002,7 +13569,7 @@ var PI = Math.PI,
 
     return {
         deps: function () {
-            return factoy.apply(global, [].concat([].slice.call(arguments, 0)));
+            return factoy.apply(global, [].slice.call(arguments, 0));
         }
     };
 }).call(typeof window !== "undefined" ? window : this).deps(Numeric);
@@ -13052,9 +13619,6 @@ var PI = Math.PI,
                 for (j = 0, nn = panel[i].series.length; j < nn; j++) if ((series = panel[i].series[j]).type === this.type) {
                     newSeries.push(series);
                     this.series = this.series.concat(series);
-                    series._diffValues = List.diff(series.shapes, series._shapes || [], function(a, b){
-                        return a && b && a.value === b.value;
-                    });
                 }
                 panels.push({
                     series: newSeries
@@ -13097,7 +13661,7 @@ var PI = Math.PI,
                     chart.drawState(context, series);
                 }
                 series.shapes.forEach(function (shape) {
-                    DataLabels.render(series.context || context, shape);
+                    DataLabels.render(series.context || context, shape.dataLabel);
                 });
             });
         },
@@ -13110,137 +13674,75 @@ var PI = Math.PI,
             this.series.forEach(function (series) {
                 var newData = series.shapes,
                     oldData = series._shapes || [];
-                var animators = [];
-                series._diffValues.remove(function (newIndex) {
-                    var newShape = newData[newIndex],
-                        mergeShape = {
-                            /*x0: newShape.x0,
-                            y0: newShape.y0,
-                            x1: newShape.x1,
-                            y1: newShape.y1,*/
-                            color: newShape.color,
-                            _value: newShape._value,
-                            value: newShape.value,
-                            percentage: newShape.percentage,
-                            shape: newShape,
-                            dataLabel: newShape.dataLabel
-                        };
-                    shapes.push([newShape, function(timer){
-                        mergeShape.x0 = newShape.x0;
-                        mergeShape.y0 = newShape.y0;
-                        mergeShape.x1 = newShape.x1;
-                        mergeShape.y1 = newShape.y1;
-                        if(series.type === "bar"){
-                            mergeShape.x1 = newShape.x0 + (newShape.x1 - newShape.x0) * timer;
-                        }
-                        else{
-                            mergeShape.y1 = newShape.y0 + (newShape.y1 - newShape.y0) * timer;
-                        }
-                    }]);
-                    
-                    /*if(oldShape){
-                        var y0 = oldShape.y0 + (newShape.y0 - oldShape.y0) * timer;
-                        var y1 = oldShape.y1 + (newShape.y1 - oldShape.y1) * timer;
-                        //console.log(newShape, oldShape);
-                        
-                        mergeShape.y0 = y0;
-                        mergeShape.y1 = y1;
-                    }*/
-                    return mergeShape;
-                }).add(function(newIndex){
-                    var oldShape = oldData[newIndex],
-                        mergeShape = {
-                            x0: oldShape.x0,
-                            y0: oldShape.y0,
-                            x1: oldShape.x1,
-                            y1: oldShape.y1,
-                            color: oldShape.color,
-                            _value: oldShape._value,
-                            value: oldShape.value,
-                            percentage: oldShape.percentage,
-                            shape: oldShape,
-                            dataLabel: oldShape.dataLabel
-                        };
-                    shapes.push([oldShape, function(timer){
-                        mergeShape.y1 = oldShape.y1 - (oldShape.y1 - oldShape.y0) * timer;
-                        mergeShape.x1 = oldShape.x1 - (oldShape.x1 - oldShape.x0) * timer;
-                    }]);
-                    return mergeShape;
-                }).modify(function(newIndex, oldIndex){
-                    var newShape = newData[newIndex], oldShape = oldData[oldIndex],
-                        mergeShape;
-                    var x0, x1, y0, y1;
-                    if(oldShape && newShape){
-                        mergeShape = {
-                            x0: oldShape.x0,
-                            y0: oldShape.y0,
-                            x1: oldShape.x1,
-                            y1: oldShape.y1,
-                            color: newShape.color,
-                            _value: newShape._value,
-                            value: newShape.value,
-                            percentage: newShape.percentage,
-                            shape: newShape,
-                            dataLabel: newShape.dataLabel
-                        };
-                        shapes.push([newShape, function(timer){
-                            x0 = oldShape.x0 + (newShape.x0 - oldShape.x0) * timer;
-                            x1 = oldShape.x1 + (newShape.x1 - oldShape.x1) * timer;
-                            if(series.selected === false){
-                                x0 = oldShape.x0 + (newShape.x0 - oldShape.x0) * timer;
-                                x1 = oldShape.x1 + (newShape.x1 - oldShape.x1) * timer;
-                                y0 = oldShape.y0;
-                                y1 = oldShape.y1;
-                            }
-                            else{
-                                x0 = oldShape.x0 + (newShape.x0 - oldShape.x0) * timer;
-                                x1 = oldShape.x1 + (newShape.x1 - oldShape.x1) * timer;
-                                y0 = oldShape.y0 + (newShape.y0 - oldShape.y0) * timer;
-                                y1 = oldShape.y1 + (newShape.y1 - oldShape.y1) * timer;
-                            }
-                            //y0 = oldShape.y0 + (newShape.y0 - oldShape.y0) * timer;
-                            //y1 = oldShape.y1 + (newShape.y1 - oldShape.y1) * timer;
-
-                            mergeShape.x0 = x0;
-                            mergeShape.x1 = x1;
-                            mergeShape.y0 = y0;
-                            mergeShape.y1 = y1;
-                        }]);
+                var previous = [];
+                List.diff(series.shapes, series._shapes || [], function (a, b) {
+                    return a && b && a.value === b.value;
+                }).remove(function (newIndex) {
+                    var newShape = newData[newIndex];
+                    var to = { value: newShape.value, x0: newShape.x0, y0: newShape.y0, x1: newShape.x1, y1: newShape.y1 },
+                        from = {};
+                    if (series.type === "bar") {
+                        from.x1 = newShape.x0;
+                        to.x1 = newShape.x1, to.y1 = newShape.y1;
                     }
-                    return mergeShape;
-                }).each(function(mergeShape){
-                    mergeShape && animators.push(mergeShape);
-                });
-                series._animators = animators;
-                series._shapes = series.shapes;
+                    else {
+                        from.y1 = newShape.y0;
+                        to.y1 = newShape.y1;
+                    }
+                    newShape.animate(from, to);
+                    previous.push(to);
+                    shapes.push(newShape);
+                }).add(function (newIndex) {
+                    var oldShape = oldData[newIndex],
+                        to;
+                    oldShape.animate({
+                        x1: oldShape.x0,// - (oldShape.x1 - oldShape.x0),
+                        y1: oldShape.y0// - (oldShape.y1 - oldShape.y0)
+                    }, to = {
+                        value: oldShape.value,
+                        x1: oldShape.x1,
+                        y1: oldShape.y1
+                    });
+                    shapes.push(oldShape);
+                    previous.push(to);
+                }).modify(function (newIndex, oldIndex) {
+                    var newShape = newData[newIndex], oldShape = oldData[oldIndex],
+                        to = { value: newShape.value };
+                    var from = {};
+                    from = { x0: oldShape.x0, x1: oldShape.x1, y0: oldShape.y0, y1: oldShape.y1 };
+                    if (series.selected === false) {
+                        from.x0 = oldShape.x0;
+                        to.x0 = newShape.x0;
+                        from.x1 = oldShape.x1;
+                        to.x1 = newShape.x1;
+                        to.y0 = oldShape.y0;
+                        to.y1 = oldShape.y1;
+                    }
+                    else {
+                        to = { value: newShape.value, x0: newShape.x0, x1: newShape.x1, y0: newShape.y0, y1: newShape.y1 };
+                    }
+                    if (!newShape.isNULL && oldShape.value !== null) {
+                        newShape.animate(from, to);
+                    }
+                    previous.push(to);
+                    shapes.push(newShape);
+                }).each();
+                series._shapes = previous;
             });
             return shapes;
         },
-        onFrame: function (context) {
-            var chart = this;
-            this.series.forEach(function (series) {
-                var animators = series._animators;
-                animators.forEach(function (shape) {
-                    chart.drawShape(context, shape, series);
-                });
-                animators.forEach(function (shape) {
-                    DataLabels.render(context, shape);
-                });
-            });
-        },
-        drawState: function(){},
+        drawState: function () { },
         drawShape: function (context, shape, series) {
             var x0 = shape.x0,
                 y0 = shape.y0,
                 x1 = shape.x1,
                 y1 = shape.y1;
-            var width = Math.abs(x1 - x0),
-                height = Math.abs(y0 - y1);
             var borderWidth = pack("number", series.borderWidth, 0),
                 borderColor = pack("string", series.borderColor, "#FFFFFF"),
                 borderRadius = series.borderRadius;
             var rotation = pack("number", shape.rotation, 0);
             var color = shape.color;
+
             if (series.selected === false) {
                 borderWidth = borderRadius = 0;
             }
@@ -13437,8 +13939,7 @@ var PI = Math.PI,
             redraw: columnProp.redraw,
             drawShape: columnProp.drawShape,
             drawState: columnProp.drawState,
-            dataLabels: columnProp.dataLabels,
-            onFrame: columnProp.onFrame
+            dataLabels: columnProp.dataLabels
         };
 
         Bar.create(barProp, methods);
@@ -13448,7 +13949,7 @@ var PI = Math.PI,
             reflow: function () {
                 return columnProp.reflow.apply(this, arguments);
             },
-            animateTo: function() {
+            animateTo: function () {
                 return columnProp.animateTo.apply(this, arguments);
             },
             getShape: function (x, y, shared) {
@@ -13459,8 +13960,8 @@ var PI = Math.PI,
                     first,
                     last;
                 var ret = [];
-                function reset(shapes){
-                    shapes.forEach(function(item){
+                function reset (shapes) {
+                    shapes.forEach(function (item) {
                         delete item.current;
                     });
                 }
@@ -13510,7 +14011,7 @@ var PI = Math.PI,
     }
 
     return {
-        deps: function() {
+        deps: function () {
             return factoy.apply(global, [].slice.call(arguments, 0));
         }
     };
@@ -13520,15 +14021,368 @@ var PI = Math.PI,
     }
 
 })(typeof window !== "undefined" ? window : this, Dalaba.Chart);;
-    (function(global, Chart){
+    (function (global, Chart) {
     var relativeLength = Numeric.percentage;
 
     var angle2arc = Chart.angle2arc;
 
+    var relayout = (function (global) {
+    var sortByValue = function (a, b) {
+        return a.point.value - b.point.value;
+    };
+    var sortByAngle = function (a, b) {
+        return a.angle - b.angle;
+    };
+    var angleToQuadrant = function (angle) {
+        angle = angle % (PI2);
+        0 > angle && (angle = PI2 + angle);
+        return 0 <= angle && angle < Math.PI / 2 ? 1 : angle < Math.PI ? 2 : angle < Math.PI * 1.5 ? 3 : 0;
+    };
+
+    var addDataLabels = function (shapes, series) {
+        var dataLabels = series.dataLabels || {},
+            style = dataLabels.style || {},
+            distance = pack("number", dataLabels.distance, 0),
+            lineHeight = pack("number", mathCeil(parseFloat(style.lineHeight), 10), 12),
+            isInside = !!dataLabels.inside || shapes.length === 1,
+            skipOverlapLabels = !!dataLabels.skipOverlapLabels,
+            manageLabelOverflow = !!dataLabels.manageLabelOverflow,
+            isSmartLineSlanted = !!dataLabels.isSmartLineSlanted;
+
+        var shapeArgs = shapes[0];
+
+        var centerX = shapeArgs.x, centerY = shapeArgs.y,//L=x
+            radius = shapeArgs.radius, innerRadius = shapeArgs.innerRadius;
+
+        var labelsRadius = series.labelsRadius || (radius + distance / 2);
+        var fontSize = pack("number", parseInt(style.fontSize, 10), 12);
+        var labelsMaxInQuadrant = series.labelsMaxInQuadrant || Math.floor(labelsRadius / parseInt(fontSize, 10));
+
+        var connectorPadding = pack("number", dataLabels.connectorPadding, 15),
+            connectorPaddings = [connectorPadding, connectorPadding, -connectorPadding, -connectorPadding];
+
+        var fourQuadrants = [[], [], [], []];
+        
+        //one data and inside
+        if (shapes.length === 1 && !innerRadius && isInside) {
+            shapes[0].textX = centerX;
+            shapes[0].textY = centerY;
+            shapes[0].textAnchor = "center";
+        }
+        //inside
+        else if (isInside) {
+            shapes.forEach(function (shape) {
+                if (shape.value !== null && dataLabels.enabled === true || isObject(shape.dataLabels) && shape.dataLabels.enabled === true) {
+                    //var halfRadius = innerRadius;// + (radius - innerRadius) / 1.5;//radius center
+                    //var quadrants = angleToQuadrant(shape.angle);
+                    var isLabelInside = true;//inner
+                    var middleAngle = (shape.startAngle + shape.endAngle) / 2;
+                    var radius = shape.radius;
+                    var dx = mathCos(middleAngle),
+                        dy = Math.sin(middleAngle),
+                        x1 = (isLabelInside ? (radius + innerRadius) / 2 * dx : radius * dx) + centerX,
+                        y1 = (isLabelInside ? (radius + innerRadius) / 2 * dy : radius * dy) + centerY;
+
+                    var textX = x1 + dx * 4,
+                        textY = y1 + dy * 4;
+                    //var reversed = quadrants >= 2;
+
+                    if (shape.sliced) {
+                        //var slicedTranslation = shape.slicedTranslation;
+                        //x += ma[0] - positions[0];//canvasLeft;
+                        //y += ma[1] - positions[1];
+                    }
+                    shape.textX = textX;
+                    shape.textY = textY;
+                    shape.textAnchor = "center";
+                }
+            });
+        }
+        else {
+            var point;
+            var maxAngle, midAngle, currentAngle;
+            var quadrants;
+            
+            shapes.forEach(function (shape) {
+                if (dataLabels.enabled === true || isObject(shape.dataLabels) && shape.dataLabels.enabled === true) {
+                    var angle = shape.angle % (Math.PI * 2);
+                        0 > angle && (angle = Math.PI * 2 + angle);
+                    var ga = 0 <= angle && angle < Math.PI / 2 ? 1 : angle < Math.PI ? 2 : angle < Math.PI * 1.5 ? 3 : 0;
+                    fourQuadrants[ga].push({
+                        point: shape,
+                        angle: angle
+                    });
+                }
+            });
+            for (var k = 4; k--; ) {
+                var v;
+                if(skipOverlapLabels && (v = fourQuadrants[k].length - labelsMaxInQuadrant, 0 < v)){
+                    fourQuadrants[k].sort(sortByValue);
+                    quadrants = fourQuadrants[k].splice(0, v);
+                    for(v = 0; v < quadrants.length; v++){
+                        point = quadrants[v].point;
+                        point.visibility = true;
+                    }
+                }
+                fourQuadrants[k].sort(sortByAngle);
+            }
+            var maxInQuadrant = mathMax(
+                mathMin(
+                    mathMax(fourQuadrants[0].length, fourQuadrants[1].length, fourQuadrants[2].length, fourQuadrants[3].length),
+                    labelsMaxInQuadrant
+                ) * fontSize,
+                labelsRadius + fontSize
+            );
+            var quadrantsTop = fourQuadrants[0].concat(fourQuadrants[1]);
+            var quadrantsBottom = fourQuadrants[2].concat(fourQuadrants[3]);
+            maxAngle = Number.POSITIVE_INFINITY;
+            for(k = quadrantsTop.length - 1; 0 <= k; k--){
+                point = quadrantsTop[k].point;
+                delete point.clearance;
+                delete point.clearanceShift;
+                currentAngle = Math.abs(maxInQuadrant * Math.sin(point.angle));
+                if(Math.abs(maxAngle - currentAngle) < 2 * lineHeight){
+                    point.clearance = 0;
+                    quadrantsTop[k + 1].point.clearanceShift = lineHeight / 2;
+                }
+                maxAngle = currentAngle;
+            }
+            maxAngle = Number.POSITIVE_INFINITY;
+            for(k = 0; k < quadrantsBottom.length; k++){
+                point = quadrantsBottom[k].point;
+                delete point.clearance;
+                delete point.clearanceShift;
+                currentAngle = Math.abs(maxInQuadrant * Math.sin(point.angle));
+                if(Math.abs(maxAngle - currentAngle) < 2 * lineHeight){
+                    point.clearance = 0;
+                    quadrantsBottom[k - 1].point.clearanceShift = lineHeight / 2;
+                }
+                maxAngle = currentAngle;
+            }
+
+            fourQuadrants[1].reverse();
+            fourQuadrants[3].reverse();
+
+            for(var g = 4; g--; ){
+                quadrants = fourQuadrants[g];
+                var labelQuadrant = quadrants.length;
+                var angle;
+
+                skipOverlapLabels || (fontSize = labelQuadrant > labelsMaxInQuadrant ? maxInQuadrant / labelQuadrant : parseInt(fontSize, 10), fontSize / 2);
+                currentAngle = labelQuadrant * fontSize;
+                maxAngle = maxInQuadrant;
+                for(k = 0; k < labelQuadrant; k += 1, currentAngle -= fontSize){
+                    angle = Math.abs(maxInQuadrant * Math.sin(quadrants[k].angle));
+                    maxAngle < angle ? (angle = maxAngle) : angle < currentAngle && (angle = currentAngle);
+                    maxAngle = (quadrants[k].oriY = angle) - fontSize;
+                }
+                var textAnchor = ["start", "start", "end", "end"][g];
+                labelQuadrant = maxInQuadrant - (labelQuadrant - 1) * fontSize;
+                maxAngle = 0;
+                for(k = quadrants.length - 1; 0 <= k; --k, labelQuadrant += fontSize){
+                    var shape = quadrants[k];
+                    point = quadrants[k].point;
+                    if(isObject(shape.dataLabels))
+                        dataLabels = shape.dataLabels;
+                    
+                    angle = Math.abs(maxInQuadrant * mathSin(shape.angle)),
+                    angle < maxAngle ? (angle = maxAngle) : angle > labelQuadrant && (angle = labelQuadrant);
+
+                    maxAngle = angle + fontSize;
+                    var borderWidth = void 0 === point.clearance ?
+                        mathCeil(pack("number", parseFloat(series.borderWidth, 10), 12)) * 2
+                        : mathCeil(pack("number", parseFloat(series.borderWidth, 10), point.clearance, 0)) * 2;
+                    
+                    var toY = (angle + quadrants[k].oriY) / 2;
+                    centerX = point.x;
+                    centerY = point.y;
+                    radius = point.radius;
+                    angle = centerX + ([1, 1, -1, -1][g]) * labelsRadius * mathCos(Math.asin(mathMax(-1, mathMin(toY / maxInQuadrant, 1))));
+                    toY *= [-1, 1, 1, -1][g];//d
+                    toY += centerY;
+                    var x = centerX + radius * mathCos(shape.angle),
+                        y = centerY + radius * mathSin(shape.angle),
+                        dx = mathCos(midAngle = (point.startAngle + point.endAngle) / 2),
+                        dy = mathSin(midAngle);
+
+                    (2 > g && angle < x || 1 < g && angle > x) && (angle = x);
+                    var toX = angle + connectorPaddings[g];
+                    //var textX = toX + connectorPaddings[g];
+
+                    if(manageLabelOverflow){
+                        var textHeight = lineHeight + borderWidth;
+                        void 0 === point.clearance && textHeight > fontSize && (toY += fontSize);
+                    }
+                    if(point.sliced){
+                        var fa = point.transX;
+                        var ka = point.transY;
+                        toX += fa;
+                        angle += fa;
+                        x += fa;
+                        y += ka;
+                        //textX += fa;
+                    }
+                    var r = connectorPadding + point.radius - radius,
+                        x1 = x + dx * r,
+                        x2 = toX + (dx >= 0 || -1) * (distance);// + (dx >= 0 || -1) * distance;
+                        //y1 = y + dy * r,
+                        //y2 = y1;
+                    // point.connectorPoints = [
+                    //     {x: x, y: y},
+                    //     {x: !isSmartLineSlanted ? angle : x, y: toY},
+                    //     {x: toX, y: toY}
+                    // ];
+                    point.connectorPoints = [
+                        {x: x, y: y}, {x: x1, y: toY}, {x: x2, y: toY}
+                    ];
+
+                    point.textX = toX + (dx >= 0 || -1) * (3 + distance);
+                    point.textY = toY;
+                    point.textAnchor = textAnchor;
+                }
+            }
+        }
+    };
+
+    function factoy () {
+        var minRadius = 10;
+        return function (panels, isResized) {
+            panels.forEach(function (pane) {
+                pane.series.forEach(function (series) {
+                    var plotX = pack("number", series.plotX, 0),
+                        plotY = pack("number", series.plotY, 0),
+                        plotWidth = pack("number", series.plotWidth, 0),
+                        plotHeight = pack("number", series.plotHeight, 0);
+
+                    var sumValue = series.sumValue,
+                        maxValue = series.maxValue;
+                    var dataLabels = series.dataLabels || {},
+                        distance = pack("number", dataLabels.distance, 0),
+                        fontStyle = pack("object", dataLabels.style, {}),
+                        fontSize = pack("number", parseInt(fontStyle.fontSize, 10), 12);
+                    var roseType = series.roseType;
+
+                    var startAngle = 0,//default -Math.PI/2
+                        endAngle = 360,//Math.PI*2
+                        diffAngle = endAngle - startAngle;
+                    if (isNumber(series.startAngle, true)) {
+                        startAngle = series.startAngle;
+                        //endAngle = startAngle + endAngle;
+                    }
+                    if (isNumber(series.endAngle, true)) {
+                        endAngle = series.endAngle;
+                    }
+                    startAngle -= 90;
+                    endAngle -= 90;
+
+                    var radius = 0,
+                        innerSize = 0,
+                        center = defined(series.center) ? series.center : [plotWidth / 2, plotHeight / 2];
+                    var cx = pack("number", relativeLength(plotWidth, center[0]), center[0], plotWidth / 2),
+                        cy = pack("number", relativeLength(plotHeight, center[1]), center[1], plotHeight / 2);
+                    cx += plotX;
+                    cy += plotY;
+                    //var connectorOffset = (dataLabels.distance) * 2 + fontSize;
+                    if (dataLabels.enabled === false || dataLabels.inside === true) {
+                        //connectorOffset = 0;
+                    }
+                    if (distance > 0 && dataLabels.inside !== true) {
+                        plotHeight -= distance * 2;
+                        plotHeight -= fontSize;
+                    }
+                    //
+                    //plotWidth -= bbox.width * 2 - distance * 2 + dataLabels.connectorPadding * 2;
+                    radius = mathMin(plotWidth / 2, plotHeight / 2);
+                    if (defined(series.size)) {
+                        radius = mathMax(pack("number", series.size, relativeLength(radius, series.size), minRadius), minRadius);
+                    }
+                    
+                    if (defined(series.innerSize)) {
+                        innerSize = pack("number", series.innerSize, relativeLength(radius, series.innerSize));
+                        innerSize = mathMin(innerSize, radius - 1);
+                    }
+
+                    startAngle = PI / 180 * startAngle;
+                    endAngle = PI / 180 * endAngle;// ((endAngle || startAngle + 360 - 90));
+                    diffAngle = endAngle - startAngle;
+                    //calculator value
+
+                    var nextvalue = 0;
+                    var shapes = series.shapes,
+                        shape;
+                    var length = shapes.length,
+                        j = -1;
+                    sumValue = 0;
+
+                    while (++j < length) if (!(shape = shapes[j]).isNULL && shape.selected !== false) sumValue += shape.value;
+
+                    if (!sumValue) {
+                        sumValue = 1;//all is 0
+                    }
+
+                    for (j = 0; j < length; j++) {
+                        var value = (shape = shapes[j]).value,
+                            percentage = value / sumValue,
+                            start,
+                            end;
+                        var radii = radius;
+                        var isRoseArea = roseType === "area";
+
+                        if (value === null || shape.selected === false || value < 0) {
+                            value = percentage = 0;
+                        }
+                        if (roseType === true || roseType === "radius" || isRoseArea) {
+                            radii = interpolate(value, 0, maxValue, innerSize, radius);
+                            isRoseArea && (percentage = 1 / length);
+                        }
+                        
+                        angle = (end + start) / 2;
+                        //only one data
+                        start = startAngle + nextvalue * diffAngle;
+                        nextvalue += percentage;
+                        end = startAngle + nextvalue * diffAngle;
+
+                        var angle = (start + end) / 2,
+                            half;
+                        if (angle > PI * 1.5)
+                            angle -= PI2;
+                        else if (angle < -PI / 2)
+                            angle += PI2;
+                        half = angle < -PI / 2 || angle > PI / 2 ? 1 : 0;
+                        extend(shape, {
+                            x: cx,
+                            y: cy,
+                            radius: radii,
+                            innerRadius: innerSize,
+                            startAngle: start,
+                            endAngle: end,
+                            textX: NaN,
+                            textY: NaN,
+                            transX: 0,
+                            transY: 0,//sliced pull
+                            center: center,
+                            percentage: percentage * 100,
+                            total: sumValue,
+                            angle: angle,
+                            half: half,
+                            radius: radius
+                        });
+                    }
+                    series.shapes.length && addDataLabels(series.shapes, series);
+                });
+            });
+        }
+    }
+    return {
+        deps: function () {
+            return factoy.apply(global, [].slice.call(arguments, 0));
+        }
+    };
+}).call(typeof window !== "undefined" ? window : this).deps(Numeric);
+
     function Pie (canvas, options) {
         this.type = "pie";
 
-        this.series = [];
         this.canvas = canvas;
         this.context = canvas.getContext("2d");
 
@@ -13538,191 +14392,133 @@ var PI = Math.PI,
         constructor: Pie,
         init: function (options) {
             var type = this.type;
-            var seriesColors;
             this.options = extend({}, options);
-            seriesColors = this.options.colors || [];
-            this.series = arrayFilter(this.options.series || [], function (series) {
-                var shapes = series.shapes || [],
-                    length = shapes.length,
-                    j = 0;
-                var value, minValue, maxValue, sumValue;
-                var filter = series.type === type;
-                if(filter){
-                    series._diffValues = List.diff(series.shapes, series._shapes || [], function (a, b) {
-                        return a && b && a.value === b.value;
-                    });
-                    minValue = maxValue = sumValue = 0;
-                    for(; j < length; j++){
-                        var shape = shapes[j];
-                        value = Math.max(0, shape.value);
-                        
-                        !defined(shape.color) && (shape.color = seriesColors[j % seriesColors.length]);
-                        if(isNumber(value) && shape.selected !== false){
-                            maxValue = Math.max(maxValue, value);
-                            minValue = Math.min(minValue, value);
-                            sumValue += value;
-                        }
-                    }
-                    series.maxValue = maxValue;
-                    series.minValue = minValue;
-                    series.sumValue = sumValue;
+
+            var panels = [],
+                panel = options.panel;
+            var n = panel.length, i = -1, j, nn;
+
+            var newSeries = [],
+                series;
+            this.series = [];
+
+            while (++i < n) {
+                newSeries = [];
+                for (j = 0, nn = panel[i].series.length; j < nn; j++) if ((series = panel[i].series[j]).type === this.type) {
+                    newSeries.push(series);
+                    this.series = this.series.concat(series);
                 }
-                return filter;
-            });
-            var pie = new Pie.Layout(type, this.series, this.options);
-            this.shapes = pie.shapes;
-            this.layout = pie;
+
+                panels.push({
+                    series: newSeries
+                });
+            }
+            this.options = options;//update
+            this.panels = panels;
+            relayout(panels);
         },
         draw: function () {
             var context = this.context;
             var chart = this;
 
-            this.shapes.forEach(function(series){
+            this.series.forEach(function (series) {
                 var shapes = series.shapes;
-                shapes.forEach(function(shape){
+                shapes.forEach(function (shape) {
                     chart.drawShape(context, shape, series);
                 });
-                shapes.forEach(function(shape){
+                shapes.forEach(function (shape) {
                     chart.drawLabels(context, shape, series);
                 });
             });
         },
         reflow: function () {
-
         },
         redraw: function () {
-            this.shapes = this.layout.subgroup();
+            relayout(this.panels, true);
             this.draw();
         },
         animateTo: function () {
             var shapes = [];
-            this.shapes.forEach(function(series){
+            this.series.forEach(function (series) {
                 var newData = series.shapes,
                     oldData = series._shapes || [];
-                var fromAngle = pack("number", series.startAngle * PI / 180, -PI / 2),
-                    startAngle,
-                    endAngle;
-                var animators = [];
-                series._diffValues.add(function(newIndex) {
+                var previous = [];
+                var fromAngle = pack("number", (newData[0] && newData[0].startAngle), -PI / 2);
+
+                List.diff(newData, oldData, function (a, b) {
+                    return a && b && a.value === b.value;
+                }).add(function (newIndex) {
                     var oldShape = oldData[newIndex],
-                        newShape = newData[newIndex] || {},
-                        mergeShape;
-                    
-                    mergeShape = {
-                        shapeArgs: extend({}, newShape.shapeArgs),
-                        textArgs: extend({}, newShape.textArgs),
-                        connectorPoints: newShape.connectorPoints,
-                        angle: newShape.angle,
-                        color: newShape.color,
-                        value: newShape.value,
-                        _value: newShape._value,
-                        percentage: newShape.percentage
-                    };
-                    //startAngle => endAngle
-                    shapes.push([oldShape, function(timer){
-                        startAngle = oldShape.shapeArgs.startAngle;
-                        endAngle = oldShape.shapeArgs.endAngle;
-                        mergeShape.shapeArgs.startAngle = startAngle * (1 - timer) + (endAngle) * timer;
-                        //newShape.shapeArgs.endAngle = endAngle * (1 - timer) - (endAngle - startAngle) / 2 * timer;
-                        mergeShape.textArgs.x = -9999;
-                        mergeShape.textArgs.y = -9999;
-                    }]);
-                    return mergeShape;
-                }).modify(function(newIndex, oldIndex){
+                        newShape = newData[newIndex] || {};
+                    var to;
+                    oldShape.animate({
+                        startAngle: oldShape.startAngle
+                    }, to = {
+                        value: oldShape.value,
+                        startAngle: newShape.startAngle
+                    });
+                    previous.push(to);
+                    shapes.push(oldShape);
+                }).modify(function (newIndex, oldIndex) {
                     var newShape = newData[newIndex],
-                        oldShape = oldData[oldIndex],
-                        mergeShape;
-                    //console.log(newShape.textArgs)
-                    if(newShape && oldShape && (newShape.shapeArgs && oldShape.shapeArgs)){
-                        /*mergeShape = extend({}, newShape, {
-                            shapeArgs: {
-                                startAngle: oldShape.shapeArgs.startAngle,
-                                endAngle: oldShape.shapeArgs.endAngle,
-                            },
-                            textArgs: {
-                                x: oldShape.textArgs.x,
-                                y: oldShape.textArgs.y
-                            }
-                        });*/
-                        mergeShape = {
-                            shapeArgs: extend({}, newShape.shapeArgs),
-                            textArgs: extend({}, newShape.textArgs),
-                            connectorPoints: newShape.connectorPoints,
-                            color: newShape.color,
-                            value: newShape.value,
-                            _value: newShape._value,
-                            percentage: newShape.percentage
-                        };
-                        mergeShape.shapeArgs.startAngle = oldShape.shapeArgs.startAngle;
-                        mergeShape.shapeArgs.endAngle = oldShape.shapeArgs.endAngle;
-                        //console.log( newShape.shapeArgs)
-                        shapes.push([newShape, function(timer){
-                            var oldStartAngle = oldShape.shapeArgs.startAngle,
-                                oldEndAngle = oldShape.shapeArgs.endAngle;
-                            var newStartAngle = newShape.shapeArgs.startAngle,
-                                newEndAngle = newShape.shapeArgs.endAngle;
-
-                            mergeShape.shapeArgs.startAngle = oldStartAngle + (newStartAngle - oldStartAngle) * timer;
-                            mergeShape.shapeArgs.endAngle = oldEndAngle + (newEndAngle - oldEndAngle) * timer;
-                            mergeShape.textArgs.x = oldShape.textArgs.x + (newShape.textArgs.x - oldShape.textArgs.x) * timer;
-                            mergeShape.textArgs.y = oldShape.textArgs.y + (newShape.textArgs.y - oldShape.textArgs.y) * timer;
-                            //console.log( mergeShape.shapeArgs.startAngle,  mergeShape.shapeArgs.endAngle)
-                        }]);
+                        oldShape = oldData[oldIndex];
+                    var to;
+                    if (newShape && oldShape) {                        
+                        newShape.animate({
+                            startAngle: oldShape.startAngle,
+                            endAngle: oldShape.endAngle,
+                            textX: oldShape.textX,
+                            textY: oldShape.textY
+                        }, to = {
+                            value: oldShape.value,
+                            startAngle: newShape.startAngle,
+                            endAngle: newShape.endAngle,
+                            textX: newShape.textX,
+                            textY: newShape.textY
+                        });
+                        previous.push(to);
+                        shapes.push(newShape);
                     }
-                    return mergeShape;
-                }).remove(function(newIndex){//add
-                    var newShape = newData[newIndex],
-                        mergeShape;
-                    mergeShape = {
-                        shapeArgs: extend({}, newShape.shapeArgs),
-                        textArgs: extend({}, newShape.textArgs),
-                        connectorPoints: newShape.connectorPoints,
-                        angle: newShape.angle,
-                        color: newShape.color,
-                        value: newShape.value,
-                        _value: newShape._value,
-                        percentage: newShape.percentage
-                    };
-
-                    shapes.push([newShape, function(timer){
-                        startAngle = newShape.shapeArgs.startAngle;
-                        endAngle = newShape.shapeArgs.endAngle;
-                        if(oldData[newIndex - 1]){
-                            mergeShape.shapeArgs.startAngle = endAngle + (startAngle - endAngle) * timer;
-                            mergeShape.textArgs.x = newShape.textArgs.x;
-                            mergeShape.textArgs.y = newShape.textArgs.y;
-                        }
-                        else{
-                            mergeShape.shapeArgs.startAngle = fromAngle + (startAngle - fromAngle) * timer;
-                            mergeShape.shapeArgs.endAngle = fromAngle + (endAngle - fromAngle) * timer;
-                        }
-                    }]);
-                    return mergeShape;
-                }).each(function(mergeShape){
-                    mergeShape && animators.push(mergeShape);
-                });
-                series._animators = animators;
-                series._shapes = series.shapes;
+                }).remove(function (newIndex) {//add
+                    var newShape = newData[newIndex];
+                    var from = {
+                        startAngle: fromAngle,
+                        endAngle: fromAngle
+                    }, to;
+                    //no init
+                    if (oldData[newIndex - 1]) {
+                        newShape.animate({
+                            startAngle: newShape.endAngle
+                        }, to = {
+                            value: newShape.value,
+                            startAngle: newShape.startAngle,
+                            endAngle: newShape.endAngle,
+                            textX: newShape.textX,
+                            textY: newShape.textY
+                        });
+                    }
+                    else {
+                        newShape.animate(from, to = {
+                            value: newShape.value,
+                            startAngle: newShape.startAngle,
+                            endAngle: newShape.endAngle,
+                            textX: newShape.textX,
+                            textY: newShape.textY
+                        });
+                    }
+                    previous.push(to);
+                    shapes.push(newShape);
+                }).each();
+                series._shapes = previous;
             });
             return shapes;
         },
-        onFrame: function(context){
-            var chart = this;
-            this.shapes.forEach(function(series){
-                var animators = series._animators;
-                animators.forEach(function(shape){
-                    chart.drawShape(context, shape, series);
-                    chart.drawLabels(context, shape, series);
-                });
-            });
-        },
-        drawState: function(context, shape, series){
-            var shapeArgs = shape.shapeArgs,
-                x = shapeArgs.x,
-                y = shapeArgs.y,
-                radius = shapeArgs.radius,
-                startAngle = shapeArgs.startAngle,
-                endAngle = shapeArgs.endAngle;
+        drawState: function (context, shape, series) {
+            var x = shape.x,
+                y = shape.y,
+                radius = shape.radius,
+                startAngle = shape.startAngle,
+                endAngle = shape.endAngle;
             var color = pack("string", shape.color, series.color, "#000");
             context.save();
             context.beginPath();
@@ -13743,16 +14539,13 @@ var PI = Math.PI,
             var color = pack("string", shape.color, series.color, "#000");
             var borderWidth = pack("number", series.borderWidth, 0),
                 borderColor = pack("string", series.borderColor, "#FFFFFF");
-
-            var shapeArgs = shape.shapeArgs,
-                x = shapeArgs.x,
-                y = shapeArgs.y,
-                startAngle = shapeArgs.startAngle,
-                endAngle = shapeArgs.endAngle,
+            var x = shape.x,
+                y = shape.y,
+                startAngle = shape.startAngle,
+                endAngle = shape.endAngle,
                 middleAngle;
-            
-            //color = Color.parse(color);
-            if(defined(shape.current)){
+
+            if (defined(shape.current)) {
                 color = Color.parse(color).alpha(0.7);
                 color.r = Math.min(0xff, color.r + 20);
                 color.g = Math.min(0xff, color.g + 20);
@@ -13760,10 +14553,10 @@ var PI = Math.PI,
                 color = Color.rgba(color);
             }
 
-            if(shape.sliced === true){
+            if (shape.sliced === true) {
                 middleAngle = (startAngle + endAngle) / 2;
-                x += Math.cos(middleAngle) * 10;
-                y += Math.sin(middleAngle) * 10;
+                x += mathCos(middleAngle) * 10;
+                y += mathSin(middleAngle) * 10;
             }
             
             context.save();
@@ -13771,20 +14564,20 @@ var PI = Math.PI,
             angle2arc(
                 x,
                 y,
-                shapeArgs.radius,
-                shapeArgs.innerRadius,
+                shape.radius,
+                shape.innerRadius,
                 startAngle,
                 endAngle,
                 false//close path
             )(context);
             series.nofill !== true && context.fill();            
             (context.lineWidth = pack("number", borderWidth)) > 0 && (context.strokeStyle = borderColor, context.stroke());
-            if(defined(shape.state)){
+            if (defined(shape.state)) {
                 this.drawState(context, shape, series);
             }
             context.restore();
         },
-        drawLabels: function(context, shape, series){
+        drawLabels: function (context, shape, series) {
             var shapeLabels = shape.dataLabels || {},
                 dataLabels = pack("object", shape.dataLabels, series.dataLabels, {}),
                 enabled = shapeLabels.enabled || dataLabels.enabled,
@@ -13797,11 +14590,11 @@ var PI = Math.PI,
                     lineHeight: pack("string", style.lineHeight, "normal")
                 },
                 isInside = !!shapeLabels.inside || !!dataLabels.inside || series.shapes.length === 1;
-
-            var textArgs = shape.textArgs,
+            var textX = shape.textX,
+                textY = shape.textY,
                 connectorPoints = shape.connectorPoints,
                 formatText;
-            var fillText = function(item, x, y, reversed){
+            var fillText = function (item, x, y, reversed) {
                 var value = item._value,
                     formatter = dataLabels.formatter;
                 function setVertical(y, h){
@@ -13864,28 +14657,28 @@ var PI = Math.PI,
                 }
                 return value;
             };
-            if(shape.value !== null && shape.selected !== false && enabled === true){
-                if(series.shapes.length === 1 && !shape.shapeArgs.innerRadius && isInside){
+            if (shape.value !== null && shape.selected !== false && enabled === true) {
+                if (series.shapes.length === 1 && !shape.innerRadius && isInside) {
                     context.save();
                     context.textAlign = "center";
-                    fillText(shape, textArgs.x, textArgs.y, false);
+                    fillText(shape, textX, textY, false);
                     context.restore();
                 }
-                else if(isInside){
+                else if (isInside) {
                     context.save();
                     context.textAlign = "center";// reversed ? "left" : "right";
-                    fillText(shape, textArgs.x, textArgs.y, false);
+                    fillText(shape, textX, textY, false);
                     context.restore();
                 }
-                else{
-                    if(shape.visibility !== true){
-                        formatText = fillText(shape, textArgs.x, textArgs.y, textArgs["text-anchor"] === "end");
-                        if(defined(formatText) && dataLabels.distance > 0 && dataLabels.connectorWidth > 0){
+                else {
+                    if (shape.visibility !== true) {
+                        formatText = fillText(shape, textX, textY, shape.textAnchor === "end");
+                        if (defined(formatText) && dataLabels.distance > 0 && dataLabels.connectorWidth > 0) {
                             context.save();
                             context.strokeStyle = shape.color;
                             context.lineWidth = dataLabels.connectorWidth;
                             context.beginPath();
-                            (connectorPoints || []).forEach(function(point, i){
+                            (connectorPoints || []).forEach(function (point, i) {
                                 context[i ? "lineTo" : "moveTo"](point.x, point.y);
                             });
                             context.stroke();
@@ -13895,8 +14688,8 @@ var PI = Math.PI,
                 }
             }
         },
-        setSliced: function(shapes){
-            shapes.forEach(function(item){
+        setSliced: function (shapes) {
+            shapes.forEach(function (item) {
                 var currentShape = item.shape,
                     series = item.series;
                 series.shapes.forEach(function(shape){
@@ -13906,17 +14699,17 @@ var PI = Math.PI,
             });
         },
         getShape: function (x, y) {
-            var series = this.shapes,
+            var series = this.series,
                 length = series.length,
                 index = -1;
             var context = this.context;
             var shapes, shape, item;
             var ret = [];
-            function remove(item){
+            function remove (item) {
                 delete item.current;
             }
-            function reset(shapes){
-                shapes.forEach(function(item){
+            function reset (shapes) {
+                shapes.forEach(function (item) {
                     remove(item);
                 });
             }
@@ -13924,403 +14717,28 @@ var PI = Math.PI,
             x *= DEVICE_PIXEL_RATIO;
             y *= DEVICE_PIXEL_RATIO;
 
-            for(var i = 0; i < length; i++){
+            for (var i = 0; i < length; i++) {
                 item = series[i];
                 reset(shapes = item.shapes);
                 index = -1;
-                for(var j = 0; j < shapes.length; j++){
+                for (var j = 0; j < shapes.length; j++) {
                     shape = shapes[j];
                     this.drawShape(context, shape, {nofill: true});
-                    if(context.isPointInPath(x, y)){
+                    if (context.isPointInPath(x, y)) {
                         shape.$value = "" + shape._value;
                         ret.push({shape: shape, series: item});
                         index = j;
                         break;
                     }
                 }
-                if(index !== -1){
+                if (index !== -1) {
                     shapes[index].current = index;
                 }
-                else{
+                else {
                     reset(shapes);//no selected
                 }
             }
-            //console.log(ret);
             return ret;
-        }
-    };
-    Pie.Layout = function(type, series, options){
-        this.type = type;
-        this.options = options;
-        this.series = series.slice(0);
-
-        this.init();
-    };
-    Pie.Layout.prototype = {
-        init: function(){
-            this.shapes = this.subgroup();
-        },
-        subgroup: function () {
-            var options = this.options,
-                type = this.type,
-                minRadius = 10;
-            var layout = this;
-            var shapes = [];
-            options.panel.forEach(function(pane){
-                var series = arrayFilter(pane.series, function(series){
-                    return series.type === type;
-                });
-                series.forEach(function(series){
-                    var plotX = pack("number", series.plotX, 0),
-                        plotY = pack("number", series.plotY, 0),
-                        plotWidth = pack("number", series.plotWidth, 0),
-                        plotHeight = pack("number", series.plotHeight, 0);
-
-                    var total = series.sumValue,
-                        maxValue = series.maxValue;
-                    var dataLabels = series.dataLabels || {},
-                        distance = pack("number", dataLabels.distance, 0),
-                        fontStyle = pack("object", dataLabels.style, {}),
-                        fontSize = pack("number", parseInt(fontStyle.fontSize, 10), 12);
-                    var roseType = series.roseType;
-
-                    var startAngle = -90,//default -Math.PI/2
-                        endAngle = 360 - 90,//Math.PI*2
-                        diffAngle = endAngle - startAngle;
-                    if(defined(series.startAngle)){
-                        startAngle = series.startAngle;
-                        endAngle = startAngle + endAngle + 90;
-                    }
-                    if(defined(series.endAngle)){
-                        endAngle = series.endAngle;
-                    }
-                    /*data.sort(function(a, b){
-                        return b.value - a.value;
-                    });*/
-                    if(!total){
-                        total = 1;//all is 0
-                    }
-                    var radius = 0,
-                        innerSize = 0,
-                        center = defined(series.center) ? series.center : [plotWidth / 2, plotHeight / 2];
-                    var cx = pack("number", relativeLength(plotWidth, center[0]), center[0], plotWidth / 2),
-                        cy = pack("number", relativeLength(plotHeight, center[1]), center[1], plotHeight / 2);
-                    cx += plotX;
-                    cy += plotY;
-                    //var connectorOffset = (dataLabels.distance) * 2 + fontSize;
-                    if(dataLabels.enabled === false || dataLabels.inside === true){
-                        //connectorOffset = 0;
-                    }
-                    if(distance > 0 && dataLabels.inside !== true){
-                        plotHeight -= distance * 2;
-                        plotHeight -= fontSize;
-                    }
-                    //
-                    //plotWidth -= bbox.width * 2 - distance * 2 + dataLabels.connectorPadding * 2;
-                    radius = Math.min(plotWidth / 2, plotHeight / 2);
-                    if(defined(series.size)){
-                        radius = Math.max(pack("number", series.size, relativeLength(radius, series.size), minRadius), minRadius);
-                    }
-                    
-                    if(defined(series.innerSize)){
-                        innerSize = pack("number", series.innerSize, relativeLength(radius, series.innerSize));
-                        innerSize = Math.min(innerSize, radius - 1);
-                    }
-
-                    startAngle = Math.PI / 180 * (startAngle);
-                    endAngle = Math.PI / 180 * ((endAngle || startAngle + 360 - 90));
-                    diffAngle = endAngle - startAngle;
-                    //calculator value
-
-                    var nextvalue = 0;
-                    for(var j = 0, jj = series.shapes.length; j < jj; j++){
-                        var shape = series.shapes[j],
-                            value = shape.value,
-                            percentage = value / total,
-                            start,
-                            end;
-                        var radii = radius;
-                        var isRoseArea = roseType === "area";
-                        
-                        if(value === null || shape.selected === false || value < 0){
-                            value = percentage = 0;
-                        }
-                        if(roseType === true || roseType === "radius" || isRoseArea){
-                            radii = interpolate(value, 0, maxValue, innerSize, radius);
-                            isRoseArea && (percentage = 1 / jj);
-                        }
-                        
-                        angle = (end + start) / 2;
-                        //only one data
-                        //if(percentage === 1 || percentage === 0){}
-                        start = startAngle + nextvalue * diffAngle;
-                        nextvalue += percentage;
-                        end = startAngle + nextvalue * diffAngle;
-
-                        var angle = (start + end) / 2,
-                            half;
-                        if(angle > PI * 1.5)
-                            angle -= PI2;
-                        else if(angle < -PI / 2)
-                            angle += PI2;
-                        half = angle < -PI / 2 || angle > PI / 2 ? 1 : 0;
-                        extend(shape, {
-                            shapeArgs: {
-                                x: cx,
-                                y: cy,
-                                radius: radii,
-                                innerRadius: innerSize,
-                                startAngle: start,
-                                endAngle: end
-                            },
-                            textArgs: {
-                                x: NaN,
-                                y: NaN
-                            },
-                            transX: 0,
-                            transY: 0,//sliced pull
-                            center: center,
-                            percentage: percentage * 100,
-                            total: total,
-                            angle: angle,
-                            half: half,
-                            radius: radius
-                        });
-
-                    }
-                    //dataLabels
-                    series.shapes.length && layout.labels(series.shapes, series);
-                    shapes.push(series);
-                });
-            });
-            return shapes;
-        },
-        labels: function (shapes, series) {
-            var sortByValue = function (a, b) {
-                return a.point.value - b.point.value;
-            };
-            var sortByAngle = function (a, b) {
-                return a.angle - b.angle;
-            };
-            var angleToQuadrant = function (angle) {
-                angle = angle % (PI2);
-                0 > angle && (angle = PI2 + angle);
-                return 0 <= angle && angle < Math.PI / 2 ? 1 : angle < Math.PI ? 2 : angle < Math.PI * 1.5 ? 3 : 0;
-            };
-            var dataLabels = series.dataLabels || {},
-                style = dataLabels.style || {},
-                distance = pack("number", dataLabels.distance, 0),
-                lineHeight = pack("number", Math.ceil(parseFloat(style.lineHeight), 10), 12),
-                isInside = !!dataLabels.inside || shapes.length === 1,
-                skipOverlapLabels = !!dataLabels.skipOverlapLabels,
-                manageLabelOverflow = !!dataLabels.manageLabelOverflow,
-                isSmartLineSlanted = !!dataLabels.isSmartLineSlanted;
-
-            var positions = [
-                shapes[0].shapeArgs.x,//x 
-                shapes[0].shapeArgs.y,//y
-                shapes[0].radius,//size
-                shapes[0].shapeArgs.innerRadius || 0//innerSize
-            ];
-            var centerX = positions[0],
-                centerY = positions[1],//L=x
-                radius = positions[2],
-                innerRadius = positions[3];
-            var labelsRadius = series.labelsRadius || (radius + distance / 2);
-            var fontSize = pack("number", parseInt(style.fontSize, 10), 12);
-            var labelsMaxInQuadrant = series.labelsMaxInQuadrant || Math.floor(labelsRadius / parseInt(fontSize, 10));
-
-            var connectorPadding = pack("number", dataLabels.connectorPadding, 15),
-                connectorPaddings = [connectorPadding, connectorPadding, -connectorPadding, -connectorPadding];
-
-            var fourQuadrants = [[], [], [], []];
-            
-            //one data and inside
-            if(shapes.length === 1 && !innerRadius && isInside){
-                //shape.slicedTranslation = [z, C];//canvasLeft, canvasTop
-                shapes[0].textArgs = {
-                    x: centerX,
-                    y: centerY,
-                    "text-anchor": "center"
-                };
-            }
-            //inside
-            else if (isInside) {
-                shapes.forEach(function (shape) {
-                    if(shape.value !== null && dataLabels.enabled === true || isObject(shape.dataLabels) && shape.dataLabels.enabled === true){
-                        //var halfRadius = innerRadius;// + (radius - innerRadius) / 1.5;//radius center
-                        //var quadrants = angleToQuadrant(shape.angle);
-                        var isLabelInside = true;//inner
-                        var middleAngle = (shape.shapeArgs.startAngle + shape.shapeArgs.endAngle) / 2;
-                        var radius = shape.shapeArgs.radius;
-                        var dx = Math.cos(middleAngle),
-                            dy = Math.sin(middleAngle),
-                            x1 = (isLabelInside ? (radius + innerRadius) / 2 * dx : radius * dx) + centerX,
-                            y1 = (isLabelInside ? (radius + innerRadius) / 2 * dy : radius * dy) + centerY;
-
-                        var textX = x1 + dx * 4,
-                            textY = y1 + dy * 4;
-                        //var reversed = quadrants >= 2;
-
-                        if (shape.sliced) {
-                            //var slicedTranslation = shape.slicedTranslation;
-                            //x += ma[0] - positions[0];//canvasLeft;
-                            //y += ma[1] - positions[1];
-                        }
-                        shape.textArgs = {
-                            x: textX,
-                            y: textY,
-                            "text-anchor": "center"
-                        };
-                    }
-                });
-            }
-            else {
-                var point;
-                var maxAngle, midAngle, currentAngle;
-                var quadrants;
-                
-                shapes.forEach(function(shape){
-                    if(dataLabels.enabled === true || isObject(shape.dataLabels) && shape.dataLabels.enabled === true){
-                        var angle = shape.angle % (Math.PI * 2);
-                            0 > angle && (angle = Math.PI * 2 + angle);
-                        var ga = 0 <= angle && angle < Math.PI / 2 ? 1 : angle < Math.PI ? 2 : angle < Math.PI * 1.5 ? 3 : 0;
-                        fourQuadrants[ga].push({
-                            point: shape,
-                            angle: angle
-                        });
-                    }
-                });
-                for(var k = 4; k--; ){
-                    var v;
-                    if(skipOverlapLabels && (v = fourQuadrants[k].length - labelsMaxInQuadrant, 0 < v)){
-                        fourQuadrants[k].sort(sortByValue);
-                        quadrants = fourQuadrants[k].splice(0, v);
-                        for(v = 0; v < quadrants.length; v++){
-                            point = quadrants[v].point;
-                            point.visibility = true;
-                        }
-                    }
-                    fourQuadrants[k].sort(sortByAngle);
-                }
-                var maxInQuadrant = Math.max(
-                    Math.min(
-                        Math.max(fourQuadrants[0].length, fourQuadrants[1].length, fourQuadrants[2].length, fourQuadrants[3].length),
-                        labelsMaxInQuadrant
-                    ) * fontSize,
-                    labelsRadius + fontSize
-                );
-                var quadrantsTop = fourQuadrants[0].concat(fourQuadrants[1]);
-                var quadrantsBottom = fourQuadrants[2].concat(fourQuadrants[3]);
-                maxAngle = Number.POSITIVE_INFINITY;
-                for(k = quadrantsTop.length - 1; 0 <= k; k--){
-                    point = quadrantsTop[k].point;
-                    delete point.clearance;
-                    delete point.clearanceShift;
-                    currentAngle = Math.abs(maxInQuadrant * Math.sin(point.angle));
-                    if(Math.abs(maxAngle - currentAngle) < 2 * lineHeight){
-                        point.clearance = 0;
-                        quadrantsTop[k + 1].point.clearanceShift = lineHeight / 2;
-                    }
-                    maxAngle = currentAngle;
-                }
-                maxAngle = Number.POSITIVE_INFINITY;
-                for(k = 0; k < quadrantsBottom.length; k++){
-                    point = quadrantsBottom[k].point;
-                    delete point.clearance;
-                    delete point.clearanceShift;
-                    currentAngle = Math.abs(maxInQuadrant * Math.sin(point.angle));
-                    if(Math.abs(maxAngle - currentAngle) < 2 * lineHeight){
-                        point.clearance = 0;
-                        quadrantsBottom[k - 1].point.clearanceShift = lineHeight / 2;
-                    }
-                    maxAngle = currentAngle;
-                }
-
-                fourQuadrants[1].reverse();
-                fourQuadrants[3].reverse();
-
-                for(var g = 4; g--; ){
-                    quadrants = fourQuadrants[g];
-                    var labelQuadrant = quadrants.length;
-                    var angle;
-
-                    skipOverlapLabels || (fontSize = labelQuadrant > labelsMaxInQuadrant ? maxInQuadrant / labelQuadrant : parseInt(fontSize, 10), fontSize / 2);
-                    currentAngle = labelQuadrant * fontSize;
-                    maxAngle = maxInQuadrant;
-                    for(k = 0; k < labelQuadrant; k += 1, currentAngle -= fontSize){
-                        angle = Math.abs(maxInQuadrant * Math.sin(quadrants[k].angle));
-                        maxAngle < angle ? (angle = maxAngle) : angle < currentAngle && (angle = currentAngle);
-                        maxAngle = (quadrants[k].oriY = angle) - fontSize;
-                    }
-                    var textAnchor = ["start", "start", "end", "end"][g];
-                    labelQuadrant = maxInQuadrant - (labelQuadrant - 1) * fontSize;
-                    maxAngle = 0;
-                    for(k = quadrants.length - 1; 0 <= k; --k, labelQuadrant += fontSize){
-                        var shape = quadrants[k];
-                        point = quadrants[k].point;
-                        if(isObject(shape.dataLabels))
-                            dataLabels = shape.dataLabels;
-                        
-                        angle = Math.abs(maxInQuadrant * Math.sin(shape.angle)),
-                        angle < maxAngle ? (angle = maxAngle) : angle > labelQuadrant && (angle = labelQuadrant);
-
-                        maxAngle = angle + fontSize;
-                        var borderWidth = void 0 === point.clearance ?
-                            Math.ceil(pack("number", parseFloat(series.borderWidth, 10), 12)) * 2
-                            : Math.ceil(pack("number", parseFloat(series.borderWidth, 10), point.clearance, 0)) * 2;
-                        
-                        var toY = (angle + quadrants[k].oriY) / 2;
-                        centerX = point.shapeArgs.x;
-                        centerY = point.shapeArgs.y;
-                        radius = point.shapeArgs.radius;
-                        angle = centerX + ([1, 1, -1, -1][g]) * labelsRadius * Math.cos(Math.asin(Math.max(-1, Math.min(toY / maxInQuadrant, 1))));
-                        toY *= [-1, 1, 1, -1][g];//d
-                        toY += centerY;
-                        var x = centerX + radius * Math.cos(shape.angle),
-                            y = centerY + radius * Math.sin(shape.angle),
-                            dx = Math.cos(midAngle = (point.shapeArgs.startAngle + point.shapeArgs.endAngle) / 2),
-                            dy = Math.sin(midAngle);
-
-                        (2 > g && angle < x || 1 < g && angle > x) && (angle = x);
-                        var toX = angle + connectorPaddings[g];
-                        //var textX = toX + connectorPaddings[g];
-
-                        if(manageLabelOverflow){
-                            var textHeight = lineHeight + borderWidth;
-                            void 0 === point.clearance && textHeight > fontSize && (toY += fontSize);
-                        }
-                        if(point.sliced){
-                            var fa = point.transX;
-                            var ka = point.transY;
-                            toX += fa;
-                            angle += fa;
-                            x += fa;
-                            y += ka;
-                            //textX += fa;
-                        }
-                        var r = connectorPadding + point.radius - radius,
-                            x1 = x + dx * r,
-                            x2 = toX + (dx >= 0 || -1) * (distance);// + (dx >= 0 || -1) * distance;
-                            //y1 = y + dy * r,
-                            //y2 = y1;
-                        // point.connectorPoints = [
-                        //     {x: x, y: y},
-                        //     {x: !isSmartLineSlanted ? angle : x, y: toY},
-                        //     {x: toX, y: toY}
-                        // ];
-                        point.connectorPoints = [
-                            {x: x, y: y}, {x: x1, y: toY}, {x: x2, y: toY}
-                        ];
-
-                        point.textArgs = {
-                            x: toX + (dx >= 0 || -1) * (3 + distance),
-                            y: toY,
-                            "text-anchor": textAnchor
-                        };
-                    }
-                }
-            }
         }
     };
 
@@ -14344,17 +14762,22 @@ var PI = Math.PI,
 
         return i < n ? series[i] : null;
     };
+    var getKey = function(categories, index) {
+        var key;
+        if (isArray(categories) && index < categories.length) {
+            if (defined(categories[index]))
+                key = categories[index];
+        }
+        else {
+            key = index;
+        }
+        return key;
+    };
 
-    function factoy (Numeric) {
-        var interpolate = Numeric.interpolate;
-
-        return function (type, options) {
-            options.panel.forEach(function (pane) {
-                var series = arrayFilter(pane.series, function (series) {
-                    return series.type === type;
-                });
-
-                series.forEach(function (series) {
+    function factoy () {
+        return function (panels, isResized, allseries) {
+            panels.forEach(function (pane) {
+                pane.series.forEach(function (series) {
                     var plotX = pack("number", series.plotX, 0),
                         plotY = pack("number", series.plotY, 0),
                         plotWidth = pack("number", series.plotWidth, 0),
@@ -14365,11 +14788,14 @@ var PI = Math.PI,
                         scale = pack("number", transform.scale, 0.75);
                     var projection = series.projection;
                     var center = [0, 0];
-                    var seriesTarget = seriesFind(series.seriesTarget, pane.series);
-                    if (projection === "geo" && seriesTarget !== null) {
-                        projection = null;
-                        if (defined(seriesTarget.__projector__)) {
-                            projection = function (point) { return seriesTarget.__projector__.projection(point); };
+                    var seriesTarget;
+                    if (projection === "geo" && defined(series.seriesTarget)) {
+                        var seriesTarget = seriesFind(series.seriesTarget, allseries);
+                        if (seriesTarget !== null) {
+                            projection = null;
+                            if (defined(seriesTarget.__projector__)) {
+                                projection = function (point) { return seriesTarget.__projector__.projection(point); };
+                            }
                         }
                     }
                     else if (isFunction(projection)) {
@@ -14382,55 +14808,82 @@ var PI = Math.PI,
                     var xAxisOptions, yAxisOptions;
                     var minValue, maxValue, logBase;
                     var reversed;
+                    var inverted = series.inverted;
 
-                    var pointWidth;
+                    xAxisOptions = series._xAxis || {};
+                    yAxisOptions = series._yAxis || {};
+                    logBase = pack("number", pack("object", yAxisOptions.logarithmic, {}).base, 10),
+                    maxValue = pack("number", series.max, yAxisOptions.maxValue);
+                    minValue = pack("number", series.min, yAxisOptions.minValue);
+                    reversed = yAxisOptions.reversed;
 
                     var shapes = series.shapes,
-                        length = shapes.length;
-                    var j = 0;
+                        length = shapes.length,
+                        j = 0;
+
+                    var tickWidth = plotWidth / mathMax(1, length - 1),
+                        tickHeight = plotHeight / mathMax(1, length - 1),
+                        pointHeight = tickHeight / 2;
+
                     for (j = 0; j < length; j++) {
-                        var shape = series.shapes[j],
+                        var shape = shapes[j],
                             value = shape.value;
                         var x, y;
                         var tx = translateX,
                             ty = translateY;
                         var radius;
-
-                        xAxisOptions = series._xAxis || {};
-                        yAxisOptions = series._yAxis || {};
-                        logBase = pack("number", pack("object", yAxisOptions.logarithmic, {}).base, 10),
-                        maxValue = pack("number", series.max, yAxisOptions.maxValue);
-                        minValue = pack("number", series.min, yAxisOptions.minValue);
-                        reversed = yAxisOptions.reversed;
-
-                        pointWidth = plotWidth / (Math.max(1, length - 1));
-                        if (projection) {
+                        var key = j;
+                        radius = pack("number",
+                            //shape.radius,
+                            series.radius,
+                            isFunction(series.radius) && series.radius.call(shape, shape.source, value, series.minValue, series.maxValue, series),
+                            5
+                        );
+                        if (isFunction(projection)) {
                             x = projection([shape._x, shape._y]);
                             tx += center[0];
                             ty += center[1];                            
                             y = setTransform(x[1], ty, scale);
                             x = setTransform(x[0], tx, scale);
-                            radius = pack("number",
-                                shape.radius,
-                                series.radius,
-                                isFunction(series.radius) && series.radius.call(shape, shape.source, value, series.minValue, series.maxValue, series),
-                                5
-                            );
+                            
                         }
                         else {
-                            radius = pack("number",
-                                shape.radius,
-                                series.radius,
-                                isFunction(series.radius) && series.radius.call(shape, shape.source, value, series.minValue, series.maxValue),
-                                5
-                            );
                             if (isArray(shape.source) && shape.source.length > 1) {
-                                x = isNumber(shape.source[0]) ? interpolate.apply(null, [shape.source[0], xAxisOptions.minValue, xAxisOptions.maxValue, 0, plotWidth]) : NaN;
-                                x += plotX;
-                                y = isNumber(shape.source[1]) ? interpolate.apply(null, [shape.source[1], minValue, maxValue].concat(
-                                    reversed === true ? [0, plotHeight] : [plotHeight, 0]
-                                )) : NaN;
-                                y += plotY;
+                                key = shape.source[0];
+                                if (xAxisOptions.type === "categories") {
+                                    x = plotX + interpolate(shape.source[0], xAxisOptions.minLength, xAxisOptions.maxLength, 0, plotWidth);
+                                    x += plotWidth / mathMax(1, xAxisOptions.maxLength) / 2; // center;
+                                }
+                                else if (xAxisOptions.type === "linear") {
+                                    x = plotX + interpolate(shape.source[0], xAxisOptions.minValue, xAxisOptions.maxValue, 0, plotWidth);
+                                }
+                                else {
+                                    x = isNumber(shape.source[0]) ? interpolate.apply(null, [shape.source[0], xAxisOptions.minValue, xAxisOptions.maxValue, 0, plotWidth]) : NaN;
+                                    x += plotX;
+                                }
+
+                                if (yAxisOptions.type === "categories") {
+                                    y = plotY + interpolate(shape.source[0], yAxisOptions.minLength, yAxisOptions.maxLength, plotHeight, 0);
+                                    y -= plotHeight / mathMax(1, yAxisOptions.maxLength) / 2;
+                                }
+                                else {
+                                    y = isNumber(shape.source[1], true) ? interpolate.apply(null, [parseFloat(shape.source[1], 10), minValue, maxValue].concat(
+                                        reversed === true ? [0, plotHeight] : [plotHeight, 0]
+                                    )) : NaN;
+                                    y += plotY;
+                                }
+
+                                if (inverted === true) {
+                                    tickHeight = plotHeight / mathMax(1, yAxisOptions.maxLength),
+                                    center = tickHeight / 2;
+                                    x = plotX + interpolate(shape.source[1], xAxisOptions.minValue, xAxisOptions.maxValue, 0, plotWidth);
+                                    if (yAxisOptions.type === "categories") {
+                                        y = plotY + interpolate(shape.source[0], 0, yAxisOptions.maxLength, plotHeight, 0) - center;
+                                    }
+                                    else {
+                                        y = plotY + (~-length - j) * pointHeight;
+                                    }
+                                }
                             }
                             else if (isNumber(shape._x) && isNumber(shape._y)) {
                                 x = interpolate.apply(null, [shape._x, xAxisOptions.minValue, xAxisOptions.maxValue, 0, plotWidth]);
@@ -14441,7 +14894,7 @@ var PI = Math.PI,
                                 y += plotY;
                             }
                             else {
-                                x = j * pointWidth;
+                                x = j * tickWidth;
                                 x += plotX;
                                 y = interpolate.apply(null, [value, minValue, maxValue].concat(
                                     reversed === true ? [0, plotHeight] : [plotHeight, 0]
@@ -14452,22 +14905,22 @@ var PI = Math.PI,
                         if (series.selected === false) {
                             radius = 0;
                         }
-                        shape.radius = radius;
-                        shape.key = shape.name;
+
                         extend(shape, {
-                            cx: x,
-                            cy: y,
-                            radius: radius
+                            index: j
                         }, shape.source);
+                        shape.x = x;
+                        shape.y = y;
+                        shape.radius = radius;
+                        shape.key = getKey((inverted || yAxisOptions.type === "categories") ? yAxisOptions.categories : xAxisOptions.categories, key);
                     }
                 });
             });
         };
     }
     return {
-        deps: function() {
-            var args = Array.prototype.slice.call(arguments, 0);
-            return factoy.apply(global, [].concat(args));
+        deps: function () {
+            return factoy.apply(global, [].slice.call(arguments));
         }
     };
 }).call(typeof window !== "undefined" ? window : this).deps(Numeric);
@@ -14485,19 +14938,27 @@ var PI = Math.PI,
     Scatter.prototype = {
         constructor: Scatter,
         init: function (options) {
-            var type = this.type;
-            this.options = extend({}, options);
+            var panels = [],
+                panel = options.panel;
+            var n = panel.length, i = -1, j, nn;
 
-            this.series = arrayFilter(options.series, function (series) {
-                var filter = series.type === type;
-                if(filter){
-                    series._diffValues = List.diff(series.shapes, series._shapes || [],  function(a, b){
-                        return a && b && a.value === b.value;
-                    });
+            var newSeries = [],
+                series;
+            this.series = [];
+
+            while (++i < n) {
+                newSeries = [];
+                for (j = 0, nn = panel[i].series.length; j < nn; j++) if ((series = panel[i].series[j]).type === this.type) {
+                    newSeries.push(series);
+                    this.series = this.series.concat(series);
                 }
-                return filter;
-            });
-            relayout(type, this.options);
+                panels.push({
+                    series: newSeries
+                });
+            }
+            this.options = options;//update
+            this.panels = panels;
+            relayout(panels, false, options.series);
             this.reflow();
         },
         reflow: function () {
@@ -14520,76 +14981,45 @@ var PI = Math.PI,
                     if (isNumber(shape.current) && shape.current > -1) {
                         chart.drawShape(context, shape, series);
                     }
-                    DataLabels.render(context, shape, series);
+                    DataLabels.render(context, shape.dataLabel, series);
                 });
             });
         },
         redraw: function () {
-            relayout(this.type, this.options);
+            relayout(this.panels, true, this.options.series);
             this.reflow();
             this.draw();
-        },
-        getShape: function (x, y) {
-            var series,
-                shape,
-                sl = this.series.length,
-                dl,
-                i,
-                j;
-            var results = [],
-                shapes;
-
-            var isInside = function (series) {
-                return !(
-                    x < pack("number", series.plotX, 0) ||
-                    x > series.plotWidth + pack("number", series.plotX, 0) ||
-                    y < pack("number", series.plotY, 0) ||
-                    y > series.plotHeight + pack("number", series.plotY, 0)
-                );
-            };
-            var resetShape = function (shapes) {
-                for(var j = 0, l = shapes.length; j < l;  j++){
-                    delete shapes[j].current;
-                }
-            };
-
-            for (i = 0; i < sl; i++) {
-                shapes = (series = this.series[i]).shapes;
-                resetShape(shapes);
-                if (!isInside(series)) {
-                    return results;
-                }
-                for (j = 0, dl = shapes.length; series.enableMouseTracking !== false && j < dl; j++) {
-                    shape = shapes[j];
-                    if (series.selected === false) {
-                        continue;
-                    }
-                    if (Intersection.line(
-                        {x: x, y: y},
-                        {x: shape.cx, y: shape.cy, width: shape.radius}
-                    )) {
-                        shape.current = j;
-                        results.push({shape: shape, series: series});
-                        break;
-                    }
-                }
-            }
-            return results;
         },
         drawShape: function (context, shape, series) {
             var borderWidth = pack("number", series.borderWidth, 0),
                 borderColor = series.borderColor,
                 fillColor = shape.color || series.color,
-                radius = shape.radius,
                 opacity = Numeric.clamp(pack("number", shape.opacity, series.opacity, 1), 0, 1),
                 shadowBlur = pack("number", shape.shadowBlur, series.shadowBlur, 0),
                 shadowOffsetX = pack("number", shape.shadowOffsetX, series.shadowOffsetX, 0),
                 shadowOffsetY = pack("number", shape.shadowOffsetY, series.shadowOffsetY, 0),
-                shadowColor = shape.shadowColor || series.shadowColor;
-            var cx = shape.cx, cy = shape.cy;
-            var color = fillColor;
+                shadowColor = shape.shadowColor || series.shadowColor,
+                marker = shape.marker || series.marker || {},
+                states = (series.states || {}).hover;
+            var radius = shape.radius,
+                cx = shape.x,
+                cy = shape.y,
+                width, height;
+            var symbol = "circle";
 
-            if(defined(fillColor.radialGradient)){
+            var color = fillColor;
+            //cy += radius
+            width = radius;
+            height = radius;
+
+            if (defined(marker) && marker.symbol) {
+                symbol = marker.symbol;
+            }
+            if (shape.isNULL) {
+                return this;
+            }
+
+            if (defined(fillColor.radialGradient)) {
                 color = Color.parse(fillColor);
                 fillColor = color.radial(cx, cy, radius);
                 color = color.color;
@@ -14599,19 +15029,22 @@ var PI = Math.PI,
             }
             
             if (isNumber(shape.current) && shape.current > -1) {
-                var cr = radius + 3;
                 context.save();
-                context.fillStyle = Color.parse(color).alpha(0.25).rgba();
-                context.beginPath();
-                context.arc(cx, cy, cr, 0, PI * 2, true);
+                context.fillStyle = (states || {}).color || Color.parse(color).alpha(0.25).rgba();
+                width += mathMin(2, width * 0.1);
+                height += mathMin(2, height * 0.1);
+                Geometry.Symbol[symbol]
+                ? Geometry.Symbol[symbol](cx, cy, width, height)(context)
+                : (context.beginPath(), context.arc(cx, cy, width, 0, PI2, true));
                 context.fill();
                 context.restore();
             }
             
             context.save();
             context.fillStyle = fillColor;
-            context.beginPath();
-            radius > 0 && context.arc(cx, cy, radius, 0, PI2, true);
+            Geometry.Symbol[symbol]
+                ? Geometry.Symbol[symbol](cx, cy, width, height)(context)
+                : (context.beginPath(), context.arc(cx, cy, width, 0, PI2, true));
             borderWidth > 0 && (context.lineWidth = borderWidth, context.strokeStyle = borderColor, context.stroke());
             if (shadowBlur > 0) {
                 context.shadowColor = shadowColor;
@@ -14625,7 +15058,7 @@ var PI = Math.PI,
         dataLabels: function (context, shape, series) {
             var radius = shape.radius;
             shape.dataLabel = DataLabels.align(function (type, bbox) {
-                var x = shape.cx;
+                var x = shape.x;
                 var t = pack("string", type, "center");
                 return {
                     left: x - bbox.width,
@@ -14633,100 +15066,108 @@ var PI = Math.PI,
                     right: x
                 }[t];
             }).vertical(function (type, bbox) {
-                var y = shape.cy;
-                var t = pack("string", type, "top");
+                var y = shape.y;
+                var t = pack("string", "top", type, "top");
                 return {
-                    top: y - radius,
-                    middle: y + radius,
-                    bottom: y + bbox.height * 2 + radius
+                    top: y,
+                    middle: y - bbox.height / 2,// start center
+                    bottom: y + radius
                 }[t];
             }).call(shape, series, context);
         },
-        animateTo: function (context, initialize) {
+        animateTo: function (initialize) {
             var shapes = [];
-            this.series.forEach(function (series){
+            this.series.forEach(function (series) {
                 var newData = series.shapes,
                     oldData = series._shapes || [];
-                var animators = [];
-                if(initialize === true){
-                    newData.forEach(function (shape) {
-                        var mergeShape = {
-                            cx: shape.cx,
-                            cy: shape.cy,
-                            color: shape.color,
-                            shape: shape
-                        };
-                        shapes.push([shape, function (timer) {
-                            mergeShape.radius = shape.radius * timer;
-                        }]);
-                        animators.push(mergeShape);
-                    });
-                }
-                else {
-                    series._diffValues.remove(function (newIndex) {
-                        var newShape = newData[newIndex],
-                            mergeShape;
+                var previous = [];
 
-                        mergeShape = {
-                            cx: newShape.cx,
-                            cy: newShape.cy,
-                            value: newShape.radius,
-                            shape: newShape,
-                            dataLabel: newShape.dataLabel
-                        };
-                        shapes.push([newShape, function (timer) {
-                            mergeShape.radius = newShape.radius * timer;
-                        }]);
-                        animators.push(mergeShape);
-                    }).add(function(newIndex){
-                        var oldShape = oldData[newIndex],
-                            mergeShape;
-                        mergeShape = {
-                            cx: oldShape.cx,
-                            cy: oldShape.cy,
-                            color: oldShape.color,
-                            value: oldShape.value,
-                            shape: oldShape,
-                            dataLabel: oldShape.dataLabel
-                        };
-                        shapes.push([oldShape, function (timer) {
-                            mergeShape.radius = oldShape.radius - oldShape.radius * timer;
-                        }]);
-                        animators.push(mergeShape);
-                    }).modify(function (newIndex, oldIndex) {
-                        var newShape = newData[newIndex],
-                            oldShape = oldData[oldIndex],
-                            mergeShape;
-                        if(oldShape && newShape){
-                            mergeShape = {
-                                color: newShape.color,
-                                value: newShape.value,
-                                shape: newShape,
-                                dataLabel: newShape.dataLabel
-                            };
-                            shapes.push([newShape, function (timer) {
-                                mergeShape.cx = oldShape.cx + (newShape.cx - oldShape.cx) * timer;
-                                mergeShape.cy = oldShape.cy + (newShape.cy - oldShape.cy) * timer;
-                                mergeShape.radius = oldShape.radius + (newShape.radius - oldShape.radius) * timer;
-                            }]);
-                            animators.push(mergeShape);
-                        }
-                    }).each();
-                }
-                series._shapes = series.shapes;
-                series._animators = animators;
+                List.diff(newData, oldData, function (a, b) {
+                    return a && b && a.value === b.value;
+                }).remove(function (newIndex) {
+                    var newShape = newData[newIndex],
+                        to;
+                    newShape.animate({
+                        radius: initialize ? 0 : newShape.radius
+                    }, to = {
+                        value: newShape.value,
+                        radius: newShape.radius,
+                        x: newShape.x,
+                        y: newShape.y
+                    });
+                    
+                    previous.push(to);
+                    shapes.push(newShape);
+                }).add(function (newIndex) {
+                    var oldShape = oldData[newIndex],
+                        to;
+                    oldShape.animate({
+                        radius: oldShape.radius
+                    }, to = {
+                        value: oldShape.value,
+                        radius: 0
+                    });
+                    shapes.push(oldShape);
+                    previous.push(to);
+                }).modify(function (newIndex, oldIndex) {
+                    var newShape = newData[newIndex],
+                        oldShape = oldData[oldIndex];
+                    var from = {
+                        x: oldShape.x,
+                        y: oldShape.y,
+                        radius: oldShape.radius
+                    }, to = {
+                        value: newShape.value,
+                        x: newShape.x,
+                        y: newShape.y,
+                        radius: newShape.radius
+                    };
+                    newShape.animate(from, to);
+
+                    previous.push(to);
+                    shapes.push(newShape);
+                }).each();
+                series._shapes = previous;
             });
             return shapes;
         },
-        onFrame: function (context) {
-            var chart = this;
-            this.series.forEach(function (series ){
-                var animators = series._animators;
-                animators.forEach(function (shape) {
-                    chart.drawShape(context, shape, series);
-                    DataLabels.render(context, shape.shape, series);
-                });
-            });
+        getShape: function (x, y, shared) {
+            var series,
+                shape,
+                sl = this.series.length,
+                dl,
+                i,
+                j;
+            var results = [],
+                shapes;
+            var resetShape = function (shapes) {
+                for(var j = 0, l = shapes.length; j < l;  j++){
+                    delete shapes[j].current;
+                }
+            };
+
+            for (i = 0; i < sl; i++) {
+                shapes = (series = this.series[i]).shapes;
+                resetShape(shapes);
+                /*if (!isInside(series)) {
+                    return results;
+                }*/
+                for (j = 0, dl = shapes.length; series.enableMouseTracking !== false && j < dl; j++) {
+                    shape = shapes[j];
+                    if (series.selected === false) {
+                        continue;
+                    }
+                    if (Intersection.line(
+                        {x: x, y: y},
+                        {x: shape.x, y: shape.y, width: shape.radius}
+                    )) {
+                        shape.current = j;
+                        results.push({shape: shape, series: series});
+                        break;
+                    }
+                }
+            }
+            return results;
         }
     };
 
@@ -14734,8 +15175,6 @@ var PI = Math.PI,
 
 })(typeof window !== "undefined" ? window : this, Dalaba.Chart);;
     (function (global, Chart) {
-
-    var SQRT3 = Math.sqrt(3);
 
     var lineSlope = function (p1, p2) {
         var slope = p2.x - p1.x ? (p2.y - p1.y) / (p2.x - p1.x) : 0;//斜率
@@ -14745,9 +15184,325 @@ var PI = Math.PI,
         };
     };
 
-    /**
-     * Class Funnel
-    */
+    var relayout = (function (global) {
+
+    var neckHeight = function (series, plotX, plotY, plotWidth, plotHeight) {
+        var reversed = !!series.reversed,
+            sorted = series.sorted;
+        var seriesWidth = pack("number",
+                series.width,//absolute
+                Numeric.percentage(plotWidth, series.width),//percent
+                plotWidth//auto
+            ),
+            seriesHeight = pack("number",
+                series.height,
+                Numeric.percentage(plotHeight, series.height),
+                plotHeight
+            ),
+            size = mathMin(seriesWidth, seriesHeight);
+        var cx = pack("number",
+                series.left,
+                Numeric.percentage(plotWidth, series.left),
+                plotX + (plotWidth - size) / 2//auto center
+            ),
+            cy = pack("number",
+                series.top,
+                Numeric.percentage(plotHeight, series.top),
+                plotY + (plotHeight - size) / 2 - 1
+            );
+        var maxValue = MIN_VALUE;
+
+        var shapes = series.shapes,
+            length = shapes.length,
+            j = reversed ? -1 : length,
+            shape;
+
+        var nextY = reversed ? cy : (cy + size),
+            nextX = 0,
+            nextX1 = 0;
+
+        var pointHeight;
+
+        sorted !== false && shapes.sort(function (a, b) {
+            return reversed
+                ? a.value - b.value
+                : b.value - a.value;
+        });
+
+        var lastShape, filterLength = 0;
+        while (reversed ? ++j < length : j--) {
+            var filter = (shape = shapes[j]).selected !== false && !shape.isNULL && shape.value >= 0;
+            delete shape.isLast;
+            if (filter) {
+                lastShape || (lastShape = shape);
+                isNumber(shape.value, true) && (maxValue = mathMax(shape.value, maxValue));
+                ++filterLength;
+            }
+        }
+        pointHeight = size / filterLength;
+        lastShape && (lastShape.isLast = true);
+
+        j = reversed ? -1 : length;
+        while (reversed ? ++j < length : j--) {
+            var value = (shape = shapes[j]).value,
+                percentage = value / maxValue;
+            var points = [];
+            var x, y, x1, y1, w = 0, h;
+            var isEmpty = false;
+            h = pointHeight;
+            if (shape.isNULL || value < 0 || shape.selected === false) {
+                value = h = 0;
+                isEmpty = true;
+            }
+            w = percentage * size;
+            x = cx;
+            x += (size - w) / 2;
+            x1 = x + w;
+            if (reversed) {
+                y = nextY;
+                y1 = y + h;
+                points = [
+                    {x: nextX, y: y},//left top
+                    {x: nextX1, y: y},//right top
+                    {x: x1, y: y1},//right bottom
+                    {x: x, y: y1},//left bottom
+                    {x: nextX, y: y}//close
+                ];
+                if (shape.isLast) {
+                    points = [
+                        {x: x + w / 2, y: y},
+                        {x: x + w / 2, y: y},
+                        {x: x1, y: y1},
+                        {x: x, y: y1},
+                        {x: x + w / 2, y: y}
+                    ];
+                }
+                nextY = y1;
+            }
+            else {
+                y = nextY - h;
+                y1 = y + h;
+                
+                points = [
+                    {x: x, y: y},//left top
+                    {x: x1, y: y},//right top
+                ];
+                if (shape.isLast) {
+                    points.push(
+                        {x: x1 - w / 2, y: y1},//right bottom
+                        {x: x1 - w / 2, y: y1}//repeat this x and y
+                    );
+                }
+                else {
+                    points.push(
+                        {x: nextX1, y: y1},//right bottom
+                        {x: nextX, y: y1}//left bottom
+                    );
+                }
+                points.push({x: x, y: y});
+                nextY = y;
+            }
+            if (!isEmpty) {
+                nextX1 = x1;
+                nextX = x;
+            }
+
+            extend(shape, {
+                points: points,
+                x: x,
+                y: y,
+                height: pointHeight,
+                width: w,
+                textX: -9999,
+                textY: -9999,
+                index: j
+            });
+        }
+    };
+
+    var neckWidth = function (series, plotX, plotY, plotWidth, plotHeight) {
+        var NECK_HEIGHT_FACTOR = pack("number",
+                Numeric.percentage(100, series.neckHeight) / 100,
+                0.75
+            ),
+            reversed = !!series.reversed,
+            sorted = series.sorted;
+
+        var seriesWidth = pack("number",
+                series.width,//absolute
+                Numeric.percentage(plotWidth, series.width),//percent
+                plotWidth//auto
+            ),
+            seriesHeight = pack("number",
+                series.height,
+                Numeric.percentage(plotHeight, series.height),
+                plotHeight
+            ),
+            size = mathMin(seriesWidth, seriesHeight);
+        var cx = pack("number",
+                series.left,
+                Numeric.percentage(plotWidth, series.left),
+                plotX + (plotWidth - size) / 2//auto center
+            ),
+            cy = pack("number",
+                series.top,
+                Numeric.percentage(plotHeight, series.top),
+                plotY// + (plotHeight - seriesHeight) / 2
+            );
+        var nextHeight = reversed * seriesHeight,
+            pointWidth = size;
+
+        var turningHeight = SQRT3 * size * NECK_HEIGHT_FACTOR / 2,
+            curTurningHeight = 0,
+            turningFlag = false;
+        var xTopLeft = cx;//pointWidth; //cx;
+
+        var shapes = series.shapes,
+            length = shapes.length,
+            j = -1;
+        var sumValue = mathMax(pack("number", series.sumValue), 1e-8);
+        var shape, value;
+        var percentage;
+
+        (series.neck === true && (defined(sorted) && sorted !== false)) && shapes.sort(function (a, b) {
+           return a.value - b.value;
+        });
+        while (++j < length) if ((shape = shapes[j]).selected === false && isNumber(value = shape.value, true) && value > 0) sumValue -= value;
+        j = reversed ? length : -1;
+        var al = 0;
+        while (reversed ? j-- : ++j < length) {
+            shape = shapes[j];
+            value = shape.value;
+            percentage = value / sumValue;
+            if (shape.isNULL || shape.selected === false || value < 0) {
+                value = percentage = 0;
+            }
+            var height = percentage * seriesHeight,
+                nextWidth = turningFlag ? 0 : height / SQRT3;
+
+            var xTopRight = xTopLeft + pointWidth,
+                xBottomRight = xTopRight - nextWidth,
+                xBottomLeft = xTopLeft + nextWidth;
+            var yTop = cy + nextHeight,
+                yBottom = yTop + height;
+
+            var points = [
+                {x: xTopLeft, y: yTop},//top left
+                {x: xTopRight, y: yTop}//top right
+            ];
+            if (reversed) {
+                yBottom = nextHeight;
+                yTop = yBottom - height;
+
+                xBottomRight = al + pointWidth;
+                xTopLeft = al - nextWidth;
+                xTopRight = al + nextWidth;
+
+                points = [
+                    {x: xBottomRight, y: yBottom},//left bottom
+                    {x: al, y: yBottom},//right bottom
+                    {x: xTopLeft, y: yTop},//right top
+                    {x: xTopRight, y: yTop}//left top
+                ];
+                nextHeight -= height;
+            }
+            else {
+                //turn shape
+                if(!turningFlag && curTurningHeight + height > turningHeight) {
+                    var minWidth = size * (1 - NECK_HEIGHT_FACTOR);
+                    turningFlag = true;
+                    nextWidth = (pointWidth - minWidth) / 2;
+                    points = points.concat([
+                        {x: xTopRight - nextWidth, y: yTop + turningHeight - curTurningHeight},
+                        {x: xTopRight - nextWidth, y: yBottom},
+                        {x: xTopLeft + nextWidth, y: yBottom},
+                        {x: xTopLeft + nextWidth, y: yTop + turningHeight - curTurningHeight}
+                    ]);
+                    pointWidth = minWidth;
+                    xBottomLeft = xTopLeft + nextWidth;
+                }
+                else{
+                    curTurningHeight += height;
+                    points.push(
+                        {x: xBottomRight, y: yBottom},//bottom right
+                        {x: xBottomLeft, y: yBottom}//bottom left
+                    );
+                    pointWidth = pointWidth - 2 * nextWidth;
+                }
+                nextHeight += height;
+                points.push({x: xTopLeft, y: yTop});//close path
+                xTopLeft = xBottomLeft;
+            }
+
+            extend(shape, {
+                x: xTopLeft,
+                y: yTop,
+                height: height,
+                points: points,
+                total: sumValue,
+                percentage: percentage * 100,
+                textX: -9999,
+                textY: -9999,
+                index: j
+            });
+            
+        }
+    };
+
+    function factory (lineSlope) {
+        var dataLabels = function (series) {
+            series.shapes.forEach(function (shape) {
+                var points = shape.points || [];
+                var ls;
+                var x, y;
+                if (points.length) {
+                    ls = lineSlope(points[2], points[1]);
+                    //funnel shape
+                    if (points.length >= 7) {
+                        ls = lineSlope(points[4], points[3]);
+                    }
+                    // //triangle shape
+                    // else if(points.length <= 4){
+                    //     ls = lineSlope(points[1], points[0]);
+                    // }
+                    y = (shape.y + shape.height / 2);
+                    x = (y - ls.b) / ls.slope;
+                    if (ls.slope === 0) {
+                        if (points.length >= 7) {
+                            x = points[3].x;
+                            y = points[2].y;
+                        }
+                        else
+                            x = points[2].x;//没有斜率
+                    }
+                    shape.textX = x;
+                    shape.textY = y;
+                }
+            });
+        };
+        return function (panels, isResized) {
+            panels.forEach(function (pane) {
+                pane.series.forEach(function (series) {
+                    var plotX = pack("number", series.plotX),
+                        plotY = pack("number", series.plotY),
+                        plotWidth = pack("number", series.plotWidth),
+                        plotHeight = pack("number", series.plotHeight);
+                    var args = [
+                        series, plotX, plotY, plotWidth, plotHeight
+                    ];
+                    series.neck === true ? neckHeight.apply(null, args) : neckWidth.apply(null, args);
+                    dataLabels(series);
+                });
+            });
+        };
+    }
+
+    return {
+        deps: function () {
+            return factory.apply(global, [].slice.call(arguments, 0));
+        }
+    };
+}).call(typeof window !== "undefined" ? window : this).deps(lineSlope);
 
     function Funnel (canvas, options) {
         this.type = "funnel";
@@ -14763,180 +15518,171 @@ var PI = Math.PI,
         constructor: Funnel,
         init: function (options) {
             var type = this.type;
-            var seriesColors;
             this.options = extend({}, options);
-            seriesColors = this.options.colors || [];
-            this.series = arrayFilter(this.options.series || [], function(series){
-                var shapes = series.shapes || [],
-                    length = shapes.length,
-                    j = 0;
-                var minValue, maxValue, sumValue;
-                var filter = series.type === type;
-                if(filter){
-                    series._diffValues = List.diff(series.shapes, series._shapes || [], function(a, b){
-                        return a && b && a.value === b.value;
-                    });
-                    minValue = maxValue = sumValue = 0;
-                    for(; j < length; j++){
-                        var shape = shapes[j],
-                            value;
-                        !isNumber(value = shape.value) && (shape.value = null);
-                        !defined(shape.name) && (shape.name = shape.value);
-                        !defined(shape.color) && (shape.color = seriesColors[j % seriesColors.length]);
-                        if(shape.value !== null && shape.selected !== false){
-                            maxValue = Math.max(maxValue, value = Math.max(0, value));
-                            minValue = Math.min(minValue, value);
-                            sumValue += value;
-                        }
-                    }
-                    series.maxValue = maxValue;
-                    series.minValue = minValue;
-                    series.sumValue = sumValue;
+
+            var panels = [],
+                panel = options.panel;
+            var n = panel.length, i = -1, j, nn;
+
+            var newSeries = [],
+                series;
+            this.series = [];
+
+            while (++i < n) {
+                newSeries = [];
+                for (j = 0, nn = panel[i].series.length; j < nn; j++) if ((series = panel[i].series[j]).type === this.type) {
+                    newSeries.push(series);
+                    this.series = this.series.concat(series);
                 }
-                return filter;
-            });
-            var funnel = new Funnel.Layout(type, this.series, this.options);
-            this.shapes = funnel.shapes;
-            this.layout = funnel;
+                panels.push({
+                    series: newSeries
+                });
+            }
+            this.options = options;//update
+            this.panels = panels;
+            relayout(panels);
             this.reflow();
         },
         reflow: function () {
             var context = this.context;
             var chart = this;
-            this.shapes.forEach(function (series ){
+            this.series.forEach(function (series ){
                 series.shapes.forEach(function (shape) {
                     chart.dataLabels(context, shape, series);
                 });
             });
         },
-        draw: function(){
+        draw: function () {
             var context = this.context,
                 chart = this;
-            this.shapes.forEach(function(series){
-                series.shapes.forEach(function(shape){
+            this.series.forEach(function (series) {
+                series.shapes.forEach(function (shape) {
                     chart.drawShape(context, shape, series);
                 });
-                series.shapes.forEach(function(shape){
+                series.shapes.forEach(function (shape) {
                     chart.drawLabels(context, shape, series);
                 });
             });
         },
         redraw: function () {
-            this.layout.subgroup();
+            relayout(this.panels, true);
             this.reflow();
             this.draw();
         },
         animateTo: function () {
             var shapes = [];
-            this.shapes.forEach(function(series){
+            this.series.forEach(function (series) {
                 var newData = series.shapes,
                     oldData = series._shapes || [];
-                var animators = [];
-                series._diffValues.remove(function(newIndex){
+                var previous = [];
+                List.diff(newData, oldData, function (a, b) {
+                    return a && b && a.value === b.value;
+                }).remove(function (newIndex) {
                     var newShape = newData[newIndex],
-                        mergeShape;
-                    var points;
-                    var startY, endY, nextY;
-                    var temp = newShape.series;
-                    delete newShape.series;
-                    mergeShape = extend({}, newShape);
-                    newShape.series = temp;
-                    shapes.push([newShape, function(timer){
-                        var fromY = newShape.points[0].y;
-                        points = newShape.points.map(function(point){
-                            return extend({}, point);
-                        });
-                        startY = points[0].y;
-                        endY = points[points.length - 2].y;
-                        nextY = points[points.length - 3].y;
-                        if(points.length === 7){
-                            points[0].y = points[1].y = points[6].y = fromY + (startY - fromY) * timer;
-                            points[2].y = points[5].y = fromY + (endY - fromY) * timer;
-                            points[3].y = points[4].y = fromY + (nextY - fromY) * timer;
-                        }
-                        else{
-                            //points[0].y = points[1].y = points[4].y = fromY + (startY - fromY) * timer;
-                            points[2].y = points[3].y = fromY + (endY - fromY) * timer;
-                        }
-                        mergeShape.points = points;
-                    }]);
-                    return mergeShape;
-                }).add(function(newIndex){
-                    var newShape = oldData[newIndex],
-                        mergeShape;
-                    var temp = newShape.series;
-                    delete newShape.series;
-                    mergeShape = extend({}, newShape);
-                    newShape.series = temp;
-                    return mergeShape;
-                }).modify(function(newIndex, oldIndex){
-                     var newShape = newData[newIndex],
+                        to;
+                    var points = newShape.points,
+                        length = points.length;
+                    var startY = points[0].y,
+                        endY = points[length - 2].y,
+                        nextY = points[length - 3].y;
+                    newShape.animate({
+                        points: points.map(function (d, i) {
+                            var ret = { x: d.x, y: d.y };
+                            if (length === 7) {
+                                ret.y = startY;
+                            }
+                            else {
+                                if (i === 2 || i === 3) {
+                                    ret.y = startY;
+                                }
+                            }
+                            return ret;
+                        })
+                    }, to = {
+                        value: newShape.value,
+                        points: points.map(function (d, i) {
+                            var ret = { x: d.x, y: d.y };
+                            if (length === 7) {
+                                (i === 0 || i === 1 || i === 6) && (ret.y = startY);
+                                (i === 2 || i === 5) && (ret.y = endY);
+                                (i === 3 || i === 4) && (ret.y = nextY);
+                            }
+                            else {
+                                if (i === 2 || i === 3) {
+                                    d.y = endY;
+                                }
+                            }
+                            return ret;
+                        })
+                    });
+                    shapes.push(newShape);
+                    previous.push(to);
+                }).add(function (newIndex) {
+
+                }).modify(function (newIndex, oldIndex) {
+                    var newShape = newData[newIndex],
                         oldShape = oldData[oldIndex],
-                        mergeShape;
-                    var points;
-                    var startY, endY, nextY;
-                    var temp;
-                    
-                    if(oldShape && newShape && newShape.selected !== false && newShape.value !== null){
-                        temp = newShape.series;
-                        delete newShape.series;
-                        mergeShape = extend({}, newShape);
-                        newShape.series = temp;
-                        shapes.push([newShape, function(timer){
-                            points = newShape.points.map(function(point){
-                                return extend({}, point);
-                            });
-                            var opoints = oldShape.points.map(function(point){
-                                return extend({}, point);
-                            });
-                            startY = points[0].y;
-                            endY = points[points.length - 2].y;
-                            nextY = points[points.length - 3].y;
-                            var ostartY = opoints[0].y,
-                                oendY = opoints[opoints.length - 2].y,
-                                onextY = opoints[opoints.length - 3].y;
-                            if(points.length === 7){
-                                points[0].y = points[1].y = points[6].y = ostartY + (startY - ostartY) * timer;
-                                points[2].y = points[5].y = oendY + (endY - oendY) * timer;
-                                points[3].y = points[4].y = onextY + (nextY - onextY) * timer;
+                        to;
+                    var points = newShape.points,
+                        opoints = oldShape.points,
+                        length = points.length,
+                        ol = opoints.length;
+                    var startY = points[0].y,
+                        ostartY = opoints[0].y,
+                        endY = points[length - 2].y,
+                        oEndY = opoints[ol - 2].y,
+                        nextY = points[length - 3].y,
+                        onextY = opoints[ol - 3].y;
+
+                    newShape.animate({
+                        points: points.map(function (d, i) {
+                            var ret = { x: d.x, y: d.y };
+                            if (length === 7) {
+                                (i === 0 || i === 1 || i === 6) && (ret.y = ostartY);
+                                (i === 2 || i === 5) && (ret.y = oEndY);
+                                (i === 3 || i === 4) && (ret.y = onextY);
                             }
-                            else{
-                                //points[0].y = points[1].y = points[4].y = ostartY + (startY - ostartY) * timer;
-                                points[2].y = points[3].y = oendY + (endY - oendY) * timer;
+                            else {
+                                (i === 2 || i === 3) && (ret.y = oEndY);
                             }
-                            mergeShape.points = points;
-                        }]);
-                    }
-                    return mergeShape;
-                }).each(function(mergeShape){
-                    mergeShape && animators.push(mergeShape);
-                });
-                series._animators = animators;
-                series._shapes = series.shapes;
+                            return ret;
+                        })
+                    }, to = {
+                        value: newShape.value,
+                        points: points.map(function (d, i) {
+                            var ret = { x: d.x, y: d.y };
+                            if (length === 7) {
+                                (i === 0 || i === 1 || i === 6) && (ret.y = startY);
+                                (i === 2 || i === 5) && (ret.y = endY);
+                                (i === 3 || i === 4) && (ret.y = nextY);
+                            }
+                            else {
+                                (i === 2 || i === 3) && (ret.y = endY);
+                            }
+                            return ret;
+                        })
+                    });
+                    previous.push(to);
+                    shapes.push(newShape);
+
+                }).each();
+                series._shapes = previous;
             });
             return shapes;
         },
-        onFrame: function(context){
-            var chart = this;
-            this.shapes.forEach(function(series){
-                var animators = series._animators;
-                animators.forEach(function(shape){
-                    chart.drawShape(context, shape, series);
-                    chart.drawLabels(context, shape, series);
-                });
-            });
-        },
-        drawShape: function(context, shape, series){
+        drawShape: function (context, shape, series) {
             var borderWidth = pack("number", shape.borderWidth, series.borderWidth, 0),
                 fillColor = shape.color || series.color;
-            if(shape.selected !== false && shape.value !== null){
+            var points = shape.points;
+
+            if (shape.selected !== false && !shape.isNULL) {
                 fillColor = Color.parse(fillColor);
                 fillColor.a = defined(shape.current) ? 0.75 : 1;
 
                 context.save();
                 context.fillStyle = Color.rgba(fillColor);
                 context.beginPath();
-                shape.points.forEach(function(point, i){
+                points.forEach(function (point, i) {
                     context[i ? "lineTo" : "moveTo"](point.x, point.y);
                 });
                 context.fill();
@@ -14948,28 +15694,28 @@ var PI = Math.PI,
                 context.restore();
             }
         },
-        getShape: function(x, y) {
+        getShape: function (x, y) {
             var ret = [];
-            var series = this.shapes,
+            var series = this.series,
                 length = series.length;
             var shapes, shape, item;
 
-            function reset(shapes){
-                shapes.forEach(function(item){
+            function reset (shapes) {
+                shapes.forEach(function (item) {
                     delete item.current;
                 });
             }
 
-            for(var i = 0; i < length; i++){
+            for (var i = 0; i < length; i++) {
                 item = series[i];
                 reset(shapes = item.shapes);
-                for(var j = 0; j < shapes.length; j++){
+                for (var j = 0; j < shapes.length; j++){
                     shape = shapes[j];
-                    if(
-                        shape.value !== null &&
+                    if (
+                        !shape.isNULL &&
                         shape.selected !== false &&
                         Intersection.polygon({x: x, y: y}, shape.points)
-                    ){
+                    ) {
                         shape.current = j;
                         shape.$value = "" + shape._value;
                         ret.push({shape: shape, series: item});
@@ -14984,12 +15730,11 @@ var PI = Math.PI,
             shape.dataLabel = DataLabels.align(function (type, bbox) {
                 var t = pack("string", type, "center");
                 var points = shape.points,
-                    textArgs = shape.textArgs,
                     ls;
                 var w2 = Math.abs(points[1].x - points[0].x),
                     w = bbox.width,
-                    x = textArgs.x,
-                    y = textArgs.y;
+                    x = shape.textX,
+                    y = shape.textY;
                 labelAttr.distance = this.distance;
                 labelAttr.inside = this.inside;
                 if (this.inside === true) {
@@ -15002,30 +15747,30 @@ var PI = Math.PI,
                 return {
                     left: (y - ls.b) / ls.slope,
                     center: x  + (w2 - w) / 2,
-                    right: textArgs.x - w
+                    right: textX - w
                 }[t];
             }).vertical(function (type, bbox) {
-                var points = shape.points,
-                    shapeArgs = shape.shapeArgs;
+                var points = shape.points;
                 var h = bbox.height,
-                    h2 = shapeArgs.height,
+                    h2 = shape.height,
                     y = points[0].y;
+                var textY = shape.textY;
                 var t = pack("string", type, "top");
                 labelAttr.inside = this.inside;
                 if (this.inside !== true)
-                    return shape.textArgs.y + h / 2;
+                    return textY + h / 2;
                 return {
                     top: y + h,
                     middle: y + h + (h2 - h) / 2,
                     bottom: y + h2
                 }[t];
             }).call(shape, series, context);
-            extend(shape.dataLabel, labelAttr)
+            extend(shape.dataLabel, labelAttr);
         },
         drawLabels: function (context, shape, series) {
             var dataLabel = shape.dataLabel;
-            var x = shape.textArgs.x,
-                y = shape.textArgs.y;
+            var x = shape.textX,
+                y = shape.textY;
             var distance = dataLabel.distance;
             if (!shape.isNULL && distance > 0) {
                 context.save();
@@ -15036,342 +15781,7 @@ var PI = Math.PI,
                 context.stroke();
                 context.restore();
             }
-            DataLabels.render(context, shape, series);
-        }
-    };
-    
-    Funnel.Layout = function(type, series, options){
-        this.series = series;
-        this.shapes = [];
-
-        this.type = type;
-        this.options = options;
-
-        this.init();
-    };
-    Funnel.Layout.prototype = {
-        init: function(){
-            this.shapes = this.subgroup();
-        },
-        neckWidth: function(series, plotX, plotY, plotWidth, plotHeight){
-            var NECK_HEIGHT_FACTOR = pack("number",
-                    Numeric.percentage(100, series.neckHeight) / 100,
-                    0.75
-                ),
-                reversed = !!series.reversed,
-                sorted = series.sorted;
-
-            var seriesWidth = pack("number",
-                    series.width,//absolute
-                    Numeric.percentage(plotWidth, series.width),//percent
-                    plotWidth//auto
-                ),
-                seriesHeight = pack("number",
-                    series.height,
-                    Numeric.percentage(plotHeight, series.height),
-                    plotHeight
-                ),
-                size = Math.min(seriesWidth, seriesHeight);
-            var cx = pack("number",
-                    series.left,
-                    Numeric.percentage(plotWidth, series.left),
-                    plotX + (plotWidth - size) / 2//auto center
-                ),
-                cy = pack("number",
-                    series.top,
-                    Numeric.percentage(plotHeight, series.top),
-                    plotY// + (plotHeight - seriesHeight) / 2
-                );
-            var nextHeight = reversed * seriesHeight,
-                pointWidth = size;
-
-            var turningHeight = SQRT3 * size * NECK_HEIGHT_FACTOR / 2,
-                curTurningHeight = 0,
-                turningFlag = false;
-            var xTopLeft = cx;//pointWidth; //cx;
-
-            var shapes = series.shapes,
-                length = shapes.length,
-                j = reversed ? length : -1;
-            var sumValue = Math.max(pack("number", series.sumValue), 1e-8);
-
-            (series.neck === true && (defined(sorted) && sorted !== false)) && shapes.sort(function(a, b){
-               return a.value - b.value;
-            });
-            var al = 0;
-            while (reversed ? j-- : ++j < length) {
-                var shape = shapes[j],
-                    value = shape.value,
-                    percentage = value / sumValue;
-                if (shape.isNULL || shape.selected === false || value < 0) {
-                    value = percentage = 0;
-                }
-                var height = percentage * seriesHeight,
-                    nextWidth = turningFlag ? 0 : height / SQRT3;
-
-                var xTopRight = xTopLeft + pointWidth,
-                    xBottomRight = xTopRight - nextWidth,
-                    xBottomLeft = xTopLeft + nextWidth;
-                var yTop = cy + nextHeight,
-                    yBottom = yTop + height;
-
-                var points = [
-                    {x: xTopLeft, y: yTop},//top left
-                    {x: xTopRight, y: yTop}//top right
-                ];
-                if (reversed) {
-                    yBottom = nextHeight;
-                    yTop = yBottom - height;
-
-                    xBottomRight = al + pointWidth;
-                    xTopLeft = al - nextWidth;
-                    xTopRight = al + nextWidth;
-
-                    points = [
-                        {x: xBottomRight, y: yBottom},//left bottom
-                        {x: al, y: yBottom},//right bottom
-                        {x: xTopLeft, y: yTop},//right top
-                        {x: xTopRight, y: yTop}//left top
-                    ];
-                    nextHeight -= height;
-                }
-                else {
-                    //turn shape
-                    if(!turningFlag && curTurningHeight + height > turningHeight) {
-                        var minWidth = size * (1 - NECK_HEIGHT_FACTOR);
-                        turningFlag = true;
-                        nextWidth = (pointWidth - minWidth) / 2;
-                        points = points.concat([
-                            {x: xTopRight - nextWidth, y: yTop + turningHeight - curTurningHeight},
-                            {x: xTopRight - nextWidth, y: yBottom},
-                            {x: xTopLeft + nextWidth, y: yBottom},
-                            {x: xTopLeft + nextWidth, y: yTop + turningHeight - curTurningHeight}
-                        ]);
-                        pointWidth = minWidth;
-                        xBottomLeft = xTopLeft + nextWidth;
-                    }
-                    else{
-                        curTurningHeight += height;
-                        points.push(
-                            {x: xBottomRight, y: yBottom},//bottom right
-                            {x: xBottomLeft, y: yBottom}//bottom left
-                        );
-                        pointWidth = pointWidth - 2 * nextWidth;
-                    }
-                    nextHeight += height;
-                    points.push({x: xTopLeft, y: yTop});//close path
-                    xTopLeft = xBottomLeft;
-                }
-
-                extend(shape, {
-                    x: xTopLeft,
-                    y: yTop,
-                    points: points,
-                    total: series.sumValue,
-                    percentage: percentage * 100,
-                    shapeArgs: {
-                        x: xTopLeft,
-                        y: yTop,
-                        height: height
-                    },
-                    textArgs: {
-                        x: -9999,
-                        y: -9999
-                    }
-                });
-                
-            }
-        },
-        neckHeight: function(series, plotX, plotY, plotWidth, plotHeight){
-            var reversed = !!series.reversed,
-                sorted = series.sorted;
-            var seriesWidth = pack("number",
-                    series.width,//absolute
-                    Numeric.percentage(plotWidth, series.width),//percent
-                    plotWidth//auto
-                ),
-                seriesHeight = pack("number",
-                    series.height,
-                    Numeric.percentage(plotHeight, series.height),
-                    plotHeight
-                ),
-                size = Math.min(seriesWidth, seriesHeight);
-            var cx = pack("number",
-                    series.left,
-                    Numeric.percentage(plotWidth, series.left),
-                    plotX + (plotWidth - size) / 2//auto center
-                ),
-                cy = pack("number",
-                    series.top,
-                    Numeric.percentage(plotHeight, series.top),
-                    plotY + (plotHeight - size) / 2 - 1
-                );
-
-            var shapes = series.shapes,
-                length = shapes.length,
-                j = reversed ? -1 : length,
-                shape;
-
-            var nextY = reversed ? cy : (cy + size),
-                nextX = 0,
-                nextX1 = 0;
-
-            var pointHeight;
-
-            sorted !== false && shapes.sort(function(a, b){
-                return reversed
-                    ? a.value - b.value
-                    : b.value - a.value;
-            });
-
-            var lastShape, filterLength = 0;
-            while(reversed ? ++j < length : j--){
-                var filter = (shape = shapes[j]).selected !== false && shape.value !== null && shape.value >= 0;
-                delete shape.isLast;
-                if(filter){
-                    lastShape || (lastShape = shape);
-                    ++filterLength;
-                }
-            }
-            pointHeight = size / filterLength;
-            lastShape && (lastShape.isLast = true);
-
-            j = reversed ? -1 : length;
-            while(reversed ? ++j < length : j--){
-                var value = (shape = shapes[j]).value,
-                    percentage = value / series.maxValue;
-                var points = [];
-                var x, y, x1, y1, w = 0, h;
-                var isEmpty = false;
-                h = pointHeight;
-                if(value === null || value < 0 || shape.selected === false){
-                    value = h = 0;
-                    isEmpty = true;
-                }
-                w = percentage * size;
-                x = cx;
-                x += (size - w) / 2;
-                x1 = x + w;
-                if(reversed){
-                    y = nextY;
-                    y1 = y + h;
-                    points = [
-                        {x: nextX, y: y},//left top
-                        {x: nextX1, y: y},//right top
-                        {x: x1, y: y1},//right bottom
-                        {x: x, y: y1},//left bottom
-                        {x: nextX, y: y}//close
-                    ];
-                    if(shape.isLast){
-                        points = [
-                            {x: x + w / 2, y: y},
-                            {x: x + w / 2, y: y},
-                            {x: x1, y: y1},
-                            {x: x, y: y1},
-                            {x: x + w / 2, y: y}
-                        ];
-                    }
-                    nextY = y1;
-                }
-                else{
-                    y = nextY - h;
-                    y1 = y + h;
-                    
-                    points = [
-                        {x: x, y: y},//left top
-                        {x: x1, y: y},//right top
-                    ];
-                    if(shape.isLast){
-                        points.push(
-                            {x: x1 - w / 2, y: y1},//right bottom
-                            {x: x1 - w / 2, y: y1}//repeat this x and y
-                        );
-                    }
-                    else{
-                        points.push(
-                            {x: nextX1, y: y1},//right bottom
-                            {x: nextX, y: y1}//left bottom
-                        );
-                    }
-                    points.push({x: x, y: y});
-                    nextY = y;
-                }
-                if(!isEmpty){
-                    nextX1 = x1;
-                    nextX = x;
-                }
-
-                extend(shape, {
-                    points: points,
-                    shapeArgs: {
-                        x: x,
-                        y: y,
-                        height: pointHeight,
-                        width: w
-                    },
-                    textArgs: {
-                        x: -9999,
-                        y: -9999
-                    }
-                });
-            }
-        },
-        dataLabels: function(series){
-            var shapes = series.shapes;
-            shapes.forEach(function(shape){
-                var points = shape.points || [],
-                    shapeArgs = shape.shapeArgs;
-                var ls;
-                var x, y;
-                if(points.length){
-                    ls = lineSlope(points[2], points[1]);
-                    //funnel shape
-                    if(points.length >= 7){
-                        ls = lineSlope(points[4], points[3]);
-                    }
-                    // //triangle shape
-                    // else if(points.length <= 4){
-                    //     ls = lineSlope(points[1], points[0]);
-                    // }
-                    y = (shapeArgs.y + shapeArgs.height / 2);
-                    x = (y - ls.b) / ls.slope;
-                    if(ls.slope === 0){
-                        if(points.length >= 7){
-                            x = points[3].x;
-                            y = points[2].y;
-                        }
-                        else
-                            x = points[2].x;//没有斜率
-                    }
-                    shape.textArgs.x = x;
-                    shape.textArgs.y = y;
-                }
-            });
-        },
-        subgroup: function(){
-            var options = this.options,
-                type = this.type,
-                width = options.chart.width,
-                height = options.chart.height;
-            var layout = this;
-            options.panel.forEach(function(pane){
-                var series = arrayFilter(pane.series, function(series){
-                    return series.type === type;
-                });
-            
-                series.forEach(function(series){
-                    var plotX = pack("number", series.plotX, 0),
-                        plotY = pack("number", series.plotY, 0),
-                        plotWidth = pack("number", series.plotWidth, width, 0),
-                        plotHeight = pack("number", series.plotHeight, height, 0);
-
-                    layout[series.neck === true ? "neckHeight" : "neckWidth"].apply(layout, [
-                        series, plotX, plotY, plotWidth, plotHeight
-                    ]);
-                    layout.dataLabels(series);
-                });
-            });
-            return this.series;
+            DataLabels.render(context, dataLabel, series);
         }
     };
 
@@ -15382,23 +15792,23 @@ var PI = Math.PI,
 
     var relayout = (function(global){
 
-    function factoy(Numeric){
+    function factoy (Numeric) {
         var interpolate = Numeric.interpolate;
 
-        return function(type, options){
+        return function (type, options) {
 
-            var getKey = function(index, axis){
+            var getKey = function (index, axis) {
                 var categories;
-                if(isArray(categories = axis.categories) && categories.length){
+                if (isArray(categories = axis.categories) && categories.length) {
                     return categories[index];
                 }
                 return index;
             };
-            options.panel.forEach(function(pane){
-                var series = arrayFilter(pane.series, function(series){
+            options.panel.forEach(function (pane) {
+                var series = arrayFilter(pane.series, function (series) {
                     return series.type === type;
                 });
-                series.forEach(function(series){
+                series.forEach(function (series) {
                     var startAngle, endAngle;
                     var minValue, maxValue, logBase;
                     var polarAxisOptions = series._polarAxis || {};
@@ -15410,29 +15820,28 @@ var PI = Math.PI,
                     logBase = pack("number", pack("object", polarAxisOptions.logarithmic, {}).base, 10);
                     maxValue = pack("number", polarAxisOptions.maxValue);
                     minValue = pack("number", polarAxisOptions.minValue);
-                    //console.log(series.minValue, polarAxisOptions.minValue, series.maxValue, polarAxisOptions.maxValue);
 
                     var shapes = series.shapes,
                         length = shapes.length,
                         j = 0;
-                    for(j = 0; j < length; j++){
+                    for (j = 0; j < length; j++) {
                         var shape = series.shapes[j],
                             value = shape.value;
                         var x, y, angle, radius;
-                        if(isArray(shape.source)){
+                        if (isArray(shape.source)) {
                             angle = shape.source[0] * PI2 / 360 + startAngle;
                             radius = interpolate(shape.source[1], minValue, maxValue, 0, plotRadius);
                         }
-                        else{
+                        else {
                             angle = j * PI2 / Math.max(1, length) + startAngle;
                             radius = interpolate(value, minValue, maxValue, 0, plotRadius);
                         }
-                        if(series.selected === false || value === null){
-                            radius = 0;//minValue = maxValue = 0;
+                        if (series.selected === false || shape.isNULL) {
+                            radius = 0;
                         }
                         
-                        x = plotX + Math.cos(angle) * radius;
-                        y = plotY + Math.sin(angle) * radius;
+                        x = plotX + mathCos(angle) * radius;
+                        y = plotY + mathSin(angle) * radius;
 
                         extend(shape, {
                             x: x,
@@ -15456,51 +15865,44 @@ var PI = Math.PI,
     };
 }).call(typeof window !== "undefined" ? window : this).deps(Numeric);
 
-    var LineSegment = Chart.LineSegment;
-
     var angle2arc = Chart.angle2arc;
 
-    var Clip = function (canvas) {
-        var cx, cy, cr;
-        //var image = canvas.getContext("2d");
-        var angle;
-        return {
-            ploar: function(x, y, r){
-                cx = x, cy = y, cr = r;
-                return this;
-            },
-            angle: function(a){
-                //image.save();
-                //image.clearRect(0, 0, canvas.width, canvas.height);
-                /*angle2arc(
-                    cx, cy,
-                    cr, 0,
-                    angle[0], angle[1],
-                    false//close path
-                )(image);
-                image.clip();*/
-                angle = a;
-                return this;
-            },
-            clip: function(context){
-                context.save();
-                //image.clearRect(0, 0, canvas.width, canvas.height);
-                angle2arc(
-                    cx, cy,
-                    cr / 2, 0,
-                    angle[0], angle[1],
-                    false//close path
-                )(context);
-                //context.fill();
-                context.clip();
-                context.drawImage(
-                    canvas,
-                    0, 0, canvas.width, canvas.height,
-                    0, 0, canvas.width / DEVICE_PIXEL_RATIO, canvas.height / DEVICE_PIXEL_RATIO
-                );
-                context.restore();
+    var lineSegment = function (context, points, options) {
+        var dashStyle = pack("string", (options = options || {}).dashStyle, "solid");
+        var length = (points || []).length, i, j;
+        var x, y, moveX, moveY;
+        var point;
+        if (length) {
+            point = points[i = 0];
+            moveX = point.x, moveY = point.y;
+
+            context.beginPath();
+            context.moveTo(moveX, moveY);
+            for (; i < length; i++) {
+                point = points[i];
+
+                if (point.isNULL) {
+                    //find next point
+                    for (j = i + 1; j < length; j++) {
+                        if (!points[j].isNULL) {
+                            x = points[j].x;
+                            y = points[j].y;
+                            break;
+                        }
+                    }
+                    context.moveTo(moveX = x, moveY = y);
+                }
+                x = point.x, y = point.y;
+                
+                if (!point.isNULL) {
+                    DashLine[dashStyle] && dashStyle !== "solid" ? DashLine[dashStyle](
+                        context,
+                        moveX, moveY,
+                        moveX = x, moveY = y
+                    ) : context.lineTo(x, y);
+                }
             }
-        };
+        }
     };
 
     /*
@@ -15524,18 +15926,12 @@ var PI = Math.PI,
             var chart = this;
 
             this.options = extend({}, options);
-            this.series = arrayFilter(options.series, function(series){
-                var filter = series.type === type;
-                if(filter){
-                    series._diffValues = List.diff(series.shapes, series._shapes || [], function(a, b){
-                        return a && b && a.value === b.value;
-                    });
-                }
-                return filter;
+            this.series = arrayFilter(options.series, function (series) {
+                return series.type === type;
             });
             relayout(type, this.options);
 
-            if(canvas.nodeType === 1){
+            if (canvas.nodeType === 1) {
                 this.series.forEach(function(series){
                     if(series.animationEnabled){
                         var image = document.createElement("canvas"),
@@ -15558,21 +15954,29 @@ var PI = Math.PI,
                 });
             });
         },
-        draw: function () {
+        draw: function (initialize) {
             var context = this.context,
                 chart = this;
-            this.series.forEach(function (series) {
-                chart.drawLine(context, series.shapes, series);
-                if (series.selected !== false) {
-                    series.shapes.forEach(function (shape) {
+            if (initialize === true) {
+                this.series.forEach(function (series) {
+                    var shapes = series.shapes;
+                    var timer = (shapes[0] || {}).timer;
+                    Clip.Quadrant(series._image, series.plotCenterX, series.plotCenterY, series.plotRadius * 2 + 10).angle(series._startAngle, series._endAngle).clip(context, timer);
+                });
+            }
+            else {
+                this.series.forEach(function (series) {
+                    var shapes = series.shapes;
+                    chart.drawLine(context, shapes, series);
+                    shapes.forEach(function (shape) {
                         chart.drawShape(context, shape, series);
                     });
-                    series.shapes.forEach(function (shape) {
-                        DataLabels.render(context, shape, series);
+                    shapes.forEach(function (shape) {
+                        DataLabels.render(context, shape.dataLabel, series);
                         chart.onHover(context, shape, series);
                     });
-                }
-            });
+                });
+            }
         },
         redraw: function () {
             relayout(this.type, this.options);
@@ -15589,29 +15993,29 @@ var PI = Math.PI,
             var results = [],
                 shapes;
 
-            var isInside = function(series){
+            var isInside = function (series) {
                 var dx = x - series.plotCenterX,
                     dy = y - series.plotCenterY;
                 return series.plotRadius * series.plotRadius - dx * dx - dy * dy >= 0.001;
             };
-            var resetShape = function(shapes){
-                for(var j = 0, l = shapes.length; j < l;  j++){
+            var resetShape = function (shapes) {
+                for (var j = 0, l = shapes.length; j < l;  j++) {
                     delete shapes[j].current;
                 }
             };
 
-            for(i = 0; i < sl; i++){
+            for (i = 0; i < sl; i++) {
                 series = this.series[i];
                 shapes = series.shapes;
-                if(isInside(series)){
+                if (isInside(series)) {
                     //return results;
                     resetShape(shapes);
-                    for(j = 0, dl = shapes.length; j < dl; j++){
+                    for (j = 0, dl = shapes.length; j < dl; j++) {
                         shape = shapes[j];
-                        if(series.selected !== false && !shape.isNULL && Intersection.line(
+                        if (series.selected !== false && !shape.isNULL && Intersection.line(
                             {x: x, y: y},
                             {x: shape.x, y: shape.y, width: pack("number", (series.marker || {}).radius, 5) * 2}
-                        )){
+                        )) {
                             shape.current = j;
                             results.push({shape: shape, series: series});
                             break;
@@ -15621,18 +16025,19 @@ var PI = Math.PI,
             }
             return results;
         },
-        drawShape: function (context, shape, series){
+        drawShape: function (context, shape, series) {
             var marker = pack("object", shape.marker, series.marker, {});
             var lineWidth = pack("number", marker.lineWidth, 0),
                 lineColor = pack("string", marker.lineColor, shape.color, series.color, "#000"),
                 fillColor = pack("string", marker.fillColor, shape.color, series.color, "#000"),
                 radius = pack("number", marker.radius, 4);
 
-            var usemarker = series.shapes.length * radius < series.radius;
-            if(defined(marker.enabled) || defined(marker.enabled)){
+            var usemarker = series.shapes.length * radius < series.plotRadius;
+            if (defined(marker.enabled)) {
                 usemarker = marker.enabled === true;
             }
-            if(series.selected !== false & shape.value !== null & usemarker){
+
+            if (series.selected !== false & !shape.isNULL & usemarker) {
                 context.save();
                 context.fillStyle = fillColor;
                 context.beginPath();
@@ -15642,27 +16047,27 @@ var PI = Math.PI,
                 context.restore();
             }
         },
-        drawLine: function (context, shapes, series){
+        drawLine: function (context, shapes, series) {
             var lineWidth = pack("number", series.lineWidth, 2),
                 lineColor = series.lineColor || series.color,
                 fillColor = series.fillColor || series.color,
                 radarType = series.radarType;
             context.save();
             context.beginPath();
-            if(radarType === "area"){
-                if(Color.isColor(fillColor)){
+            if (radarType === "area") {
+                if (Color.isColor(fillColor)) {
                     fillColor = Color.parse(fillColor).alpha(0.75).rgba();
                 }
-                else if(defined(fillColor.radialGradient)){
+                else if (defined(fillColor.radialGradient)) {
                     fillColor = Color.parse(fillColor).radial(series.cx, series.cy, series.radius);
                 }
-                LineSegment.none(context, shapes, series);
+                lineSegment(context, shapes, series);
                 context.fillStyle = fillColor;
                 context.closePath();
                 context.fill();
             }
-            else{
-                LineSegment.none(context, shapes, series);
+            else {
+                lineSegment(context, shapes, series);
                 context.closePath();
             }
 
@@ -15676,11 +16081,11 @@ var PI = Math.PI,
             );
             context.restore();
         },
-        onHover: function (context, shape, series){
+        onHover: function (context, shape, series) {
             var marker = series.marker || {},
                 fillColor = shape.color || series.color,
                 hoverColor;
-            if(!shape.isNULL && isNumber(shape.current) && shape.current > -1){
+            if (!shape.isNULL && isNumber(shape.current) && shape.current > -1) {
                 hoverColor = Color.parse(fillColor);
                 hoverColor.a = 0.5;
                 context.save();
@@ -15722,98 +16127,48 @@ var PI = Math.PI,
                 }[t];
             }).call(shape, series, context);
         },
-        animateTo: function(context, initialize){
-            var chart = this;
+        animateTo: function () {
             var shapes = [];
-            chart.series.forEach(function(series){
+            this.series.forEach(function (series) {
                 var newData = series.shapes,
                     oldData = series._shapes || [];
-                var animators = [];
-                if(initialize === true){
-                    var mergeShape = series;
-                    mergeShape._timer = 0;
-                    shapes.push([series, function(timer){
-                        mergeShape._timer = timer;
-                    }]);
-                    animators.push(mergeShape);
-                }
-                else{
-                    series._diffValues.remove(function(newIndex){
-                        var newShape = newData[newIndex],
-                            mergeShape = {
-                                x: newShape.x,
-                                y: newShape.y,
-                                color: newShape.color,
-                                value: newShape.value,
-                                _value: newShape._value,
-                                isNULL: newShape.isNULL
-                            };
-                        shapes.push([newShape, function(timer){
-                            mergeShape.radius = newShape.radius * timer;
-                        }]);
-                        animators.push(mergeShape);
-                    }).add(function(newIndex){
-                        var oldShape = oldData[newIndex],
-                            mergeShape = {
-                                x: oldShape.x,
-                                y: oldShape.y,
-                                color: oldShape.color,
-                                _value: oldShape._value,
-                                value: oldShape.value,
-                                isNULL: oldShape.isNULL
-                            };
-                        shapes.push([oldShape, function(timer){
-                            //mergeShape.x = NaN;
-                            mergeShape.radius = oldShape.radius - oldShape.radius * timer;
-                        }]);
-                        animators.push(mergeShape);
-                    }).modify(function(newIndex, oldIndex){
-                        var newShape = newData[newIndex],
-                            oldShape = oldData[oldIndex],
-                            mergeShape;
-                        if(oldShape && newShape){
-                            mergeShape = {
-                                x: oldShape.x,
-                                y: oldShape.y,
-                                color: newShape.color,
-                                _value: newShape._value,
-                                value: newShape.value,
-                                isNULL: newShape.isNULL
-                            };
-                            shapes.push([newShape, function(timer){
-                                mergeShape.x = oldShape.x + (newShape.x - oldShape.x) * timer;
-                                mergeShape.y = oldShape.y + (newShape.y - oldShape.y) * timer;
-                                mergeShape.radius = oldShape.radius + (newShape.radius - oldShape.radius) * timer;
-                            }]);
-                            animators.push(mergeShape);
-                        }
-                    }).each();
-                }
-                series._animators = animators;
-                series._shapes = series.shapes;
+                var previous = [];
+                List.diff(series.shapes, series._shapes || [], function (a, b) {
+                    return a && b && a.value === b.value;
+                }).remove(function (newIndex) {
+                    var newShape = newData[newIndex];
+                    var to;
+                    newShape.animate({
+                        timer: 0
+                    }, to = {
+                        value: newShape.value,
+                        timer: 1,
+                        x: newShape.x,
+                        y: newShape.y
+                    });
+                    shapes.push(newShape);
+                    previous.push(to);
+                }).add(function (newIndex) {
+                    var oldShape = oldData[newIndex],
+                        to;
+                    oldShape.animate({
+                    }, to = {
+                        value: oldShape.value
+                    });
+                    shapes.push(oldShape);
+                    previous.push(to);
+                }).modify(function (newIndex, oldIndex) {
+                    var newShape = newData[newIndex],
+                        oldShape = oldData[oldIndex],
+                        from = { x: oldShape.x, y: oldShape.y },
+                        to = { value: newShape.value, x: newShape.x, y: newShape.y };
+                    newShape.animate(from, to);
+                    shapes.push(newShape);
+                    previous.push(to);
+                }).each();
+                series._shapes = previous;
             });
             return shapes;
-        },
-        onFrame: function (context, initialize) {
-            var chart = this;
-            this.series.forEach(function (series) {
-                var animator = series._animators;
-                if (initialize === true) {
-                    animator.forEach(function (series) {
-                        series._image && Clip(series._image)
-                            .ploar(series.plotCenterX, series.plotCenterY, series.plotRadius * 2 + 10)
-                            .angle([series._startAngle, series._endAngle * (series._timer) + series._startAngle])
-                            .clip(context);
-                    });
-                }
-                else {
-                    chart.drawLine(context, animator, series);
-                    animator.forEach(function (mergeShape) {
-                        chart.drawShape(context, mergeShape, series);
-                        DataLabels.render(context, mergeShape, series);
-                    });
-                }
-            });
         }
     };
 
@@ -15826,10 +16181,6 @@ var PI = Math.PI,
     var mathMin = Math.min;
     var mathMax = Math.max;
     var MAX_VALUE = Number.MAX_VALUE;
-
-    var rescale = function (s) {
-        return isNumber(s) && isFinite(s) ? Math.min(10, Math.max(s, 0)) : 1;
-    };
 
     var setTransform = function (a, b, k) {
         return a * k + b;
@@ -15872,9 +16223,18 @@ var PI = Math.PI,
                     var scale = [1, 1],
                         translate = [0, 0];
                     var transform = series.transform,
-                        scaleRadio = pack("number", transform.scale, 0.75),
+                        scaleRadio = Math.max(0, pack("number", transform.scale, 0.75)),
                         translateX = transform.translate[0],
                         translateY = transform.translate[1];
+
+                    var projection = series.projection,
+                        projectAt;
+                    if (isObject(projection)) {
+                        projectAt = extend({}, projection);//geoJson.cp;
+                    }
+                    else if (isFunction(projection)) {
+                        projectAt = projection.call(series);
+                    }
 
                     if (defined(colorAxisOptions) && isArray(colorAxisOptions.stops)) {
                         colorAxisOptions.stops.forEach(function (stop) {
@@ -15885,29 +16245,11 @@ var PI = Math.PI,
                     }
                         
                     if (defined(geoJson)) {
-                        scale = [plotWidth / chartWidth * 0.9, plotHeight / chartHeight * 0.9];
-                        translate = [plotX, plotY];
-                        if (defined(series.scale)) {
-                            isNumber(series.scale) && (scale = rescale(series.scale), scale = [scale, scale]);
-                            if (isArray(series.scale)) {
-                                scale = [rescale(series.scale[0]), rescale(series.scale[1])];
-                            }
-                        }
-                        if (defined(series.translate)) {
-                            translate = TRouBLe(series.translate).map(function (d, i) {
-                                return d * [plotX, plotY][i];
-                            });
-                        }
-                        var center = geoJson.cp;
-                        //var projection = series.projection.call(series, center, scale, translate);
                         var bounds = [[MAX_VALUE, MAX_VALUE], [-MAX_VALUE, -MAX_VALUE]];
                         var centerX = 0,
                             centerY = 0;
-                        //Path.size([chartWidth, chartHeight]).scale(scale).translate(translate).projection(projection).parse(geoJson, function (groups, feature) {
-                        var projected = new Projection({
-                            //scale: 450,
-                            //center: [137, 38]
-                        });
+                        var projected = new Projection(projectAt);
+                        var index = 0;
                         projected.size([plotWidth, plotHeight]).parse(geoJson, function (groups, feature) {
                             var points = [];
                             var count = 0;
@@ -15927,14 +16269,15 @@ var PI = Math.PI,
                                 var length = polygon.length,
                                     j;
                                 var point;
-                                x = setTransform(polygon[j = 0][0], translateX, scaleRadio);
-                                y = setTransform(polygon[j][1], translateY, scaleRadio);
+                                x = setTransform(polygon[j = 0][0], 0, scaleRadio);
+                                y = setTransform(polygon[j][1], 0, scaleRadio);
+
                                 bounds = setBounds(bounds, x, y);
                                 i && points.push({x: x, y: y, isNext: true});
                                 for (j = 1; j < length; j++) {
                                     point = polygon[j];
-                                    x = setTransform(point[0], translateX, scaleRadio);
-                                    y = setTransform(point[1], translateY, scaleRadio);
+                                    x = setTransform(point[0], 0, scaleRadio);
+                                    y = setTransform(point[1], 0, scaleRadio);
                                     cx += (x - cx) / ++count;
                                     cy += (y - cy) / count;
                                     points.push({x: x, y: y});
@@ -15943,8 +16286,8 @@ var PI = Math.PI,
                             });
                             if (defined(cp) && isNumber(cp[0], true) && isNumber(cp[1], true)) {
                                 cp = projected.projection(cp);
-                                cx = setTransform(cp[0], translateX, scaleRadio);
-                                cy = setTransform(cp[1], translateY, scaleRadio);
+                                cx = setTransform(cp[0], 0, scaleRadio);
+                                cy = setTransform(cp[1], 0, scaleRadio);
                             }
                             shape.shapeArgs = {
                                 x: cx, y: cy,
@@ -15955,6 +16298,9 @@ var PI = Math.PI,
                             var data = series.mapKey[shape.name] || series.mapKey[shape.code],
                                 value,
                                 color;
+                            if (defined(data)) {
+                                shape.index = index++;
+                            }
                             if (!isObject(data)) {
                                 data = {value: null};
                             }
@@ -15964,6 +16310,7 @@ var PI = Math.PI,
                             }
                             extend(shape, data);
                             shape.name = properties.name;
+                            shape.series = series;
                             shapes.push(shape);
                         });
                         centerX = plotX + (plotWidth - (bounds[1][0] - bounds[0][0])) / 2 - bounds[0][0];
@@ -15971,8 +16318,8 @@ var PI = Math.PI,
 
                         shapes.forEach(function (shape) {
                             shape.points.forEach(function (point) {
-                                point.x += centerX;
-                                point.y += centerY;
+                                point.x += centerX + translateX;
+                                point.y += centerY + translateY;
                             });
                             shape.shapeArgs.x += centerX;
                             shape.shapeArgs.y += centerY;
@@ -15981,7 +16328,13 @@ var PI = Math.PI,
                             center: [centerX, centerY]
                         };
                         series.__projector__ = {
-                            projection: function (point) { return projected.projection.call(projected, point); },
+                            projection: function (point) {
+                                var p = projected.projection.call(projected, point);
+                                return [
+                                    setTransform(p[0], 0, scaleRadio) + centerX + translateX,
+                                    setTransform(p[1], 0, scaleRadio) + centerY + translateY
+                                ];
+                            },
                             //scale: projection.scale(),
                             //translate: projection.translate(),
                             //center: projection.center()
@@ -16018,8 +16371,7 @@ var PI = Math.PI,
             this.options = extend({}, options);
 
             this.series = arrayFilter(pack("array", this.options.series, []), function (item) {
-                var f = item.selected !== false
-                    && (item.type === type);
+                var f = (item.type === type);
                 if (f) {
                     var mapKey = {};
                     item.data.forEach(function(d){
@@ -16058,7 +16410,7 @@ var PI = Math.PI,
                         chart.drawShape(context, shape, series);
                     });
                     shapes.forEach(function (shape) {
-                        DataLabels.render(context, shape, series);
+                        DataLabels.render(context, shape.dataLabel, series);
                     });
                 }
             });
@@ -16072,6 +16424,9 @@ var PI = Math.PI,
             var borderWidth = pack("number", series.borderWidth, 0),
                 borderColor = pack("string", series.borderColor, "#FFFFFF"),
                 fillColor = shape.color || series.fillColor || "#f7f7f7";
+            var states = series.states || {},
+                stateHover = states.hover,
+                stateSelected = states.selected;
             var tooltip = series.tooltip;
             var points = shape.points;
             var shapeArgs = shape.shapeArgs;
@@ -16092,43 +16447,46 @@ var PI = Math.PI,
                     ? gradient.radial(shapeArgs.x, shapeArgs.y, Math.sqrt(s0 * s0 + s1 * s1) / 4)
                     : gradient.linear(0, 0, s0, s1);
             }
-
             if (tooltip.enabled !== false && isNumber(shape.current) && shape.current !== -1) {
-                !shape.isNULL
-                    ? (fillColor = Color.parse(fillColor).alpha(0.75).rgba())
-                    : (fillColor = "rgb(79, 134, 189)");
+                if (!shape.isNULL) {
+                    fillColor = Color.parse(fillColor).alpha(0.75).rgba();
+                }
+                else {
+                    fillColor = "rgb(79, 134, 189)";
+                }
+                // TODO : state hover callback
+                if (shape.selected !== true && stateHover) {
+                    isNumber(stateHover.borderWidth) && (borderWidth = stateHover.borderWidth);
+                    defined(stateHover.borderColor) && (borderColor = stateHover.borderColor);
+                    defined(stateHover.fillColor) && (fillColor = stateHover.fillColor);
+                }
+            }
+            if (stateSelected && shape.selected === true) {
+                isNumber(stateSelected.borderWidth) && (borderWidth = stateSelected.borderWidth);
+                defined(stateSelected.borderColor) && (borderColor = stateSelected.borderColor);
+                defined(stateSelected.fillColor) && (fillColor = stateSelected.fillColor);
             }
 
             context.save();
             render();
             context.fillStyle = fillColor;
+            context.fill();
+            if (borderWidth > 0) {
+                context.lineWidth = borderWidth;
+                context.strokeStyle = borderColor;
+                context.stroke();
+            }
+            context.restore();
             if (defined(series.shadowColor)) {
+                context.save();
                 context.shadowColor = series.shadowColor;
                 isNumber(series.shadowBlur) && (context.shadowBlur = series.shadowBlur);
                 isNumber(series.shadowOffsetX) && (context.shadowOffsetX = series.shadowOffsetX);
                 isNumber(series.shadowOffsetY) && (context.shadowOffsetY = series.shadowOffsetY);
+                context.fillStyle = series.shadowFillColor || fillColor || "rgba(255, 255, 255, 1)";
+                context.fill();
+                context.restore();
             }
-            //if (borderWidth <= 0) context.lineWidth = 0, context.strokeStyle = fillColor, context.stroke();
-            context.fill();
-            context.restore();
-
-            context.save();
-            if (defined(series.borderShadowColor)) {
-                context.shadowColor = series.borderShadowColor;
-                isNumber(series.borderShadowBlur) && (context.shadowBlur = series.borderShadowBlur);
-                isNumber(series.borderShadowOffsetX) && (context.shadowOffsetX = series.borderShadowOffsetX);
-                isNumber(series.borderShadowOffsetY) && (context.shadowOffsetY = series.borderShadowOffsetY);
-            }
-            if (borderWidth > 0) {
-                context.lineWidth = borderWidth;
-                context.strokeStyle = borderColor;
-                render();
-                context.stroke();
-            }
-            else {
-                //context.strokeStyle = fillColor;
-            }
-            context.restore();
         },
         getShape: function (x, y) {
             var series,
@@ -16928,17 +17286,17 @@ var PI = Math.PI,
     (Chart.graphers = Chart.graphers || {}).venn = Chart.Venn = Venn;
     
 })(typeof window !== "undefined" ? window : this, Dalaba.Chart);;
-    (function(global, Chart){
+    (function (global, Chart) {
     var listFilter = List.filter,
         listFill = List.fill;
-    var relayout = (function(global){
+    var relayout = (function (global) {
 
-    var xy = function(a, b, c, d){
-        return function(x){
+    var xy = function (a, b, c, d) {
+        return function (x) {
             return interpolate(x, a, b, c, d);
         };
     };
-    var getData = function(item){
+    var getData = function (item) {
         var value = item;
         if(isObject(item)){
             value = [item.x, item.y, item.value, item.color];
@@ -16949,11 +17307,9 @@ var PI = Math.PI,
         return value;
     };
 
-    function factoy(Numeric){
-        var interpolate = Numeric.interpolate;
-
-        return function(type, options) {
-            var getXY = function(shape, f0, f1){
+    function factoy (Numeric) {
+        return function (panels) {
+            var getXY = function (shape, f0, f1) {
                 var x, y, data, value;
                 data = getData(shape.source);
                 x = data[0], y = data[1], value = data[2];
@@ -16962,7 +17318,7 @@ var PI = Math.PI,
                 y = f1(y);
                 return {x: x, y: y, value: value};
             };
-            var addCircle = function(shape, series, f0, f1, f2){
+            var addCircle = function (shape, series, f0, f1, f2) {
                 var radius = series.radius;
                 var x = getXY(shape, f0, f1),
                     y = x.y,
@@ -16980,7 +17336,7 @@ var PI = Math.PI,
                     alpha: f2(value, series.minValue, series.maxValue)
                 });
             };
-            var addRect = function(shape, series, f0, f1, f2){
+            var addRect = function (shape, series, f0, f1, f2) {
                 var tickWidth = series.tickWidth, tickHeight = series.tickHeight;
                 var x = getXY(shape, f0, f1),
                     y = x.y,
@@ -16996,15 +17352,13 @@ var PI = Math.PI,
                     color: f2(value, series.minValue, series.maxValue)
                 });
             };
-            options.panel.forEach(function(pane){
-                var series = arrayFilter(pane.series, function(series){
-                    return series.type === type;
-                });
-                var newData = partition(series, function(a, b){
+            panels.forEach(function (pane) {
+                var series = pane.series;
+                var newData = partition(series, function (a, b) {
                     return a.radius !== null && b.radius !== null;
                 });
-                newData.forEach(function(item){
-                    item.forEach(function(series){
+                newData.forEach(function (item) {
+                    item.forEach(function (series) {
                         var plotX = pack("number", series.plotX, 0),
                             plotY = pack("number", series.plotY, 0),
                             plotWidth = pack("number", series.plotWidth, 0),
@@ -17026,8 +17380,8 @@ var PI = Math.PI,
                             range = [],
                             lerp;
                                     
-                        if(isArray(stops)){
-                            stops.forEach(function(stop){
+                        if (isArray(stops)) {
+                            stops.forEach(function (stop) {
                                 domain.push(stop[0]);
                                 range.push(stop[1]);
                             });
@@ -17036,37 +17390,37 @@ var PI = Math.PI,
                         var tickWidth = plotWidth / ((maxX - minX) + 1),
                             tickHeight = plotHeight / ((maxY - minY) + 1);
                         
-                        shapes.forEach(function(shape, i){
-                            if(defined(coordinate) || isObject(shape.source)){
+                        shapes.forEach(function (shape, i) {
+                            if (defined(coordinate) || isObject(shape.source)) {
                                 addCircle(shape, {
                                     minValue: series.minValue,
                                     maxValue: series.maxValue,
                                     radius: pack("number", shape.radius, series.radius, 0.1),
                                     blur: pack("number", series.blur, 0.05)
-                                }, function(x){
+                                }, function (x) {
                                     return xy(xAxisOptions.minValue, xAxisOptions.maxValue, 0, plotWidth)(x) + plotX;
-                                }, function(x){
+                                }, function (x) {
                                     return xy(yAxisOptions.minValue, yAxisOptions.maxValue, 0, plotHeight)(x) + plotY;
-                                }, function(x, min, max){
+                                }, function (x, min, max) {
                                     return Math.max((x - min) / (max - min), 0.01) || 0;
                                 });
                             }
-                            else{
-                                if(isArray(shape.source)){
+                            else {
+                                if (isArray(shape.source)) {
                                     addRect(shape, {
                                         minValue: yAxisOptions.plot.value[0],
                                         maxValue: yAxisOptions.plot.value[1],
                                         tickWidth: tickWidth,
                                         tickHeight: tickHeight
-                                    }, function(x){
+                                    }, function (x) {
                                         return xy(minX, maxX + 1, 0, plotWidth)(x) + plotX;
-                                    }, function(x){
+                                    }, function (x) {
                                         return xy(minY - 1, maxY, plotHeight, 0)(x) + plotY;
-                                    }, function(x, min, max){
+                                    }, function (x, min, max) {
                                         return (lerp && isNumber(x)) ? lerp(interpolate(x, min, max, 0, 1)) : "#000";
                                     });
                                 }
-                                else{
+                                else {
                                     maxX = pack("number", xAxisOptions.categories && xAxisOptions.categories.length, 6);
                                     maxY = pack("number", yAxisOptions.categories && yAxisOptions.categories.length, 5);
                                     tickWidth = plotWidth / (maxX);
@@ -17077,11 +17431,11 @@ var PI = Math.PI,
                                         maxValue: yAxisOptions.plot.value[1],
                                         tickWidth: tickWidth,
                                         tickHeight: tickHeight
-                                    }, function(){
+                                    }, function () {
                                         return xy(0, maxX, 0, plotWidth)(i % maxX) + plotX;
-                                    }, function(){
+                                    }, function () {
                                         return xy(-1, maxY - 1, plotHeight, 0)(i % maxY) + plotY;
-                                    }, function(x, min, max){
+                                    }, function (x, min, max) {
                                         return (lerp && isNumber(shape.value)) ? lerp(interpolate(shape.value, min, max, 0, 1)) : "#000";
                                     });
                                 }
@@ -17093,26 +17447,25 @@ var PI = Math.PI,
         };
     }
     return {
-        deps: function(){
-            var args = Array.prototype.slice.call(arguments, 0);
-            return factoy.apply(global, [].concat(args));
+        deps: function () {
+            return factoy.apply(global, [].slice.call(arguments, 0));
         }
     };
-}).call(typeof window !== "undefined" ? window : this).deps(Numeric);
+}).call(typeof window !== "undefined" ? window : this).deps();
 
     var Renderer = {
-        gradient: function(fillColor){
+        gradient: function (fillColor) {
             var canvas = document.createElement("canvas"),
                 context = canvas.getContext("2d");
             var color, linearGradient;
             canvas.width = 256;
             canvas.height = 1;
             //Chart.scale(context, width, height, 1);
-            if(defined(fillColor)){
-                if(Color.isColor(fillColor)){
+            if (defined(fillColor)) {
+                if (Color.isColor(fillColor)) {
                     color = fillColor;
                 }
-                else if(defined(linearGradient = fillColor.linearGradient)){
+                else if (defined(linearGradient = fillColor.linearGradient)) {
                     var x1 = (linearGradient.x1 | 0),
                         y1 = (linearGradient.y1 | 0),
                         x2 = (linearGradient.x2 | 0),
@@ -17127,7 +17480,7 @@ var PI = Math.PI,
             context.fillRect(0, 0, 256, 1);
             return context.getImageData(0, 0, 256, 1).data;
         },
-        node: function(radius, blur){
+        node: function (radius, blur) {
             //var r2 = radius + radius * blur;
             var canvas = document.createElement("canvas");
             var context = canvas.getContext("2d");
@@ -17226,7 +17579,7 @@ var PI = Math.PI,
         }
     };
 
-    function Heatmap(canvas, options){
+    function Heatmap (canvas, options) {
         this.type = "heatmap";
 
         this.canvas = canvas;
@@ -17237,17 +17590,46 @@ var PI = Math.PI,
     }
     Heatmap.prototype = {
         constructor: Heatmap,
-        init: function(options){
+        init: function (options) {
             var type = this.type;
             this.options = extend({}, options);
-            this.series = listFilter(pack("array", options.series, []), function(series){
-                return series.selected !== false && series.type === type;
-            });
+
+            var panels = [],
+                panel = options.panel;
+            var n = panel.length, i = -1, j, nn;
+
+            var newSeries = [],
+                series;
+            this.series = [];
+
+            while (++i < n) {
+                newSeries = [];
+                for (j = 0, nn = panel[i].series.length; j < nn; j++) if ((series = panel[i].series[j]).type === this.type) {
+                    newSeries.push(series);
+                    this.series = this.series.concat(series);
+                }
+                panels.push({
+                    series: newSeries
+                });
+            }
+            this.options = options;//update
+            this.panels = panels;
             this.tables = new Array(listFill(Math.ceil(options.chart.width), []));
             
-            relayout(type, this.options);
+            relayout(panels);
+            this.reflow();
         },
-        draw: function(){
+        reflow: function () {
+            var chart = this;
+              
+            this.series.forEach(function (series) {
+                var shapes = series.shapes;
+                shapes.forEach(function (shape) {
+                    chart.drawLabels(chart.context, shape, series);
+                });
+            });
+        },
+        draw: function () {
             var context = this.context,
                 chart = this;
             var options = this.options;
@@ -17256,9 +17638,9 @@ var PI = Math.PI,
                 left = options.chart.spacing[3],
                 top = options.chart.spacing[0];
 
-            this.series.forEach(function(series){
+            this.series.forEach(function (series) {
                 var shapes = series.shapes;
-                if(defined(series.coordinate) || isObject(shapes[0].source)){
+                if (defined(series.coordinate) || isObject(shapes[0].source)) {
                     var shadow = Renderer.buffer(
                         Renderer.shadow(shapes, series, width + left, height + top),
                         series
@@ -17273,21 +17655,22 @@ var PI = Math.PI,
                     );
                     context.restore();
                 }
-                else{
-                    shapes.forEach(function(shape){
+                else {
+                    shapes.forEach(function (shape) {
                         chart.drawShape(context, shape, series);
                     });
-                    shapes.forEach(function(shape){
-                        chart.dataLabels(context, shape, series);
+                    shapes.forEach(function (shape) {
+                        DataLabels.render(context, shape.dataLabel, series);
                     });
                 }
             });
         },
-        redraw: function(){
-            relayout(this.type, this.options);
+        redraw: function () {
+            relayout(this.panels, true);
+            this.reflow();
             this.draw();
         },
-        drawShape: function(context, shape, series){
+        drawShape: function (context, shape, series) {
             var x0 = shape.x0,
                 y0 = shape.y0,
                 x1 = shape.x1,
@@ -17334,20 +17717,20 @@ var PI = Math.PI,
             }
             context.restore();
         },
-        dataLabels: function(context, shape, series){
-            dataLabels.align(function(type, bbox){
+        drawLabels: function (context, shape, series) {
+            shape.dataLabel = DataLabels.align(function (type, bbox) {
                 var t = pack("string", type, "center");
                 var w = bbox.width,
-                    w2 = Math.abs(shape.x1 - shape.x0);
+                    w2 = mathAbs(shape.x1 - shape.x0);
                 return {
                     left: shape.x0,
                     center: shape.x0 + (w2 / 2) - w / 2,
                     right: shape.x1 - w
                 }[t];
-            }).vertical(function(type, bbox){
+            }).vertical(function (type, bbox) {
                 var t = pack("string", type, "middle");
                 var h = bbox.height,
-                    h2 = Math.abs(shape.y1 - shape.y0);
+                    h2 = mathAbs(shape.y1 - shape.y0);
                 return {
                     top: shape.y0 + h,
                     middle: shape.y0 + h + (h2 - h) / 2,
@@ -17408,84 +17791,78 @@ var PI = Math.PI,
     (Chart.graphers = Chart.graphers || {}).heatmap = Chart.Heatmap = Heatmap;
 })(typeof window !== "undefined" ? window : this, Dalaba.Chart);;
     (function (global, Chart) {
-    var Layout = (function (global) {
+    var relayout = (function (global) {
 
     function factoy () {
-        var Layout = {};
-
-        Layout = {
-            shapes: function (type, options) {
-                options.panel.forEach(function (pane) {
-                    var series = arrayFilter(pane.series, function (series) {
-                        return series.type === type;
-                    });
-                    series.forEach(function (series) {
-                        var plotX = pack("number", series.plotX, 0),
-                            plotY = pack("number", series.plotY, 0),
-                            plotWidth = pack("number", series.plotWidth),
-                            plotHeight = pack("number", series.plotHeight);
-                        var shapes = series.shapes,
-                            shape;
-                        var length = shapes.length,
-                            j;
-                        var tickWidth = plotWidth / length,
-                            pointWidth = tickWidth / 2,
-                            center = (tickWidth - pointWidth) / 2;
-                        var color;
+        return function (panels, isResized) {
+            panels.forEach(function (pane) {
+                pane.series.forEach(function (series) {
+                    var plotX = pack("number", series.plotX, 0),
+                        plotY = pack("number", series.plotY, 0),
+                        plotWidth = pack("number", series.plotWidth),
+                        plotHeight = pack("number", series.plotHeight);
+                    var shapes = series.shapes,
+                        shape;
+                    var length = shapes.length,
+                        j;
+                    var tickWidth = plotWidth / length,
+                        pointWidth = tickWidth / 2,
+                        center = (tickWidth - pointWidth) / 2;
+                    var color;
 
 
-                        var yAxisOptions = series._yAxis || {},
-                            yminValue = yAxisOptions.minValue,
-                            ymaxValue = yAxisOptions.maxValue;
-                       
-                        var x, y, x1, y1, x2, y2, y3;
-                        var open, close, high, low;//open, close, high, low
-                        for (j = 0; j < length; j++) {
-                            shape = shapes[j];
-                            color = shape.color;
-                            x = plotX + j * tickWidth + center;
-                            x1 = x + pointWidth;
-                            x2 = x1 - pointWidth / 2;
-                            if (isArray(shape.source)) {
-                                open = shape.source[0], close = shape.source[1];
-                                high = shape.source[2], low = shape.source[3];
-                            }
-                            else if(isObject(shape.source)){
-                                open = shape.source.open, close = shape.source.close;
-                                high = shape.source.high, low = shape.source.low;
-                            }
-                            else open = close = high = low = 0;
-                            
-                            y = interpolate(open, yminValue, ymaxValue, plotHeight, 0) + plotY;//open
-                            y1 = interpolate(close, yminValue, ymaxValue, plotHeight, 0) + plotY;//close
-                            y2 = interpolate(high, yminValue, ymaxValue, plotHeight, 0) + plotY;//high
-                            y3 = interpolate(low, yminValue, ymaxValue, plotHeight, 0) + plotY;//low
-                            if (series.selected === false) {
-                                y = y1 = y2 = y3 = -9999;
-                            }
-                            extend(shape, {
-                                x: x,
-                                y: y,
-                                x1: x1,
-                                y1: y1,
-                                x2: x2,
-                                y2: y2,
-                                x3: x2,
-                                y3: y3,
-                                index: j,
-                                color: Color.isColor(color) ? color : (open > close) ? color[0] : color[1]
-                            });
+                    var yAxisOptions = series._yAxis || {},
+                        yminValue = yAxisOptions.minValue,
+                        ymaxValue = yAxisOptions.maxValue;
+                   
+                    var x, y, x1, y1, x2, y2, y3;
+                    var open, close, high, low;//open, close, high, low
+                    for (j = 0; j < length; j++) {
+                        shape = shapes[j];
+                        color = shape.color;
+                        x = plotX + j * tickWidth + center;
+                        x1 = x + pointWidth;
+                        x2 = x1 - pointWidth / 2;
+                        if (isArray(shape.source)) {
+                            open = shape.source[0], close = shape.source[1];
+                            high = shape.source[2], low = shape.source[3];
                         }
-                    });
+                        else if(isObject(shape.source)){
+                            open = shape.source.open, close = shape.source.close;
+                            high = shape.source.high, low = shape.source.low;
+                        }
+                        else open = close = high = low = 0;
+                        
+                        y = interpolate(open, yminValue, ymaxValue, plotHeight, 0) + plotY;//open
+                        y1 = interpolate(close, yminValue, ymaxValue, plotHeight, 0) + plotY;//close
+                        y2 = interpolate(high, yminValue, ymaxValue, plotHeight, 0) + plotY;//high
+                        y3 = interpolate(low, yminValue, ymaxValue, plotHeight, 0) + plotY;//low
+                        if (series.selected === false) {
+                            //y1 = y2 = y3 = y;
+                            x1 = x;
+                            y2 = y3 = y;
+                            //x2 = NaN;
+                        }
+                        extend(shape, {
+                            x: x,
+                            y: y,
+                            x1: x1,
+                            y1: y1,
+                            x2: x2,
+                            y2: y2,
+                            x3: x2,
+                            y3: y3,
+                            index: j,
+                            color: Color.isColor(color) ? color : (open > close) ? color[0] : color[1]
+                        });
+                    }
                 });
-            }
+            });
         };
-        return Layout;
     }
     return {
-        deps: function(){
-            var args = Array.prototype.slice.call(arguments, 0);
-            return factoy.apply(global, [].concat(args));
+        deps: function () {
+            return factoy.apply(global, [].slice.call(arguments));
         }
     };
 }).call(typeof window !== "undefined" ? window : this).deps(Dalaba);
@@ -17497,17 +17874,6 @@ var PI = Math.PI,
             y < pack("number", series.plotY, 0) ||
             y > series.plotHeight + pack("number", series.plotY, 0)
         );
-    };
-    var xClip = function (t, context, canvas, x, y) {
-        if (0 !== t) {
-            context.save();
-            t > 0 && context.drawImage(
-                canvas,
-                x, y, canvas.width * t, canvas.height,
-                x, y, canvas.width * t / DEVICE_PIXEL_RATIO, canvas.height / DEVICE_PIXEL_RATIO
-            );
-            context.restore();
-        }
     };
 
     function K (canvas, options) {
@@ -17523,20 +17889,32 @@ var PI = Math.PI,
         init: function (options) {
             var canvas = this.canvas,
                 type = this.type,
-                chart = this;
-            this.options = extend({}, options);
-            this.series = arrayFilter(pack("array", options.series, []), function (series) {
-                var filter = series.type === type;
-                return filter && (
-                    series._diffValues = List.diff(series.shapes, series._shapes || [], function(a, b){
-                        return a && b && a.open === b.open && a.close === b.close && a.low === b.low && a.high === b.high;
-                    }),
-                filter);
-            });
-            Layout.shapes(type, options);
+                animation = (options.chart || {}).animation;
+            var panels = [],
+                panel = options.panel;
+            var n = panel.length,
+                i = -1,
+                nn, j;
+            var newSeries, series;
+            var chart = this;
 
-            if(canvas.nodeType === 1){
-                this.series.forEach(function(series){
+            this.series = [];
+
+            while (++i < n) {
+                newSeries = [];
+                for (j = 0, nn = panel[i].series.length; j < nn; j++) if ((series = panel[i].series[j]).type === this.type) {
+                    newSeries.push(series);
+                    this.series = this.series.concat(series);
+                }
+                panels.push({series: newSeries});
+            }
+            this.options = options;
+            this.panels = panels;
+
+            relayout(panels, options);
+
+            if (canvas.nodeType === 1) {
+                this.series.forEach(function (series) {
                     if(series.animationEnabled){
                         var image = document.createElement("canvas"),
                             context = image.getContext("2d");
@@ -17554,26 +17932,34 @@ var PI = Math.PI,
                 });
             }
         },
-        draw: function(){
+        draw: function (initialize) {
             var context = this.context,
                 chart = this;
-            this.series.forEach(function(series){
-                var shapes = series.shapes;
-                shapes.forEach(function(shape){
-                    chart.drawShape(context, shape, series);
+            if (initialize === true) {
+                this.series.forEach(function (series) {
+                    var shapes = series.shapes;
+                    series._image && Clip[series.inverted ? "Vertical" : "Horizontal"](series._image, 0, 0, series._image.width, series._image.height).clip(context, pack("number", shapes[0].timer, 1));
                 });
-            });
+            }
+            else {
+                this.series.forEach(function (series) {
+                    var shapes = series.shapes;
+                    shapes.forEach(function (shape) {
+                        chart.drawShape(context, shape, series);
+                    });
+                });
+            }
         },
-        redraw: function(){
-            Layout.shapes(this.type, this.options);
+        redraw: function () {
+            relayout(this.panels, true);
             this.draw();
         },
         drawShape: function (context, shape, series) {
             var x = shape.x, y = shape.y,
                 x1 = shape.x1, y1 = shape.y1,
-                x2, y2 = shape.y2,
+                x2 = shape.x2, y2 = shape.y2,
                 y3 = shape.y3,
-                w = Math.round(shape.x1 - shape.x);
+                w = mathAbs(shape.x1 - shape.x);
             var lineWidth = pack("number", shape.lineWidth, series.lineWidth, 1),
                 fillColor = shape.fillColor || series.fillColor || shape.color || series.color,
                 borderColor = shape.color || series.color,
@@ -17581,9 +17967,8 @@ var PI = Math.PI,
             var isUP = y1 > y,
                 linePixel;
 
-            x2 = x + w / 2;
             if (isNumber(shape.current) && shape.current > -1) {
-                lineWidth = Math.max(1, Math.min(lineWidth, 1) * 2);
+                lineWidth = mathMax(1, mathMin(lineWidth, 1) * 2);
             }
             delete shape.current;
             linePixel = fixPixelHalf(x, y, x1, y1, lineWidth);
@@ -17601,6 +17986,8 @@ var PI = Math.PI,
             if (series.selected !== false && !lineWidth && y === y1) {
                 y1 += 1;
             }
+
+            if (!(shape.completed === true || series.selected === false)) {
 
             context.save();
             context.beginPath();
@@ -17626,115 +18013,63 @@ var PI = Math.PI,
             addStroke(lineWidth || 1, lineColor);
             
             context.restore();
+        }
         },
-        animateTo: function(context, initialize){
+        animateTo: function (initialize) {
             var chart = this;
             var shapes = [];
-            chart.series.forEach(function(series){
+            chart.series.forEach (function (series) {
                 var newData = series.shapes,
                     oldData = series._shapes || [];
-                var animators = [];
-                if(initialize === true){
-                    var mergeShape = series;
-                    shapes.push([series, function(timer){
-                        mergeShape._timer = timer;
-                    }]);
-                    animators.push(mergeShape);
-                }
-                else{
-                    series._diffValues.add(function(){
-                        //var oldShape = oldData[newIndex],
-                        //    mergeShape;
-                        return null;
-                    }).remove(function(newIndex){
-                        var newShape = newData[newIndex],
-                            mergeShape;
-                        mergeShape = {
-                            color: newShape.color,
-                            isNULL: newShape.isNULL
-                        };
-                        shapes.push([newShape, function(timer){
-                            mergeShape.x = newShape.x, mergeShape.y = newShape.y;
-                            mergeShape.x1 = newShape.x1;
-                            mergeShape.x2 = newShape.x2, mergeShape.y2 = newShape.y2;
-                            mergeShape.y3 = newShape.y3;
-                            mergeShape.y1 = newShape.y + (newShape.y1 - newShape.y) * timer;
-                        }]);
-                        return mergeShape;
-                    }).modify(function(newIndex, oldIndex){
-                        var newShape = newData[newIndex],
-                            oldShape = oldData[oldIndex],
-                            mergeShape;
-                        var action = series.action;
-                        if(newShape && oldShape){
-                            mergeShape = {
-                                x: oldShape.x,
-                                y: oldShape.y,
-                                x1: oldShape.x1,
-                                y1: oldShape.y1,
-                                y2: oldShape.y2,
-                                y3: oldShape.y3,
-                                color: newShape.color,
-                                isNULL: newShape.isNULL
-                            };
-
-                            shapes.push([newShape, function(timer){
-                                var y1;
-                                if(action === "click"){
-                                    if(series.selected !== false){
-                                        y1 = newShape.y + (newShape.y1 - newShape.y) * timer;
-                                        mergeShape.x = newShape.x, mergeShape.y = newShape.y;
-                                        mergeShape.x1 = newShape.x1;
-                                        mergeShape.x2 = newShape.x2, mergeShape.y2 = newShape.y2;
-                                        mergeShape.y3 = newShape.y3;
-                                        mergeShape.y1 = y1;
-                                    }
-                                    else{
-                                        y1 = oldShape.y1 + (oldShape.y - oldShape.y1) * timer;
-                                        mergeShape.x = oldShape.x, mergeShape.y = oldShape.y;
-                                        mergeShape.x1 = oldShape.x1;
-                                        mergeShape.x2 = oldShape.x2, mergeShape.y2 = oldShape.y2;
-                                        mergeShape.y3 = oldShape.y3;
-                                        mergeShape.y1 = y1;
-                                    }
-                                }
-                                else{
-                                    mergeShape.x = oldShape.x + (newShape.x - oldShape.x) * timer;
-                                    mergeShape.y = oldShape.y + (newShape.y - oldShape.y) * timer;
-                                    mergeShape.x1 = oldShape.x1 + (newShape.x1 - oldShape.x1) * timer;
-                                    mergeShape.y1 = oldShape.y1 + (newShape.y1 - oldShape.y1) * timer;
-                                    mergeShape.y2 = oldShape.y2 + (newShape.y2 - oldShape.y2) * timer;
-                                    mergeShape.y3 = oldShape.y3 + (newShape.y3 - oldShape.y3) * timer;
-                                }
-                            }]);
-                        }
-                        return mergeShape;
-                    }).each(function(mergeShape){
-                        mergeShape && animators.push(mergeShape);
+                var previous = [];
+                List.diff(newData, oldData, function (a, b) {
+                    return a && b && a.open === b.open && a.close === b.close && a.low === b.low && a.high === b.high;
+                }).add(function () {
+                    return null;
+                }).remove(function (newIndex) {
+                    var newShape = newData[newIndex];
+                    var to;
+                    newShape.animate({
+                        y1: newShape.y,
+                        timer: 0
+                    }, to = {
+                        open: newShape.open,
+                        close: newShape.close,
+                        low: newShape.low,
+                        high: newShape.high,
+                        x: newShape.x, y: newShape.y,
+                        x1: newShape.x1, y1: newShape.y1,
+                        x2: newShape.x2, y2: newShape.y2,
+                        timer: 1
                     });
-                }
-                series._shapes = series.shapes;
-                series._animators = animators;
+                    previous.push(to);
+                    shapes.push(newShape);
+                }).modify(function (newIndex, oldIndex) {
+                    var newShape = newData[newIndex],
+                        oldShape = oldData[oldIndex],
+                        mergeShape;
+                    var to;
+                    newShape.animate({
+                        x: oldShape.x, y: oldShape.y,
+                        x1: oldShape.x1, y1: oldShape.y1,
+                        x2: oldShape.x2, y2: oldShape.y2
+                    }, to = {
+                        open: newShape.open,
+                        close: newShape.close,
+                        low: newShape.low,
+                        high: newShape.high,
+                        x: newShape.x, y: newShape.y,
+                        x1: newShape.x1, y1: newShape.y1,
+                        x2: newShape.x2, y2: newShape.y2
+                    });
+                    previous.push(to);
+                    shapes.push(newShape);
+                }).each();
+                series._shapes = previous;
             });
             return shapes;
         },
-        onFrame: function(context, initialize){
-            var chart = this;
-            this.series.forEach(function(series){
-                var animators = series._animators;
-                if(initialize === true){
-                    animators.forEach(function(series){
-                        series._image && xClip(series._timer, context, series._image, 0, 0);
-                    });
-                }
-                else{
-                    animators.forEach(function(shape){
-                        chart.drawShape(context, shape, series);
-                    });
-                }
-            });
-        },
-        getShape: function(x, y){
+        getShape: function (x, y) {
             var length = this.series.length,
                 i = 0;
             var series, shapes, shape;
@@ -17746,7 +18081,7 @@ var PI = Math.PI,
             };
             var results = [];
 
-            for(; i < length && (series = this.series[i]).selected !== false; i++){
+            for (; i < length && (series = this.series[i]).selected !== false; i++) {
                 if(!isInside(x, y, series)){
                     return results;
                 }
@@ -17771,13 +18106,623 @@ var PI = Math.PI,
     
 })(typeof window !== "undefined" ? window : this, Dalaba.Chart);
     (function (global, Chart) {
-    var Layout = (function(global) {
+
+    var Symbol = Geometry.Symbol;
+
+    var relayout = (function (global) {
+    var getKey = function(categories, index) {
+        var key;
+        if (isArray(categories) && index < categories.length) {
+            if (defined(categories[index]))
+                key = categories[index];
+        }
+        else {
+            key = index;
+        }
+        return key;
+    };
+    function factoy () {
+        return function (panels, isResized) {
+            panels.forEach(function (pane) {
+                pane.series.forEach(function (series, i) {
+                    var plotX = pack("number", series.plotX, 0),
+                        plotY = pack("number", series.plotY, 0),
+                        plotWidth = pack("number", series.plotWidth, 0),
+                        plotHeight = pack("number", series.plotHeight, 0);
+                    var transform = series.transform,
+                        translateX = transform.translate[0],
+                        translateY = transform.translate[1],
+                        scale = pack("number", transform.scale, 0.75);
+
+                    var yAxisOptions = series._yAxis || {},
+                        xAxisOptions = series._xAxis || {},
+                        yminValue = yAxisOptions.minValue,
+                        ymaxValue = yAxisOptions.maxValue;
+                    var inverted = series.inverted === true;
+
+                    var pointWidth;
+
+                    var shapes = series.shapes,
+                        length = shapes.length,
+                        groupLength = pane.series.length,
+                        j = 0;
+                    var tickWidth = plotWidth / length,
+                        tickHeight = plotHeight / length,
+                        pointWidth = tickWidth / (groupLength << 1),
+                        pointHeight = tickHeight / (groupLength << 1),
+                        center;
+                    var nodePadding = (inverted ? pointWidth : pointHeight) * 0.2;
+
+                    pointWidth = mathMin(pointWidth, pack("number", series.maxPointWidth, pointWidth));
+                    pointHeight = mathMin(pointHeight, pack("number", series.maxPointHeight, series.maxPointWidth, pointHeight));
+
+                    var x, y, x1, y1, x2, y2, x3, y3, x4, y4;
+                    var q1, q3, median, lower, upper;
+
+                    for (; j < length; j++) {
+                        var shape = series.shapes[j],
+                            value = shape.value;
+                        
+                        if (isArray(shape.source)) {
+                            lower = shape.source[0], q1 = shape.source[1];
+                            median = shape.source[2], q3 = shape.source[3];
+                            upper = shape.source[4];
+                            !defined(shape.lower) && isNumber(lower, true) && (shape.lower = lower);
+                            !defined(shape.q1) && isNumber(q1, true) && (shape.q1 = q1);
+                            !defined(shape.median) && isNumber(median, true) && (shape.median = median);
+                            !defined(shape.q3) && isNumber(q3, true) && (shape.q3 = q3);
+                            !defined(shape.upper) && isNumber(upper, true) && (shape.upper = upper);
+                        }
+                        else if (isObject(shape.source)) {
+                            lower = shape.source.lower, q1 = shape.source.q1;
+                            median = shape.source.median, q3 = shape.source.q3;
+                            upper = shape.source.upper;
+                        }
+                        else q1 = q3 = median = lower = upper = 0;
+
+                        if (inverted) {
+                            yminValue = xAxisOptions.minValue;
+                            ymaxValue = xAxisOptions.maxValue;
+                            center = (tickHeight - (pointHeight * groupLength + nodePadding * ~-groupLength)) / 2;
+                            y = plotY + (~-length - j) * tickHeight + i * (pointHeight + nodePadding) + center;
+                            y1 = y2 = y + pointHeight;
+                            y3 = y4 = y1 - pointHeight / 2;
+
+                            x = interpolate(q1, yminValue, ymaxValue, 0, plotWidth) + plotX;//q1
+                            x1 = interpolate(q3, yminValue, ymaxValue, 0, plotWidth) + plotX;//q3
+                            x2 = interpolate(median, yminValue, ymaxValue, 0, plotWidth) + plotX;//median
+                            x3 = interpolate(lower, yminValue, ymaxValue, 0, plotWidth) + plotX;//low
+                            x4 = interpolate(upper, yminValue, ymaxValue, 0, plotWidth) + plotX;// upper
+                            if (series.selected === false) {
+                                y1 = y2 = y3 = y4 = y;
+                            }
+                        }
+                        else {
+                            center = (tickWidth - (pointWidth * groupLength + nodePadding * ~-groupLength)) / 2;
+                            x = plotX + j * tickWidth + i * (pointWidth + nodePadding) + center;
+                            x1 = x2 = x + pointWidth;
+                            x3 = x4 = x1 - pointWidth / 2;
+                            
+                            y = interpolate(q1, yminValue, ymaxValue, plotHeight, 0) + plotY;//q1
+                            y1 = interpolate(q3, yminValue, ymaxValue, plotHeight, 0) + plotY;//q3
+                            y2 = interpolate(median, yminValue, ymaxValue, plotHeight, 0) + plotY;//median
+                            y3 = interpolate(lower, yminValue, ymaxValue, plotHeight, 0) + plotY;//low
+                            y4 = interpolate(upper, yminValue, ymaxValue, plotHeight, 0) + plotY;// upper
+                            if (series.selected === false) {
+                                x1 = x2 = x3 = x4 = x;
+                            }
+                        }
+
+                        extend(shape, {
+                            x: x, y: y,
+                            x1: x1, y1: y1,// (InterQuartile Range, IQR) Box height
+                            x2: x2, y2: y2,// median
+                            x3: x3, y3: y3,// lower
+                            x4: x4, y4: y4,// upper
+                            index: j,
+                            key: getKey(inverted ? yAxisOptions.categories : xAxisOptions.categories, j)
+                        });
+                    }
+                });
+            });
+        };
+    }
+
+    return {
+        deps: function () {
+            return factoy.apply(global, [].slice.call(arguments, 0));
+        }
+    };
+}).call(typeof window !== "undefined" ? window : this).deps(Numeric);
+
+    var extent = function (series) {
+        var a, b;
+        var n = series.length,
+            i = 0;
+        var l = 0,
+            r = n - 1;
+        a = series[i];
+        b = series[n - 1];
+       
+        while (++i < n) {
+            if (a.selected === false) a = series[++l];
+            if (b.selected === false) b = series[--r];
+        }
+        return [a, b];
+    };
+
+    function Boxplot (canvas, options) {
+        this.type = "boxplot";
+
+        this.shapes = [];
+
+        this.canvas = canvas;
+        this.context = canvas.getContext("2d");
+
+        this.init(options);
+	}
+	Boxplot.prototype = {
+        constructor: Boxplot,
+		init: function (options) {
+            var panels = [],
+                panel = options.panel;
+            var n = panel.length, i = -1, j, nn;
+
+            var newSeries = [],
+                series;
+            this.series = [];
+
+            while (++i < n) {
+                newSeries = [];
+                for (j = 0, nn = panel[i].series.length; j < nn; j++) if ((series = panel[i].series[j]).type === this.type) {
+                    newSeries.push(series);
+                    this.series = this.series.concat(series);
+                }
+                panels.push({
+                    series: newSeries
+                });
+            }
+            this.options = options;//update
+            this.panels = panels;
+
+            relayout(panels);
+            this.reflow();
+        },
+        reflow: function () {
+            var context = this.context;
+            var chart = this;
+            this.series.forEach(function (series) {
+                series.shapes.forEach(function (shape) {
+                    chart.dataLabels(context, shape, series);
+                });
+            });
+        },
+        draw: function (initialize) {
+            var context = this.context,
+                chart = this;
+            //only render
+            this.series.forEach(function (series) {
+                if (series.animationEnabled && (!series.animationCompleted || series.selected !== false)) {
+                    Clip.Rect(series.plotX, series.plotY - 1, series.plotWidth, series.plotHeight + 2).clip(context);
+                    series.shapes.forEach(function (shape) {
+                        chart.drawShape(context, shape, series);
+                        delete shape.current;
+                    });
+                }
+            });
+
+            this.series.forEach(function (series) {
+                if (series.animationEnabled && (!series.animationCompleted || series.selected !== false)) {
+                    series.shapes.forEach(function (shape) {
+                        (shape.boxDataLabels || []).forEach(function (_) {
+                            DataLabels.render(context, _);
+                        });
+                    });
+                }
+            });
+        },
+        redraw: function () {
+            relayout(this.panels, true);
+            this.reflow();
+            this.draw();
+        },
+        animateTo: function (initialize, isCurrented) {
+            var shapes = [];
+            this.series.forEach(function (series) {
+                var newData = series.shapes,
+                    oldData = series._shapes || [];
+                var previous = [];
+                List.diff(newData, oldData, function (a, b) {
+                    return a && b && a.value === b.value;
+                }).remove(function (newIndex) {
+                    var newShape = newData[newIndex];
+                    var startY = newShape.y2;// from start median point
+                    var to;
+                    newShape.animate({
+                        y: startY,
+                        y1: startY,
+                        y3: startY,
+                        y4: startY
+                    }, to = {
+                        value: newShape.value,
+                        x: newShape.x, y: newShape.y,
+                        x1: newShape.x1, y1: newShape.y1,
+                        x2: newShape.x2, y2: newShape.y2,
+                        x3: newShape.x3, y3: newShape.y3,
+                        x4: newShape.x4, y4: newShape.y4,
+                    });
+                    previous.push(to);
+                    shapes.push(newShape);
+                }).add(function (newIndex) {
+                    var oldShape = oldData[newIndex],
+                        to;
+                    oldShape.animate({
+                        x1: oldShape.x0,// - (oldShape.x1 - oldShape.x0),
+                        y1: oldShape.y0// - (oldShape.y1 - oldShape.y0)
+                    }, to = {
+                        value: oldShape.value,
+                        x1: oldShape.x1,
+                        y1: oldShape.y1
+                    });
+                    shapes.push(oldShape);
+                    previous.push(to);
+                }).modify(function (newIndex, oldIndex) {
+                    var newShape = newData[newIndex], oldShape = oldData[oldIndex],
+                        to;
+                    var from = {
+                        x: oldShape.x, y: oldShape.y,
+                        x1: oldShape.x1, y1: oldShape.y1,
+                        x2: oldShape.x2, y2: oldShape.y2,
+                        x3: oldShape.x3, y3: oldShape.y3,
+                        x4: oldShape.x4, y4: oldShape.y4
+                    };
+                    to = {
+                        value: newShape.value, 
+                        x: newShape.x, y: newShape.y,
+                        x1: newShape.x1, y1: newShape.y1,
+                        x2: newShape.x2, y2: newShape.y2,
+                        x3: newShape.x3, y3: newShape.y3,
+                        x4: newShape.x4, y4: newShape.y4,
+                        selected: series.selected
+                    };
+                    newShape.animate(from, to);
+                    previous.push(to);
+                    shapes.push(newShape);
+                    series.animationEnabled = !((series.selected === false) && (oldShape.selected === false));
+                }).each();
+                series._shapes = previous;
+            });
+            return shapes;
+        },
+        drawShape: function (context, shape, series) {
+            var x = shape.x, y = shape.y,
+                x1 = shape.x1, y1 = shape.y1,
+                x2 = shape.x2, y2 = shape.y2,
+                x3 = shape.x3, y3 = shape.y3,
+                x4 = shape.x4, y4 = shape.y4;
+            var width = mathAbs(x1 - x),
+                height = mathAbs(y - y1);
+            var lineWidth = pack("number", shape.lineWidth, series.lineWidth, 1),
+                borderWidth = pack("number", shape.borderWidth, series.borderWidth, 1),
+                fillColor = shape.fillColor || series.fillColor || series.color,
+                q1Color = shape.q1Color || series.q1Color,
+                q1LineWidth = pack("number", shape.q1LineWidth, series.q1LineWidth, 0),
+                q3Color = shape.q3Color || series.q3Color,
+                q3LineWidth = pack("number", shape.q3LineWidth, series.q3LineWidth, 0),
+                borderColor = series.borderColor || series.color;
+            var whiskerWidth = pack("number", shape.whiskerWidth, series.whiskerWidth, lineWidth, 1),
+                whiskerColor = shape.whiskerColor || series.whiskerColor || borderColor,
+                whiskerLength;
+            var states = series.states || {};
+            var inverted = series.inverted;
+            var linePixel;
+            var center;
+
+            if (isNumber(shape.current) && shape.current > -1 && (!defined(states.hover) || (defined(states.hover) && states.hover.enabled !== false))) {
+                borderWidth = lineWidth = mathMax(1, mathMin(lineWidth, 1) * 2);
+            }
+            if (shape.isNULL) {
+                return this;
+            }
+            delete shape.current;
+            linePixel = fixPixelHalf(x, y, x1, y1, lineWidth);
+
+            x = linePixel[0], y = linePixel[1];
+            y1 = linePixel[3];
+            x1 = fixPixelHalf(x1, lineWidth || 1)[0];
+            x2 = fixPixelHalf(x2, lineWidth || 1)[0];
+            x3 = fixPixelHalf(x3, lineWidth || 1)[0];
+            x4 = fixPixelHalf(x4, lineWidth || 1)[0];
+            y2 = fixPixelHalf(y2, lineWidth || 1)[0];
+            y3 = fixPixelHalf(y3, lineWidth || 1)[0];
+            y4 = fixPixelHalf(y4, lineWidth || 1)[0];
+
+            if (series.selected !== false && !lineWidth && y === y1) {
+                //y1 += 1;
+            }
+
+            context.save();
+            if (inverted) {
+                context.beginPath();
+                context.moveTo(x2, y);
+                context.lineTo(x, y);// q1 -> median
+                context.lineTo(x, y1);
+                context.lineTo(x2, y1);
+                context.fillStyle = q1Color || fillColor;
+                context.fill();
+                (context.lineWidth = borderWidth) > 0 && (
+                    context.strokeStyle = borderColor,
+                    context.stroke()
+                );
+                context.beginPath();
+                context.moveTo(x2, y1);
+                context.lineTo(x1, y1);// median -> q3
+                context.lineTo(x1, y);
+                context.lineTo(x2, y);
+                context.fillStyle = q3Color || fillColor;
+                context.fill();
+                (context.lineWidth = borderWidth) > 0 && (
+                    context.strokeStyle = borderColor,
+                    context.stroke()
+                );
+
+                context.beginPath();
+                q1LineWidth > 0 && (context.moveTo(x, y), context.lineTo(x, y1));
+                q3LineWidth > 0 && (context.moveTo(x1, y), context.lineTo(x1, y1));
+                context.moveTo(x2, y);
+                context.lineTo(x2, y1);// median
+                context.moveTo(x3, y3);
+                context.lineTo(x, y3);
+                context.moveTo(x1, y3);
+                context.lineTo(x4, y3);
+                (context.lineWidth = lineWidth) > 0 && (
+                    context.strokeStyle = borderColor,
+                    context.stroke()
+                );
+
+                whiskerLength = pack("number",
+                    shape.whiskerLength, Numeric.percentage(height, shape.whiskerLength) / height,
+                    series.whiskerLength, Numeric.percentage(height, series.whiskerLength) / height,
+                1);
+                center = (height - height * whiskerLength) / 2;
+                context.beginPath();
+                context.moveTo(x3, y + center);// lower
+                context.lineTo(x3, y2 - center);
+                context.moveTo(x4, y + center);// upper
+                context.lineTo(x4, y2 - center);
+            }
+            else {
+                context.beginPath();
+                context.moveTo(x, y2);// q1
+                context.lineTo(x, y);// q1 -> median
+                context.lineTo(x1, y);
+                context.lineTo(x1, y2);
+                //context.lineTo(x, y);
+                context.fillStyle = q1Color || fillColor;
+                context.fill();
+                (context.lineWidth = borderWidth) > 0 && (
+                    context.strokeStyle = borderColor,
+                    context.stroke()
+                );
+                context.beginPath();
+                context.moveTo(x, y2);// median -> q3
+                context.lineTo(x, y1);
+                context.lineTo(x1, y1);
+                context.lineTo(x1, y2);
+                //context.lineTo(x, y1);
+                context.fillStyle = q3Color || fillColor;
+                context.fill();
+                (context.lineWidth = borderWidth) > 0 && (
+                    context.strokeStyle = borderColor,
+                    context.stroke()
+                );
+                context.beginPath();
+                q1LineWidth > 0 && (context.moveTo(x, y), context.lineTo(x1, y));
+                q3LineWidth > 0 && (context.moveTo(x, y1), context.lineTo(x1, y1));
+                context.moveTo(x, y2);
+                context.lineTo(x1, y2);// median
+                context.moveTo(x3, y);// lower
+                context.lineTo(x3, y3);
+                context.moveTo(x3, y1);// upper
+                context.lineTo(x3, y4);
+
+                (context.lineWidth = lineWidth) > 0 && (
+                    context.strokeStyle = borderColor,
+                    context.stroke()
+                );
+
+                whiskerLength = pack("number",
+                    shape.whiskerLength, Numeric.percentage(width, shape.whiskerLength) / width,
+                    series.whiskerLength, Numeric.percentage(width, series.whiskerLength) / width,
+                1);
+                center = (width - width * whiskerLength) / 2;
+                context.beginPath();
+                context.moveTo(x + center, y3);
+                context.lineTo(x1 - center, y3);// upper
+                context.moveTo(x + center, y4);
+                context.lineTo(x1 - center, y4);// lower
+            }
+            (context.lineWidth = whiskerWidth) > 0 && (context.strokeStyle = whiskerColor, context.stroke());
+            context.restore();
+        },
+        dataLabels: function (context, shape, series) {
+            var labelMaps =  {
+                "0": { align: "left", valign: "middle", y: "y3" },// lower
+                "1": { align: "right", valign: "middle", y: "y1" }, // q1
+                "2": { align: "left", valign: "middle", y: "y2" }, // median
+                "3": { align: "right", valign: "middle", y: "y" }, // q3
+                "4": { align: "left", valign: "middle", y: "y4" } // upper
+            };
+            var inverted = series.inverted === true;
+            var clamp = function (v, min, max) {
+                if (v <= min)
+                    return min;
+                else if (v >= max)
+                    return max;
+                return v;
+            };
+            if (inverted) {
+                labelMaps =  {
+                    "0": { align: "left", valign: "middle", x: "x3", y: "y2" },// lower
+                    "1": { align: "left", valign: "top", x: "x", y: "y" }, // q1
+                    "2": { align: "center", valign: "middle", x: "x2", y: "y2" }, // median
+                    "3": { align: "right", valign: "top", x: "x1", y: "y" }, // q3
+                    "4": { align: "right", valign: "middle", x: "x4", y: "y2" } // upper
+                };
+            }
+            shape.boxDataLabels = [];
+            (shape.source || []).slice(0, 5).forEach(function (item, i) {
+                var key = labelMaps[i] || {};
+                var dataLabel = DataLabels.value(item).align(function (type, bbox) {
+                    var w = bbox.width,
+                        w2 = Math.abs(shape.x1 - shape.x);
+                    var x = shape[key.x || "x"];
+                    var offset = 5;
+
+                    var t = pack("string", type, key.align, "center");
+                    return {
+                        left: [x - (w + offset), x - (w + offset)][+inverted],
+                        center: [x + (w2 - w) / 2, x - w / 2][+inverted],
+                        right: [x + w2 + offset, x + offset][+inverted]
+                    }[t];
+                }).vertical(function (type, bbox) {
+                    var h = bbox.height,
+                        h2 = Math.abs(shape.y1 - shape.y);
+                    var t = pack("string", type, key.valign, "top");
+                    var y = shape[key.y || "y"];
+                    var offset = 5;
+                    return {
+                        top: [y - offset, y][+inverted],
+                        middle: [(y + h / 2), y + h + offset][+inverted],
+                        bottom: y + h + offset
+                    }[t];
+                }).call(shape, series, context);
+                shape.boxDataLabels.push(dataLabel);
+            });
+        },
+        getShape: function (x, y, shared) {
+            var series,
+                shape,
+                sl = this.series.length,
+                dl,
+                i,
+                j;
+            var results = [],
+                shapes;
+            var inverted;
+            var area;
+            var flag;
+            var intersectedPoints;
+
+            var isInside = function (series) {
+                return !(
+                    x < series.plotX ||
+                    x > series.plotWidth + series.plotX ||
+                    y < series.plotY ||
+                    y > series.plotHeight + series.plotY
+                );
+            };
+            var resetShape = function (shapes) {
+                for (var j = 0, l = shapes.length; j < l;  j++) {
+                    delete shapes[j].current;
+                }
+            };
+
+            for (i = 0; i < sl; i++) {
+                shapes = (series = this.series[i]).shapes;
+                resetShape(shapes);
+                inverted = series.inverted;
+                if (!isInside(series)) {
+                    return results;
+                }
+                for (j = 0, dl = shapes.length; series.selected !== false && series.enableMouseTracking !== false && j < dl; j++) {
+                    shape = shapes[j];
+                    area = {x: shape.x, y: shape.y, width: shape.x1, height: shape.y1};
+                    if (shared) {
+                        inverted
+                            ? (area.x = series.plotX, area.width = series.plotX + series.plotWidth)
+                            : (area.y = series.plotY, area.height = series.plotHeight);
+                    }
+                    intersectedPoints = inverted ? [
+                        [{x: shape.x1, y: shape.y3}, {x: shape.x4, y: shape.y3}],// upper line
+                        [{x: shape.x, y: shape.y3}, {x: shape.x3, y: shape.y3}],// lower line
+                        [{x: shape.x3, y: shape.y}, {x: shape.x3, y: shape.y2}],// lower whiskerLength
+                        [{x: shape.x4, y: shape.y}, {x: shape.x4, y: shape.y2}]// upper whiskerLength
+                    ] : [
+                        [{x: shape.x3, y: shape.y1}, {x: shape.x3, y: shape.y4}], // upper line
+                        [{x: shape.x3, y: shape.y}, {x: shape.x3, y: shape.y3}], // lower line
+                        [{x: shape.x, y: shape.y3}, {x: shape.x1, y: shape.y3}],// lower whiskerLength
+                        [{x: shape.x, y: shape.y4}, {x: shape.x1, y: shape.y4}] // upper whiskerLength
+                    ];
+                    flag = shape.isNULL;
+                    while (!flag && intersectedPoints.length) if (flag = (Intersection.segment.apply(null,
+                        [{x: x, y: y}].concat(intersectedPoints.pop())
+                    ))) {
+                        shape.current = j;
+                        results.push({shape: shape, series: series});
+                        break;
+                    }
+                    if (!flag && Intersection.rect(
+                        {x: x, y: y},
+                        area
+                    )) {
+                        shape.current = j;
+                        results.push({shape: shape, series: series});
+                        break;
+                    }
+                }
+            }
+            return results;
+        },
+        rangeTo: function (bounds) {
+            var x = bounds[0][0],
+                y = bounds[0][1],
+                width = mathAbs(bounds[1][0]),
+                height = mathAbs(bounds[1][1]);
+            //包含 & 邻近, 相交//findNearestPointBy
+            var series,
+                shape,
+                sl = this.series.length,
+                dl,
+                i,
+                j;
+            var results = [],
+                shapes;
+            var resetShape = function (shapes) {
+                for (var j = 0, l = shapes.length; j < l;  j++) {
+                    delete shapes[j].selected;
+                }
+            };
+
+            for (i = 0; i < sl; i++) {
+                shapes = (series = this.series[i]).shapes;
+                resetShape(shapes);
+                for (j = 0, dl = shapes.length; series.selected !== false && j < dl; j++) {
+                    shape = shapes[j];
+                    if (Intersection.aabb(
+                        {x: x, y: y, width: width, height: height},
+                        {x: shape.x, y: shape.y, width: mathAbs(shape.x - shape.x1), height: mathAbs(shape.y - shape.y1) }
+                    )) {
+                        shape.selected = j;
+                        results.push({shape: shape, series: series});
+                    }
+                }
+            }
+            //console.log(results.length);
+        }
+    };
+
+    (Chart.graphers = Chart.graphers || {}).boxplot = Chart.Boxplot = Boxplot;
+
+})(typeof window !== "undefined" ? window : this, Dalaba.Chart);;
+    (function (global, Chart) {
+    var relayout = (function (global) {
 
     var sankeyInterpolate = function(a, b, t) {
         return a * (1 - t) + b * t;
     };
 
-    var sankeyCurve = function(startX, endX, startY, endY) {
+    var sankeyCurve = function (startX, endX, startY, endY) {
         var curvature = 0.5;
         var x0 = startX,
             x1 = endX,
@@ -17788,7 +18733,7 @@ var PI = Math.PI,
         return [x0, y0, x2, y0, x3, y1, x1, y1];
     };
 
-    var sankeySum = function(arrays, key) {
+    var sankeySum = function (arrays, key) {
         var n = arrays.length,
             i = n & 1;
         var v = i ? arrays[0][key] : 0;
@@ -17798,7 +18743,7 @@ var PI = Math.PI,
         return v;
     };
 
-    var sankeyUnique = function(arrays){
+    var sankeyUnique = function (arrays) {
         var length = arrays.length,
             i = -1;
         var ret = [], o;
@@ -17813,8 +18758,8 @@ var PI = Math.PI,
         }
         return ret;
     };
-    var sankeyIndexOf = (function(){
-        var filter = function(a, b){
+    var sankeyIndexOf = (function () {
+        var filter = function (a, b) {
             return a === b;
         };
         var indexOf = function(nodes, key){
@@ -17826,7 +18771,7 @@ var PI = Math.PI,
         return indexOf;
     })();
 
-    var Sankey = function() {
+    var Sankey = function () {
         var sankey = {},
             nodeWidth = NaN,
             minWidth = 1e-3,
@@ -17838,7 +18783,7 @@ var PI = Math.PI,
             links = [];
         var dx = 0, dy = 0;
 
-        sankey.data = function(data) {
+        sankey.data = function (data) {
             (data || []).forEach(function(d, i){
                 var source = d.source;
                 typeof source !== "undefined" && nodes.push({name: source, data: d});
@@ -18052,7 +18997,7 @@ var PI = Math.PI,
                 y1 = endY;
             return [x0, y0, x2, y0, x3, y1, x1, y1];
         };
-        var resetTransform = function(series, transform) {
+        var resetTransform = function (series, transform) {
             var size = series.size;
             var x = series.plotX,
                 y = series.plotY,
@@ -18079,13 +19024,9 @@ var PI = Math.PI,
                 height: height
             };
         };
-        return function(type, options){
-            
-            options.panel.forEach(function(pane){
-                var series = arrayFilter(pane.series, function(series){
-                    return series.type === type;
-                });
-                series.forEach(function(series){
+        return function (panels) {
+            panels.forEach(function (pane) {
+                pane.series.forEach(function (series) {
                     var plotX, plotY, plotWidth, plotHeight;
                     var minWidth,
                         maxWidth,
@@ -18111,7 +19052,7 @@ var PI = Math.PI,
                         .nodeSpacing([15, 20])
                         .translate(plotX, plotY)
                         .size([plotWidth, plotHeight]);
-                    
+
                     sankey.data(shapes).layout("none");
 
                     sankey.links().forEach(function(link) {
@@ -18203,36 +19144,13 @@ var PI = Math.PI,
                 });
             });
         };
-        //return Sankey;
     }
     return {
-        deps: function(){
-            var args = Array.prototype.slice.call(arguments, 0);
-            return factoy.apply(global, [].concat(args));
+        deps: function () {
+            return factoy.apply(global, [].slice.call(arguments, 0));
         }
     };
-}).call(typeof window !== "undefined" ? window : this).deps(Dalaba.Numeric);
-
-    var xClip = function(t, context, canvas, x, y){
-        if(0 !== t){
-            context.save();
-            t > 0 && context.drawImage(
-                canvas,
-                x, y, canvas.width * t, canvas.height,
-                x, y, canvas.width * t / DEVICE_PIXEL_RATIO, canvas.height / DEVICE_PIXEL_RATIO
-            );
-            context.restore();
-        }
-    };
-
-    var lerpArrays = function(a0, a1, t){
-        var ret = [];
-        a0.forEach(function(a, i){
-            var b = a1[i];
-            ret.push(a * (1 - t) + b * t);
-        });
-        return ret;
-    };
+}).call(typeof window !== "undefined" ? window : this).deps();
 
     var parseGradient = function (context, x, y, width, height, options) {
         var linearGradient = options.linearGradient,
@@ -18249,8 +19167,8 @@ var PI = Math.PI,
             x + width * xx,
             y + height * !yy
         );
-        stops.forEach(function(item){
-            if(isNumber(item[0]) && typeof item[1] === "string")
+        stops.forEach(function (item) {
+            if (isNumber(item[0]) && typeof item[1] === "string")
                 gradient.addColorStop(item[0], item[1]);
         });
         return gradient;
@@ -18267,20 +19185,36 @@ var PI = Math.PI,
     Sankey.prototype = {
         constructor: Sankey,
         init: function (options) {
-            var canvas = this.canvas,
-                type = this.type,
-                chart = this;
-            this.actived = {};
             this.options = extend({}, options);
-            this.series = arrayFilter(pack("array", options.series, []), function(series){
-                var filter = series.type === type;
-                return filter;
-            });
+            var canvas = this.canvas;
+            var chart = this;
+
+            var panels = [],
+                panel = options.panel;
+            var n = panel.length, i = -1, j, nn;
+
+            var newSeries = [],
+                series;
+            this.series = [];
+
+            while (++i < n) {
+                newSeries = [];
+                for (j = 0, nn = panel[i].series.length; j < nn; j++) if ((series = panel[i].series[j]).type === this.type) {
+                    newSeries.push(series);
+                    this.series = this.series.concat(series);
+                }
+                panels.push({
+                    series: newSeries
+                });
+            }
+            this.options = options;//update
+            this.panels = panels;
+            this.actived = {};
             
-            Layout(type, options);
+            relayout(panels);
 
             if (canvas.nodeType === 1) {
-                this.series.forEach(function(series){
+                this.series.forEach(function (series) {
                     if(series.animationEnabled){
                         var image = document.createElement("canvas"),
                             context = image.getContext("2d");
@@ -18293,7 +19227,7 @@ var PI = Math.PI,
                             DEVICE_PIXEL_RATIO
                         );
                         series._image = image;
-                        shapes.forEach(function(shape) {
+                        shapes.forEach(function (shape) {
                             if (shape.selected !== true) {
                                 chart.drawLink(context, shape, series);
                             }
@@ -18301,7 +19235,7 @@ var PI = Math.PI,
                                 selectedShapes.push(shape);
                             }
                         });
-                        selectedShapes.forEach(function(shape) {
+                        selectedShapes.forEach(function (shape) {
                             chart.drawLink(context, shape, series);
                         });
                         shapes.forEach(function(shape){
@@ -18321,43 +19255,50 @@ var PI = Math.PI,
                 });
             });
         },
-        draw: function() {
+        draw: function (initialize) {
             var context = this.context,
                 chart = this;
-                
-            this.series.forEach(function(series) {
-                var shapes = series.shapes;
-                var selectedShapes = [];
-                shapes.forEach(function(shape) {
-                    if (shape.selected !== true) {
+            if (initialize === true) {
+                this.series.forEach(function (series) {
+                    var shapes = series.shapes;
+                    series._image && shapes[0] && Clip.Horizontal(series._image, 0, 0, series._image.width, series._image.height).clip(context, shapes[0].timer);
+                });
+            }
+            else {
+                this.series.forEach(function (series) {
+                    var shapes = series.shapes;
+                    var selectedShapes = [];
+                    shapes.forEach(function (shape) {
+                        if (shape.selected !== true) {
+                            chart.drawLink(context, shape, series);
+                        }
+                        else {
+                            selectedShapes.push(shape);
+                        }
+                    });
+                    selectedShapes.forEach(function (shape) {
                         chart.drawLink(context, shape, series);
+                    });
+                    if (chart.actived.link) {
+                        chart.drawPath(context, chart.actived.link, series);
                     }
-                    else {
-                        selectedShapes.push(shape);
-                    }
                 });
-                selectedShapes.forEach(function(shape){
-                    chart.drawLink(context, shape, series);
+                this.series.forEach(function (series) {
+                    series.nodes.forEach(function(shape) {
+                        chart.drawShape(context, shape, series);
+                    });
+                    series.nodes.forEach(function (shape) {
+                        DataLabels.render(context, shape.dataLabel, series);
+                    });
                 });
-                if(chart.actived.link) {
-                    chart.drawPath(context, chart.actived.link, series);
-                }
-            });
-            this.series.forEach(function(series) {
-                series.nodes.forEach(function(shape) {
-                    chart.drawShape(context, shape, series);
-                });
-                series.nodes.forEach(function(shape) {
-                    DataLabels.render(context, shape, series);
-                });
-            });
+            }
         },
-        redraw: function() {
-            Layout(this.type, this.options);
+        redraw: function () {
+            relayout(this.panels, true);
             this.reflow();
             this.draw();
         },
-        drawShape: function(context, shape, series) {
+        drawShape: function (context, shape, series) {
             var x = shape.x, y = shape.y,
                 width = shape.width,
                 height = shape.height;
@@ -18421,7 +19362,7 @@ var PI = Math.PI,
             var from = link.from,
                 to = link.to;
 
-            if(link === this.actived.link) {
+            if (link === this.actived.link) {
                 if (defined(hoverLineColor)){
                     lineColor = hoverLineColor;
                 }
@@ -18434,7 +19375,7 @@ var PI = Math.PI,
             context.beginPath();
             context.moveTo(from[0], from[1]);
             context.bezierCurveTo.apply(context, from.slice(2));
-            if(to){
+            if (to) {
                 context.lineTo(to[0], to[1]);
                 context.bezierCurveTo.apply(context, to.slice(2));
             }
@@ -18445,16 +19386,17 @@ var PI = Math.PI,
                 context.stroke()
             );
         },
-        drawLink: function(context, shape, series) {
+        drawLink: function (context, shape, series) {
             var chart = this;
+            var linkArgs = shape.linkArgs || [];
             context.save();
-            (shape.linkArgs || []).forEach(function(link) {
+            linkArgs.forEach(function (link) {
                 chart.drawPath(context, link, series);
             });
             context.restore();
         },
         dataLabels: function (context, shape, series) {
-            shape.dataLabel = DataLabels.value(shape.value).align(function (type, bbox){
+            shape.dataLabel = DataLabels.value(shape.value).align(function (type, bbox) {
                 var x = shape.x,
                     w = bbox.width,
                     w2 = shape.width;
@@ -18464,7 +19406,7 @@ var PI = Math.PI,
                     center: x + (w2 - w) / 2,
                     right: x + w2 - w
                 }[t];
-            }).vertical(function(type, bbox){
+            }).vertical(function (type, bbox) {
                 var y = shape.y,
                     h = bbox.height,
                     h2 = shape.height;
@@ -18476,120 +19418,69 @@ var PI = Math.PI,
                 }[t];
             }).call(shape, series, context);
         },
-        animateTo: function(context, initialize){
-            var chart = this;
+        animateTo: function (initialize) {
             var shapes = [];
-            chart.series.forEach(function(series){
-                var animators = [];
-                if(initialize === true){
-                    var mergeShape = series;
-                    shapes.push([series, function(timer){
-                        mergeShape._timer = timer;
-                    }]);
-                    animators.push(mergeShape);
+            this.series.forEach(function (series) {
+                var previous = [];
+                if (initialize === true) {
+                    series.shapes[0].animate({ timer: 0}, { timer: 1});
+                    shapes.push(series.shapes[0]);
                 }
-                else if(defined(series.transform)){
-                    series.nodes.forEach(function(newShape, newIndex){
+                else if (defined(series.transform)) {
+                    series.nodes.forEach(function (newShape, newIndex) {
                         var oldShape = series._nodes[newIndex],
-                            mergeShape;
-                        var x, y, width, height;
-                        var linkArgs;
-
-                        if(oldShape && newShape){
-                            mergeShape = {
-                                width: oldShape.width,
-                                height: oldShape.height,
+                            to;
+                        if (oldShape) {
+                            newShape.animate({
                                 x: oldShape.x,
                                 y: oldShape.y,
-                                color: newShape.color,
-                                lineColor: newShape.lineColor,
-                                fillColor: newShape.fillColor,
-                                _value: newShape._value,
-                                selected: oldShape.selected,
-                                text: newShape.text,
-                                source: newShape.source,
+                                width: oldShape.width,
+                                height: oldShape.height,
+                                timer: 0,
+                                linkArgs: oldShape.linkArgs.map(function (d) {
+                                    return { from: d.from, to: d.to };
+                                })
+                            }, to = {
                                 value: newShape.value,
-                                linkArgs: oldShape.linkArgs,
-                                shape: newShape
-                            };
-                            
-                            shapes.push([newShape, function(timer){
-                                linkArgs = [];
-                                width = oldShape.width + (newShape.width - oldShape.width) * timer;
-                                height = oldShape.height + (newShape.height - oldShape.height) * timer;
-                                x = oldShape.x + (newShape.x - oldShape.x) * timer;
-                                y = oldShape.y + (newShape.y - oldShape.y) * timer;
-
-                                (oldShape.linkArgs || []).forEach(function(oldLink, i){
-                                    var newLink = newShape.linkArgs[i];
-                                    if(newLink){
-                                        linkArgs.push({
-                                            from: lerpArrays(oldLink.from, newLink.from, timer),
-                                            to: lerpArrays(oldLink.to, newLink.to, timer),
-                                            lineColor: oldLink.lineColor,
-                                            empty: oldLink.empty,
-                                            index: newLink.index
-                                        });
-                                    }
-                                });
-
-                                mergeShape.width = width;
-                                mergeShape.height = height;
-                                mergeShape.x = x;
-                                mergeShape.y = y;
-                                mergeShape.linkArgs = linkArgs;
-                            }]);
+                                x: newShape.x,
+                                y: newShape.y,
+                                width: newShape.width,
+                                height: newShape.height,
+                                timer: 1,
+                                linkArgs: newShape.linkArgs.map(function (d) {
+                                    return { from: d.from, to: d.to };
+                                })
+                            });
+                            shapes.push(newShape);
+                            previous.push(to);
                         }
-                        if(mergeShape)
-                            animators.push(mergeShape);
                     });
                 }
-                series._shapes = series.shapes;
                 series._nodes = series.nodes;
-                series._animators = animators;
             });
             return shapes;
         },
-        onFrame: function (context, initialize) {
-            var chart = this;
-            this.series.forEach(function (series ){
-                var animators = series._animators;
-                if(initialize === true){
-                    animators.forEach(function (series ){
-                        series._image && xClip(series._timer, context, series._image, 0, 0);
-                    });
-                }
-                else{
-                    animators.forEach(function (shape) {
-                        chart.drawLink(context, shape, series);
-                    });
-                    animators.forEach(function (shape) {
-                        chart.drawShape(context, shape, series);
-                        DataLabels.render(context, shape, series);
-                    });
-                }
-            });
-        },
         onStart: function () {
-            this.series.forEach(function(series){
+            this.series.forEach(function (series) {
                 var transform = series.transform;
-                if(defined(transform) && defined(transform.translate)){
+                if (defined(transform) && defined(transform.translate)) {
                     transform._translate = transform.translate;
                 }
             });
         },
-        onDrag: function(x, y) {
+        onDrag: function (x, y) {
             this.actived = {};
-            this.series.forEach(function(series) {
+            this.series.forEach(function (series) {
                 var transform = series.transform || {},
                     translate = transform._translate;
-                if(defined(translate)){
+                if (defined(translate)) {
                     transform.translate = [translate[0] + x, translate[1] + y];
                 }
             });
-            Layout(this.type, this.options);
+            this.reflow();
+            relayout(this.panels);
         },
-        getShape: function(x, y) {
+        getShape: function (x, y) {
             var length = this.series.length,
                 i = 0,
                 j;
@@ -18598,7 +19489,7 @@ var PI = Math.PI,
             var context = this.context;
             var results = [], result;
 
-            for(; i < length && (series = this.series[i]).selected !== false; i++){
+            for (; i < length && (series = this.series[i]).selected !== false; i++) {
                 nodes = series.nodes;
                 delete this.actived.shape;
                 for(j = 0; j < nodes.length; j++){
@@ -18620,7 +19511,7 @@ var PI = Math.PI,
             for (i = 0; i < length; i++) {
                 shapes = series.shapes;
                 delete this.actived.link;
-                label: for(j = 0; j < shapes.length; j++) {
+                label: for (j = 0; j < shapes.length; j++) {
                     shape = shapes[j];
                     var linkArgs = shape.linkArgs || [];
                     for (var z = 0; z < linkArgs.length; z++) {
@@ -18706,7 +19597,7 @@ var PI = Math.PI,
         },
         circle: function(x, y, w, h){
             //var cpw = 0.166 * w;
-            return function(context){
+            return function (context) {
                 context.beginPath();
                 /*context.moveTo(x + w / 2, y);
                 context.bezierCurveTo(x + w + cpw, y, x + w + cpw, y + h, x + w / 2, y + h);
@@ -18715,15 +19606,17 @@ var PI = Math.PI,
                 context.closePath();
             };
         },
-        hexagon: function(x, y, w, h){
+        hexagon: function (x, y, w, h) {
             var r = Math.max(w, h);
-            return function(context){
+            x -= w;
+
+            return function (context) {
                 var i = -1, n = 6, a;
                 var sin = Math.sin, cos = Math.cos;
                 r /= 2;
                 context.beginPath();
                 context.moveTo(x + cos(0) * r + r, y + sin(0) * r + r);
-                while(++i < n){
+                while (++i < n) {
                     context.lineTo(
                         x + cos(a = i / n * PI2) * r + r,
                         y + sin(a) * r + r
@@ -19089,7 +19982,7 @@ var PI = Math.PI,
         var cols = 0,
             rows = 0;
 
-        new Layout.Grid(shapes, {
+        new Dalaba.Layout.Grid(shapes, {
             width: pwidth,
             height: pheight,
             size: TRouBLe(series.symbol === "circle" ?  series.radius || 60 : [series.width || 25, series.height || 20]),
@@ -19100,7 +19993,7 @@ var PI = Math.PI,
     }
 
     function radialTreeLayout(px, py, pwidth, pheight, shapes) {
-        new Layout.RadialTree(shapes, {
+        new Dalaba.Layout.RadialTree(shapes, {
             width: pwidth,
             height: pheight,
             margin: TRouBLe(py, 0, 0, px)
@@ -19387,16 +20280,6 @@ var PI = Math.PI,
 
     /*
  * Class Animation
- * @param source{Array}
- * @param target{Array}
- * @param options{Object}
- * example
- * Animation.fire([0], [10], {
- *     step: function(){ //this.target},
- *     complete: function(){},
- *     easing: "linear"
- *     duration: 1000
- * })
 */
 (function (callback) {
     // Easing functions take at least four arguments:
@@ -19642,30 +20525,19 @@ var PI = Math.PI,
     };
     return callback && callback.call(this, easing);
 }).call(typeof window !== "undefined" ? window : typeof this !== "undefined" ? this : global, function (easing) {
-    var toString = Object.prototype.toString;
 
-    var isObject = function (v) {
-        return toString.call(v) === "[object Object]";
-    };
+    var FPS = 1000 / 60;
+
+    var isObject = Dalaba.isObject;
+
+    var isNumber = Dalaba.isNumber;
     
-    var extend = function (a, b) {
-        var n;
-        if (!a) {
-            a = {};
-        }
-        for (n in b) {
-            var src = a[n],
-                copy = b[n];
-            if(src === copy)
-                continue;
-            if(copy && isObject(copy)){
-                a[n] = extend(src, copy);
-            }
-            else if(copy !== undefined){
-                a[n] = copy;
-            }
-        }
-        return a;
+    var extend = Dalaba.extend;
+
+    var hasOwnProperty = ({}).hasOwnProperty;
+
+    var lerp = function (a, b, k) {
+        return a + (b - a) * k;;
     };
 
     var requestAnimationFrame = this.requestAnimationFrame
@@ -19673,67 +20545,67 @@ var PI = Math.PI,
         || this.webkitRequestAnimationFrame
         || this.msRequestAnimationFrame
         || this.oRequestAnimationFrame
-        || function(callback){
-            return setTimeout(callback, 1000 / 60);
+        || function (callback) {
+            return setTimeout(callback, FPS);
         };
     var cancelAnimationFrame = this.cancelAnimationFrame
         || this.webkitCancelAnimationFrame
         || this.mozCancelAnimationFrame
         || this.oCancelAnimationFrame
-        || function(id){
+        || function (id) {
             clearTimeout(id);
         };
 
-    var parseCubicBezier = function(value){
+    var parseCubicBezier = function (value) {
         var x1, y1, x2, y2;
         var bezier = value.match(/cubic-bezier\(\s*(.*?),\s*(.*?),\s*(.*?),\s*(.*?)\)/);
-        if(bezier){
+        if (bezier) {
             isNaN(x1 = parseFloat(bezier[1], 10)) && (x1 = 0);
             isNaN(y1 = parseFloat(bezier[2], 10)) && (y1 = 0);
             isNaN(x2 = parseFloat(bezier[3], 10)) && (x2 = 1);
             isNaN(y2 = parseFloat(bezier[4], 10)) && (y2 = 1);
 
-            return function(time){
+            return function (time) {
                 return easing.cubicBezier(x1, y1, x2, y2, time);
             };
         }
     };
-    var propFilter = function(props, key, a, b, k){
-        if(typeof a === "number"){
-            props[key] = a + (b - a) * k;
+    var propFilter = function (props, key, a, b, k) {
+        if (isNumber(a)) {
+            props[key] = lerp(a, b, k);
         }
-        else if(typeof a === "object" && typeof b === "object"){
-            for(var p in b){
-                propFilter(props[key], p, a[p], b[p], k);
-            }
+        else if (typeof a === "object" && typeof b === "object") for (var p in b) if (hasOwnProperty.call(b, p)) {
+            propFilter(props[key], p, a[p], b[p], k);
         }
     };
-    var easingFn = function(type){      
+
+    var easefuns = function (type) {      
         var fn;     
-        if(typeof type === "function"){
+        if (typeof type === "function") {
             return type;        
         }       
-        else if(typeof type === "string"){      
-            if(!!~type.indexOf("cubic-bezier")){        
+        else if (typeof type === "string") {      
+            if (!!~type.indexOf("cubic-bezier")) {        
                 fn = parseCubicBezier(type) || easing["linear"];        
             }       
-            else{       
+            else {       
                 fn = easing[type] || easing["linear"];      
             }       
         }       
-        else{       
+        else {       
             fn = easing["linear"];      
         }       
         return fn;      
     };
 
-    function runAnimation(animators){
+    function runAnimation (animators) {
         var now = new Date().getTime(),
             ani;
         var isAnim = true,
             i = 0,
             ii = animators.length;
-        for(; i < ii; i++) if(!(ani = animators[i]).paused && !ani.done){
+
+        for (; i < ii; i++) if (!(ani = animators[i]).paused && !ani.done) {
             var nextd = ani.next,
                 target = ani.target;
             var time = now - ani.start,
@@ -19743,147 +20615,163 @@ var PI = Math.PI,
                 complete = ani.complete;
             var timer;
             isAnim = false;
-            if(time < 0){
+            
+            if (time < 0) {
                 continue;
             }
-            if(time < duration){
+            if (time < duration) {
                 timer = easefy(time, duration, now);
-                step(target, timer);
+                target.onframe.call(target, timer);
+                ani.time = time;
+                //step(target, timer);
             }
-            else{
-                step(target, timer = 1);
+            else {
+                target.onframe.call(target, timer = 1);
                 complete(target, timer);
-                //animators.splice(i--, 1);
+                target.oncomplete.call(target);
+                ani.time = time;
                 ani.done = true;
-                //--count;
-                if(ani.repeat > 1 && !nextd){
+                ani.isDone = true;
+                if (ani.repeat > 1 && !nextd) {
 
                 }
-                //if(nextd && !ani.stop){
-                    //animation(me.animators.slice());
-                //}
             }
         }
-        //console.log(isAnim)
-        //return animators.length <= 0;
         return isAnim;
     }
 
-    var aniQueue = [];
     /**
      * Class Animation
     **/
-    function Animation(){
+    function Animation () {
         this.animators = [];
         this.running = false;
-        if(aniQueue.length > 1){
-            //aniQueue.pop();
-        }
-        aniQueue.push(this);
+        this.options = {};
     }
     Animation.prototype = {
-        stop: function(gotoEnd){
-            var animators = this.animators;
-            animators.forEach(function(ani){
-                if(gotoEnd){
-                    ani.step(ani.target, 1);
+        stop: function (gotoEnd, isClear) {
+            var options = this.options;
+            this.animators.forEach(function (ani) {
+                if (gotoEnd) {
+                    //ani.step(ani.target, 1);
                 }
+                if (ani.isDone) {
+                    ani.done = false;
+                    ani.isDone = false;
+                    ani.start = new Date().getTime();
+                }
+                else {
+                    ani.start = ani.time + ani.start;
+                }
+                ani.duration = options.duration;
             });
-            //this.prev = aniQueue.shift();
+            if (isClear) {
+                this.animators = [];
+            }
             return this;
         },
-        addAnimate: function(){
-            //this.stop();
-            var args = Array.prototype.slice.call(arguments, 0),
+        addAnimate: function () {
+            var args = [].slice.call(arguments, 0),
                 target = {},
                 options = {},
                 defaultOptions = {
                     duration: 500,
                     easing: "linear",
-                    step: function(){},
-                    complete: function(){}
+                    step: function () {},
+                    complete: function () {}
                 };
             var easing, duration, delay, step, complete;
-            if(!args.length){
+            if (!args.length) {
                 return this;
             }
-            if(args.length > 1){
+            if (args.length > 1) {
                 target = args[0] || {};
                 options = args[1] || defaultOptions;
             }
-            else{
+            else {
                 target = {};
                 options = args[0] || defaultOptions;
             }
             step = options.step, complete = options.complete, easing = options.easing;
 
-            duration = Math.max(1, options.duration) || defaultOptions.duration;
+            duration = mathMax(1, options.duration) || defaultOptions.duration;
             delay = options.delay || 0;
             step = typeof step === "function" ? step : defaultOptions.step;
-            //console.log(duration)
             complete = typeof complete === "function" ? complete : defaultOptions.complete;
 
-            var tweens = easingFn(easing),
+            var tweens = easefuns(easing),
                 timestamp = new Date().getTime();
 
+            this.options.duration = duration;
+
             this.animators.push({
-                //percent: percent,
                 target: target,
                 timestamp: timestamp,
+                time: 0,//current time position
                 start: timestamp + delay,
                 stop: false,
                 duration: duration,
-                easefy: function(t, d){
+                easefy: function (t, d) {
                     return tweens.length === 1 ? tweens(t / d) : tweens(t, 0, 1, d);
                 },
-                step: function(target, percent){
-                    step(target, percent);
-                },
-                complete: function(target, percent){
+                complete: function (target, percent) {
                     complete(target, percent);
                 },
             });
+            return this;
         },
-        fire: function(step, complete){
-            var me = this.prev || this;
-            //var animators = me.animators;
-            if(!aniQueue.length){
+        setOptions: function (newOptions) {
+            var options = this.options;
+            var duration = Math.max(1, pack("number", newOptions.duration, 500));
+            options.duration = duration;
+            return this;
+        },
+        isDoned: function () {
+            var animators = this.animators;
+            var length = animators.length,
+                i = 0;
+            var doneCount = 0;
+            for (; i < length; i++) {
+                if (animators[i].isDone) {
+                    //animators[i] = animators[length - 1];
+                    //animators.pop();
+                    //length--;
+                    doneCount++;
+                }
+                else {
+                    //i++;
+                }
+            }
+            return doneCount !== length;
+        },
+        fire: function (step, complete) {
+            var animators = this.animators;
+            if (!animators.length) {
                 complete();
             }
-            var t;
-            var animation = function(){
-                me.running = true;
-                function loop(){
-                    if(me.running){
-                        var isAnim;
+            var timer;
+            //console.log(this.animators)
+            var animation = function () {
+                var animated = this;
+                this.running = true;
+                function loop () {
+                    if (animated.running) {
+                        runAnimation(animators);
                         step && step();
-                        //isAnim = runAnimation(animators);
-                        for(var i = 0; i < aniQueue.length; i++){
-                            var f = runAnimation(aniQueue[i].animators);
-                            if(f){
-                                aniQueue.splice(i--, 1);
-                            }
+                        if (animated.isDoned()) {
+                            timer = requestAnimationFrame(loop);
                         }
-                        isAnim = !aniQueue.length;
-                        if(!isAnim){
-                            t = requestAnimationFrame(loop);
-                        }
-                        else{
+                        else {
                             //me.running = false;
                             //me.stop(1);
                             step && step(1);
-                            /*animators.forEach(function(ani){
-                                ani.step(ani.target, 1);
-                            });*/
-                            //t && cancelAnimationFrame(t);
-                            complete && complete.call(me);
-                            //aniQueue = [];
+                            complete && complete.call(animated);
                         }
                     }
                 }
-                requestAnimationFrame(loop);
+                loop();
             };
-            animation();
+            animation.call(this);
         }
     };
 
@@ -19895,7 +20783,7 @@ var PI = Math.PI,
         module.exports = Animation;
     }
     else if (typeof define === "function" && define.amd) {
-        define(function() {
+        define(function () {
             return Animation;
         });
     }

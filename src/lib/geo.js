@@ -23,7 +23,7 @@
          * N = FN + R ln[tan(π/4 + φ/2)]
          * -----------------------------  
         */
-        mercator(lat, lng) {
+        mercator: function (lat, lng) {
             return [lat, Math.log(Math.tan(PI / 4 + lng / 2))];
         },
         simple: function (lat, lng) {
@@ -33,7 +33,7 @@
     };
 
     var Feature = {
-        Point: function (p, stream){
+        Point: function (p, stream) {
             stream.point(p);
         },
         MultiPoint: function (coordinates, stream) {
@@ -221,6 +221,18 @@
                     coords = [x / count, y / count];
                     return coords;
                 },
+                bounds: function (geoJson) {
+                    var bounds = [[Infinity, Infinity], [-Infinity, -Infinity]]; 
+                    this.feature(geoJson, null, function (p, point) {
+                        var x = point[0],
+                            y = point[1];
+                        if (x < bounds[0][0]) bounds[0][0] = x;
+                        if (x > bounds[1][0]) bounds[1][0] = x;
+                        if (y < bounds[0][1]) bounds[0][1] = y;
+                        if (y > bounds[1][1]) bounds[1][1] = y;
+                    });
+                    return bounds;
+                },
                 centerAndZoom: function (geoJson) {
                     var center = this._center;
                     var width = this.width,
@@ -296,6 +308,7 @@
             return factoy.call(global, Dalaba);
         };
     })(this);
+
     if (typeof module === "object" && module.exports) {
         module.exports = exports;
     }

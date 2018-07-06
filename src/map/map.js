@@ -21,8 +21,7 @@
             this.options = extend({}, options);
 
             this.series = arrayFilter(pack("array", this.options.series, []), function (item) {
-                var f = item.selected !== false
-                    && (item.type === type);
+                var f = (item.type === type);
                 if (f) {
                     var mapKey = {};
                     item.data.forEach(function(d){
@@ -61,7 +60,7 @@
                         chart.drawShape(context, shape, series);
                     });
                     shapes.forEach(function (shape) {
-                        DataLabels.render(context, shape, series);
+                        DataLabels.render(context, shape.dataLabel, series);
                     });
                 }
             });
@@ -75,6 +74,9 @@
             var borderWidth = pack("number", series.borderWidth, 0),
                 borderColor = pack("string", series.borderColor, "#FFFFFF"),
                 fillColor = shape.color || series.fillColor || "#f7f7f7";
+            var states = series.states || {},
+                stateHover = states.hover,
+                stateSelected = states.selected;
             var tooltip = series.tooltip;
             var points = shape.points;
             var shapeArgs = shape.shapeArgs;
@@ -95,43 +97,46 @@
                     ? gradient.radial(shapeArgs.x, shapeArgs.y, Math.sqrt(s0 * s0 + s1 * s1) / 4)
                     : gradient.linear(0, 0, s0, s1);
             }
-
             if (tooltip.enabled !== false && isNumber(shape.current) && shape.current !== -1) {
-                !shape.isNULL
-                    ? (fillColor = Color.parse(fillColor).alpha(0.75).rgba())
-                    : (fillColor = "rgb(79, 134, 189)");
+                if (!shape.isNULL) {
+                    fillColor = Color.parse(fillColor).alpha(0.75).rgba();
+                }
+                else {
+                    fillColor = "rgb(79, 134, 189)";
+                }
+                // TODO : state hover callback
+                if (shape.selected !== true && stateHover) {
+                    isNumber(stateHover.borderWidth) && (borderWidth = stateHover.borderWidth);
+                    defined(stateHover.borderColor) && (borderColor = stateHover.borderColor);
+                    defined(stateHover.fillColor) && (fillColor = stateHover.fillColor);
+                }
+            }
+            if (stateSelected && shape.selected === true) {
+                isNumber(stateSelected.borderWidth) && (borderWidth = stateSelected.borderWidth);
+                defined(stateSelected.borderColor) && (borderColor = stateSelected.borderColor);
+                defined(stateSelected.fillColor) && (fillColor = stateSelected.fillColor);
             }
 
             context.save();
             render();
             context.fillStyle = fillColor;
+            context.fill();
+            if (borderWidth > 0) {
+                context.lineWidth = borderWidth;
+                context.strokeStyle = borderColor;
+                context.stroke();
+            }
+            context.restore();
             if (defined(series.shadowColor)) {
+                context.save();
                 context.shadowColor = series.shadowColor;
                 isNumber(series.shadowBlur) && (context.shadowBlur = series.shadowBlur);
                 isNumber(series.shadowOffsetX) && (context.shadowOffsetX = series.shadowOffsetX);
                 isNumber(series.shadowOffsetY) && (context.shadowOffsetY = series.shadowOffsetY);
+                context.fillStyle = series.shadowFillColor || fillColor || "rgba(255, 255, 255, 1)";
+                context.fill();
+                context.restore();
             }
-            //if (borderWidth <= 0) context.lineWidth = 0, context.strokeStyle = fillColor, context.stroke();
-            context.fill();
-            context.restore();
-
-            context.save();
-            if (defined(series.borderShadowColor)) {
-                context.shadowColor = series.borderShadowColor;
-                isNumber(series.borderShadowBlur) && (context.shadowBlur = series.borderShadowBlur);
-                isNumber(series.borderShadowOffsetX) && (context.shadowOffsetX = series.borderShadowOffsetX);
-                isNumber(series.borderShadowOffsetY) && (context.shadowOffsetY = series.borderShadowOffsetY);
-            }
-            if (borderWidth > 0) {
-                context.lineWidth = borderWidth;
-                context.strokeStyle = borderColor;
-                render();
-                context.stroke();
-            }
-            else {
-                //context.strokeStyle = fillColor;
-            }
-            context.restore();
         },
         getShape: function (x, y) {
             var series,

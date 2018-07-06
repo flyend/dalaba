@@ -23,7 +23,7 @@
                     }
                 });
                 return Spline;
-            }.apply(global, [].concat([].slice.call(arguments, 0)));
+            }.apply(global, [].slice.call(arguments, 0));
         }
     };
 })()
