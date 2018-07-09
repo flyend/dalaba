@@ -261,7 +261,7 @@
                 
                 groups.forEach(function (series) {
                     var type = series.type;
-                    isAxis2D = isAxis2D || (!defined(series.projection) && hasAxis(type));
+                    isAxis2D = isAxis2D || ((!defined(series.projection) || series.projection === "2d") && hasAxis(type));
                     
                     if (series.selected !== false) {
                         series.sumLength = mathMax(sumLength, (series.data || []).length | 0);
@@ -485,6 +485,7 @@
                 max: maxValue,
                 length: maxLength,
                 axisLength: axisLength,
+                //max value and x, y
                 groups: groups
             };
             if (isX) {

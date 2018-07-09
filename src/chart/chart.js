@@ -492,7 +492,8 @@ require("./define");
             };
             var axisSeries = Series.mapping(this.series);
             this.mapAxis = axisSeries;
-            
+            console.log(this.series, axisSeries)
+
             this.panel.forEach(function (pane) {
                 paneltree.children.push({
                     name: "panel",
@@ -612,7 +613,7 @@ require("./define");
                         minDomain = 0, maxDomain = seriesOptions.length;
                     },
                     function (name, type) {
-                        if (xAxis(name) && linear(type)) {
+                        if (xAxis(name) && linear(type) && !x(seriesOptions)) {
                             return false;
                         }
                         return xAxis(name) && !categor(type) && x(seriesOptions);
@@ -710,6 +711,10 @@ require("./define");
 
                 axis.options.maxValue = maxValue;
                 axis.options.minValue = minValue;
+                axis.options.minX = seriesOptions.minX;
+                axis.options.maxX = seriesOptions.maxX;
+                axis.options.minY = seriesOptions.minY;
+                axis.options.maxY = seriesOptions.maxY;
                 axis.options.minLength = axis.minLength;
                 axis.options.maxLength = axis.options.length = axis.maxLength;
                 axis.options.plot = {
@@ -854,7 +859,7 @@ require("./define");
             var chart = this;
             var panel = setChartLayout(layout.panel, pack("number", grid.row, 1), pack("number", grid.col, 1), width, height, margin, viewport);
             var n = panel.length;
-            
+
             var index = function (i, n) {
                 return isNumber(i) && (Math.min(i, n));
             };

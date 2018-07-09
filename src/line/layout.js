@@ -166,7 +166,7 @@
                             if (projection === "2d" || coordinate === "xy") {//projection 2d
                                 x = interpolate.apply(null, [
                                     isArray(shape.source) ? shape.source[0] : isObject(shape.source) ? shape._x : null,
-                                    xAxisOptions.minValue, xAxisOptions.maxValue, 0, plotWidth
+                                    xAxisOptions.minX, xAxisOptions.maxX, 0, plotWidth
                                 ]);
                                 x += plotX + center;
                                 y = interpolate.apply(null, [

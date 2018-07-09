@@ -138,7 +138,7 @@
                                 }
                             }
                             else if (isNumber(shape._x) && isNumber(shape._y)) {
-                                x = interpolate.apply(null, [shape._x, xAxisOptions.minValue, xAxisOptions.maxValue, 0, plotWidth]);
+                                x = interpolate.apply(null, [shape._x, xAxisOptions.minX, xAxisOptions.maxX, 0, plotWidth]);
                                 x += plotX;
                                 y = interpolate.apply(null, [shape._y, minValue, maxValue].concat(
                                     reversed === true ? [0, plotHeight] : [plotHeight, 0]

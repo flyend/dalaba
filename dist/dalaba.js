@@ -4332,7 +4332,7 @@
                 
                 groups.forEach(function (series) {
                     var type = series.type;
-                    isAxis2D = isAxis2D || (!defined(series.projection) && hasAxis(type));
+                    isAxis2D = isAxis2D || ((!defined(series.projection) || series.projection === "2d") && hasAxis(type));
                     
                     if (series.selected !== false) {
                         series.sumLength = mathMax(sumLength, (series.data || []).length | 0);
@@ -4556,6 +4556,7 @@
                 max: maxValue,
                 length: maxLength,
                 axisLength: axisLength,
+                //max value and x, y
                 groups: groups
             };
             if (isX) {
@@ -5853,7 +5854,8 @@ var DataLabels = (function () {
             };
             var axisSeries = Series.mapping(this.series);
             this.mapAxis = axisSeries;
-            
+            console.log(this.series, axisSeries)
+
             this.panel.forEach(function (pane) {
                 paneltree.children.push({
                     name: "panel",
@@ -5973,7 +5975,7 @@ var DataLabels = (function () {
                         minDomain = 0, maxDomain = seriesOptions.length;
                     },
                     function (name, type) {
-                        if (xAxis(name) && linear(type)) {
+                        if (xAxis(name) && linear(type) && !x(seriesOptions)) {
                             return false;
                         }
                         return xAxis(name) && !categor(type) && x(seriesOptions);
@@ -6071,6 +6073,10 @@ var DataLabels = (function () {
 
                 axis.options.maxValue = maxValue;
                 axis.options.minValue = minValue;
+                axis.options.minX = seriesOptions.minX;
+                axis.options.maxX = seriesOptions.maxX;
+                axis.options.minY = seriesOptions.minY;
+                axis.options.maxY = seriesOptions.maxY;
                 axis.options.minLength = axis.minLength;
                 axis.options.maxLength = axis.options.length = axis.maxLength;
                 axis.options.plot = {
@@ -6215,7 +6221,7 @@ var DataLabels = (function () {
             var chart = this;
             var panel = setChartLayout(layout.panel, pack("number", grid.row, 1), pack("number", grid.col, 1), width, height, margin, viewport);
             var n = panel.length;
-            
+
             var index = function (i, n) {
                 return isNumber(i) && (Math.min(i, n));
             };
@@ -12118,7 +12124,7 @@ var DataLabels = (function () {
                             if (projection === "2d" || coordinate === "xy") {//projection 2d
                                 x = interpolate.apply(null, [
                                     isArray(shape.source) ? shape.source[0] : isObject(shape.source) ? shape._x : null,
-                                    xAxisOptions.minValue, xAxisOptions.maxValue, 0, plotWidth
+                                    xAxisOptions.minX, xAxisOptions.maxX, 0, plotWidth
                                 ]);
                                 x += plotX + center;
                                 y = interpolate.apply(null, [
@@ -14907,7 +14913,7 @@ var DataLabels = (function () {
                                 }
                             }
                             else if (isNumber(shape._x) && isNumber(shape._y)) {
-                                x = interpolate.apply(null, [shape._x, xAxisOptions.minValue, xAxisOptions.maxValue, 0, plotWidth]);
+                                x = interpolate.apply(null, [shape._x, xAxisOptions.minX, xAxisOptions.maxX, 0, plotWidth]);
                                 x += plotX;
                                 y = interpolate.apply(null, [shape._y, minValue, maxValue].concat(
                                     reversed === true ? [0, plotHeight] : [plotHeight, 0]
