@@ -79,9 +79,10 @@
     LinkedList.prototype = {
         push: function (value) {
             var index = this.nodes.length;
-            this.length = this.nodes.push(insert(index, this.nodes[~-index], value));
+            this[this.length++] = insert(index, this.nodes[~-index], value);
         },
         pop: function () {
+            this.length--;
         },
         unshift: function () {
             return this[0];
@@ -90,6 +91,7 @@
 
         },
         splice: [].splice,
+        forEach: [].forEach,
         size: function () {
             return this.length;
         },

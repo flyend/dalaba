@@ -348,7 +348,7 @@ require("./define");
             render(options.title);
             return this;
         },
-        setCredits: function() {
+        setCredits: function () {
             var options = this.options,
                 credits = options.credits || {},
                 position = credits.position,
@@ -1101,7 +1101,7 @@ require("./define");
             var panel = this.panel;
             var chart = this;
 
-            this.series.forEach(function (series) {
+            this.series.forEach(function (series, i) {
                 var type = series.type || chartType;
                 var pane = panel[mathMin(series.panelIndex | 0, ~-panel.length)];
                 series.plotX = pack("number", pane.plotX, pane.x, 0);
@@ -1111,7 +1111,7 @@ require("./define");
                 series.plotCenterX = pack("number", pane.plotCenterX, pane.width / 2, 0);
                 series.plotCenterY = pack("number", pane.plotCenterY, pane.height / 2, 0);
                 series.plotRadius = pack("number", pane.plotRadius, mathMin(pane.width, pane.height), 0);
-                types && (types[type] = type);
+                types && (types[type] = { type: type, weight: pack("number", series.zIndex, i + 1) });
             });
         },
         draw: function (event) {
@@ -1121,17 +1121,18 @@ require("./define");
             var chart = this;
             var types = {};
             if (isEmpty(types)) {
-                types[this.type] = this.type;
+                types[this.type] = { type: this.type, weight: 0 };
             }
 
             var addChartor = function (chart, types, options) {
                 var charts = chart.charts;
                 var creator = {};
                 var isCreated;
-                var n, i;
+                var n, i, value, oldvalue;
 
                 for (var type in types) {
                     isCreated = false;
+                    value = types[type];
                     for (i = 0, n = charts.length; !isCreated && i < n; i++) {
                         isCreated = charts[i].type === type;
                     }
@@ -1140,10 +1141,12 @@ require("./define");
                     }
                     else if (defined(Graphers[type]) && !(type in creator)) {
                         creator[type] = true;
-                        charts.push(new Graphers[type](chart.canvas, options));
+                        charts[!oldvalue || (oldvalue && oldvalue.weight < value.weight) ? "push" : "unshift"](new Graphers[type](chart.canvas, options));
+                        oldvalue = value;
                     }
                 }
-                charts.forEach(function(item, i) {
+                //clear old graphic
+                charts.forEach(function (item, i) {
                     if (!(item.type in types)) {
                         charts.splice(i, 1);
                     }
@@ -1734,8 +1737,8 @@ require("./define");
             }
             if (defined(chartOptions = options.chart) && (isNumber(chartOptions.width, true) || isNumber(chartOptions.height, true))) {
                 this.setSize(
-                    isNumber(chartOptions.width, true) ?  Math.max(0, chartOptions.width) : chart.width,
-                    isNumber(chartOptions.height, true) ? Math.max(0, chartOptions.height) : chart.height,
+                    isNumber(chartOptions.width, true) ?  mathMax(0, chartOptions.width) : chart.width,
+                    isNumber(chartOptions.height, true) ? mathMax(0, chartOptions.height) : chart.height,
                     null
                 );
             }
@@ -1810,8 +1813,8 @@ require("./define");
             var padding = getStyle(container, "padding").split(/\s+/).map(parseFloat);
             padding = TRouBLe(padding);
 
-            width = Math.max(0, pack("number", width, Numeric.percentage(boxWidth, width)));
-            height = Math.max(0, pack("number", height, Numeric.percentage(boxHeight, height)));
+            width = mathMax(0, pack("number", width, Numeric.percentage(boxWidth, width)));
+            height = mathMax(0, pack("number", height, Numeric.percentage(boxHeight, height)));
             
             if (height <= 0) {
                 height = pack("number", bbox.height, container.offsetHeight);
@@ -1819,8 +1822,8 @@ require("./define");
             if (width <= 0) {
                 width = pack("number", bbox.width, container.offsetWidth);
             }
-            width = Math.max(0, width - padding[1] - padding[3]);
-            height = Math.max(0, height  - padding[0] - padding[2]);
+            width = mathMax(0, width - padding[1] - padding[3]);
+            height = mathMax(0, height  - padding[0] - padding[2]);
             return {
                 width: width,
                 height: height

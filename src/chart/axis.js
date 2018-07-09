@@ -665,7 +665,7 @@
                         y1 = tickLength;
                     }
                     linearGradient = context.createLinearGradient.apply(context, [x0, y0].concat(isHorizontal ? [x1, y0] : [x0, y1]));
-                    for(var j = 0; j < stops.length; j++){
+                    for (var j = 0; j < stops.length; j++) {
                         var stop = stops[j];
                         if(isNumber(stop[0]) && typeof stop[1] === "string")
                             linearGradient.addColorStop(stop[0], stops[isHorizontal ? j : stops.length - j - 1][1]);
@@ -855,7 +855,7 @@
                             x = x - width / 2;
                         }
                         y = y + tickLength + pack("number", text.firstHeight, text.height);
-                        if(opposite === true){
+                        if (opposite === true) {
                             y = y - height / 2 + tickLength;
                         }
                     }
@@ -865,7 +865,7 @@
                             return {
                                 xAxis: [
                                     tick.x + (isCategories ? (tick.size - text.width) / 2 : -text.width / 2),
-                                    tick.y + text.height + tickLength
+                                    tick.y + (opposite === true ? -text.height - tickLength : text.height + tickLength)
                                 ],
                                 yAxis: [
                                     tick.x + (-text.width * !opposite) - tickLength,
