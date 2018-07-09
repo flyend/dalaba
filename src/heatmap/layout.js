@@ -52,6 +52,8 @@
                     value = x.value;
                 x = x.x;
                 extend(shape, {
+                    x: x,
+                    y: y,
                     x0: x,
                     y0: y,
                     x1: x + tickWidth,
@@ -83,7 +85,7 @@
                             minY = pack("number", yAxisOptions.plot.y[0], minValue, 0),
                             maxY = pack("number", yAxisOptions.plot.y[1], maxValue, 0);
 
-                        var colorAxisOptions = series._colorAxis || {},// colorAxis[series.colorAxis | 0],
+                        var colorAxisOptions = series._colorAxis || {},
                             stops = colorAxisOptions.stops || [[0, "#313695"], [1, "#a50026"]],
                             domain = [],
                             range = [],
@@ -117,8 +119,8 @@
                             else {
                                 if (isArray(shape.source)) {
                                     addRect(shape, {
-                                        minValue: yAxisOptions.plot.value[0],
-                                        maxValue: yAxisOptions.plot.value[1],
+                                        minValue: series.minValue,
+                                        maxValue: series.maxValue,
                                         tickWidth: tickWidth,
                                         tickHeight: tickHeight
                                     }, function (x) {

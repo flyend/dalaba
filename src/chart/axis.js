@@ -865,7 +865,7 @@
                             return {
                                 xAxis: [
                                     tick.x + (isCategories ? (tick.size - text.width) / 2 : -text.width / 2),
-                                    tick.y + (opposite === true ? -text.height - tickLength : text.height + tickLength)
+                                    tick.y + (opposite === true ? -text.height - tickLength * isCategories : text.height + tickLength)
                                 ],
                                 yAxis: [
                                     tick.x + (-text.width * !opposite) - tickLength,

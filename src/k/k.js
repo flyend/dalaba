@@ -78,9 +78,11 @@
             else {
                 this.series.forEach(function (series) {
                     var shapes = series.shapes;
-                    shapes.forEach(function (shape) {
-                        chart.drawShape(context, shape, series);
-                    });
+                    if (series.animationEnabled && (!series.animationCompleted || series.selected !== false)) {
+                        shapes.forEach(function (shape) {
+                            chart.drawShape(context, shape, series);
+                        });
+                    }
                 });
             }
         },
@@ -121,8 +123,6 @@
                 y1 += 1;
             }
 
-            if (!(shape.completed === true || series.selected === false)) {
-
             context.save();
             context.beginPath();
             context.moveTo(x, y);//open
@@ -134,20 +134,15 @@
             context.fillStyle = fillColor;
             context.fill();
             addStroke(lineWidth, borderColor);
-            //high
-            context.beginPath();
-            context.moveTo(x2, isUP ? y : y1);//open
-            context.lineTo(x2, y2);
-            addStroke(lineWidth || 1, lineColor);
-
-            //low
-            context.beginPath();
-            context.moveTo(x2, !isUP ? y : y1);//close
-            context.lineTo(x2, y3);
-            addStroke(lineWidth || 1, lineColor);
+            //high or low
+            [y2, y3].forEach(function (p) {
+                context.beginPath();
+                context.moveTo(x2, isUP ? y : y1);//open
+                context.lineTo(x2, p);
+                series.selected !== false && addStroke(lineWidth || 1, lineColor);
+            });
             
             context.restore();
-        }
         },
         animateTo: function (initialize) {
             var chart = this;
@@ -194,10 +189,12 @@
                         high: newShape.high,
                         x: newShape.x, y: newShape.y,
                         x1: newShape.x1, y1: newShape.y1,
-                        x2: newShape.x2, y2: newShape.y2
+                        x2: newShape.x2, y2: newShape.y2,
+                        selected: series.selected
                     });
                     previous.push(to);
                     shapes.push(newShape);
+                    series.animationEnabled = !((series.selected === false) && (oldShape.selected === false));
                 }).each();
                 series._shapes = previous;
             });

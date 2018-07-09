@@ -45,10 +45,7 @@
                         y2 = interpolate(high, yminValue, ymaxValue, plotHeight, 0) + plotY;//high
                         y3 = interpolate(low, yminValue, ymaxValue, plotHeight, 0) + plotY;//low
                         if (series.selected === false) {
-                            //y1 = y2 = y3 = y;
-                            x1 = x;
-                            y2 = y3 = y;
-                            //x2 = NaN;
+                            y1 = y;
                         }
                         extend(shape, {
                             x: x,

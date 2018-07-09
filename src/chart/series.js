@@ -104,8 +104,12 @@
                     }
                     else if (isArray(item)) {
                         value = defined(item[1]) ? item[1] : item[0];
+                        //series.value()
                         if (type === "arearange" || isNumber(item[2], true)) {
                             value = isNumber(item[2], true) ? item[2] : item[1];
+                        }
+                        else if (type === "heatmap") {
+                            value = item[2];
                         }
                         extend(shape, {
                             _x: item[0],

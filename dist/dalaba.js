@@ -1,6 +1,6 @@
 /**
  * dalaba - A JavaScript chart library for Canvas.
- * @date 2018/07/06
+ * @date 2018/07/09
  * @version v0.3.1
  * @license ISC
  */
@@ -4175,8 +4175,12 @@
                     }
                     else if (isArray(item)) {
                         value = defined(item[1]) ? item[1] : item[0];
+                        //series.value()
                         if (type === "arearange" || isNumber(item[2], true)) {
                             value = isNumber(item[2], true) ? item[2] : item[1];
+                        }
+                        else if (type === "heatmap") {
+                            value = item[2];
                         }
                         extend(shape, {
                             _x: item[0],
@@ -9939,7 +9943,7 @@ var DataLabels = (function () {
                             return {
                                 xAxis: [
                                     tick.x + (isCategories ? (tick.size - text.width) / 2 : -text.width / 2),
-                                    tick.y + (opposite === true ? -text.height - tickLength : text.height + tickLength)
+                                    tick.y + (opposite === true ? -text.height - tickLength * isCategories : text.height + tickLength)
                                 ],
                                 yAxis: [
                                     tick.x + (-text.width * !opposite) - tickLength,
@@ -13069,34 +13073,48 @@ var DataLabels = (function () {
             init: function (options) {
                 Area.prototype.init.call(this, options);
             },
-            draw: function () {
+            draw: function (initialize) {
                 var context = this.context,
                     chart = this;
-                this.series.forEach(function (series) {
-                    var shapes = series.shapes;
-                    Renderer.area(context, shapes, series);
-                    Renderer.line(context, shapes, series, {
-                        y: "highY"
-                    });                    
-                    Renderer.line(context, shapes, series, {
-                        y: "y"
-                    });//draw line
-                });
-                this.series.forEach(function (series) {
-                    series.shapes.forEach(function (shape) {
-                        DataLabels.render(context, shape.dataLabel, series);
+                if (initialize === true) {
+                    this.series.forEach(function (series) {
+                        var shapes = series.shapes;
+                        series._image && Clip[series.inverted ? "Vertical" : "Horizontal"](series._image, 0, 0, series._image.width, series._image.height).clip(context, pack("number", shapes[0].timer, 1));
                     });
-                });
-                this.series.forEach(function (series) {
-                    series.shapes.forEach(function (shape) {
-                        var params = [context, shape, series, "y"];
-                        if (series.type === "arearange") {
-                            params.push("highY");
+                }
+                else {
+                    this.series.forEach(function (series) {
+                        var shapes = series.shapes;
+                        if (series.animationEnabled && (!series.animationCompleted || series.selected !== false)) {
+                            Renderer.area(context, shapes, series);
+                            Renderer.line(context, shapes, series, {
+                                y: "highY"
+                            });                    
+                            Renderer.line(context, shapes, series, {
+                                y: "y"
+                            });//draw line
                         }
-                        chart.drawMarker.apply(null, params);//draw marker
-                        Renderer.hover.apply(null, params);//hover points
                     });
-                });
+                    this.series.forEach(function (series) {
+                        if (series.animationEnabled && (!series.animationCompleted || series.selected !== false)) {
+                            series.shapes.forEach(function (shape) {
+                                DataLabels.render(context, shape.dataLabel, series);
+                            });
+                        }
+                    });
+                    this.series.forEach(function (series) {
+                        if (series.animationEnabled && (!series.animationCompleted || series.selected !== false)) {
+                            series.shapes.forEach(function (shape) {
+                                var params = [context, shape, series, "y"];
+                                if (series.type === "arearange") {
+                                    params.push("highY");
+                                }
+                                chart.drawMarker.apply(null, params);//draw marker
+                                Renderer.hover.apply(null, params);//hover points
+                            });
+                        }
+                    });
+                }
             }
         });
         return AreaRange;
@@ -14270,7 +14288,7 @@ var DataLabels = (function () {
                         diffAngle = endAngle - startAngle;
                     if (isNumber(series.startAngle, true)) {
                         startAngle = series.startAngle;
-                        //endAngle = startAngle + endAngle;
+                        endAngle = startAngle + endAngle;
                     }
                     if (isNumber(series.endAngle, true)) {
                         endAngle = series.endAngle;
@@ -17346,6 +17364,8 @@ var DataLabels = (function () {
                     value = x.value;
                 x = x.x;
                 extend(shape, {
+                    x: x,
+                    y: y,
                     x0: x,
                     y0: y,
                     x1: x + tickWidth,
@@ -17377,7 +17397,7 @@ var DataLabels = (function () {
                             minY = pack("number", yAxisOptions.plot.y[0], minValue, 0),
                             maxY = pack("number", yAxisOptions.plot.y[1], maxValue, 0);
 
-                        var colorAxisOptions = series._colorAxis || {},// colorAxis[series.colorAxis | 0],
+                        var colorAxisOptions = series._colorAxis || {},
                             stops = colorAxisOptions.stops || [[0, "#313695"], [1, "#a50026"]],
                             domain = [],
                             range = [],
@@ -17411,8 +17431,8 @@ var DataLabels = (function () {
                             else {
                                 if (isArray(shape.source)) {
                                     addRect(shape, {
-                                        minValue: yAxisOptions.plot.value[0],
-                                        maxValue: yAxisOptions.plot.value[1],
+                                        minValue: series.minValue,
+                                        maxValue: series.maxValue,
                                         tickWidth: tickWidth,
                                         tickHeight: tickHeight
                                     }, function (x) {
@@ -17841,10 +17861,7 @@ var DataLabels = (function () {
                         y2 = interpolate(high, yminValue, ymaxValue, plotHeight, 0) + plotY;//high
                         y3 = interpolate(low, yminValue, ymaxValue, plotHeight, 0) + plotY;//low
                         if (series.selected === false) {
-                            //y1 = y2 = y3 = y;
-                            x1 = x;
-                            y2 = y3 = y;
-                            //x2 = NaN;
+                            y1 = y;
                         }
                         extend(shape, {
                             x: x,
@@ -17947,9 +17964,11 @@ var DataLabels = (function () {
             else {
                 this.series.forEach(function (series) {
                     var shapes = series.shapes;
-                    shapes.forEach(function (shape) {
-                        chart.drawShape(context, shape, series);
-                    });
+                    if (series.animationEnabled && (!series.animationCompleted || series.selected !== false)) {
+                        shapes.forEach(function (shape) {
+                            chart.drawShape(context, shape, series);
+                        });
+                    }
                 });
             }
         },
@@ -17990,8 +18009,6 @@ var DataLabels = (function () {
                 y1 += 1;
             }
 
-            if (!(shape.completed === true || series.selected === false)) {
-
             context.save();
             context.beginPath();
             context.moveTo(x, y);//open
@@ -18003,20 +18020,15 @@ var DataLabels = (function () {
             context.fillStyle = fillColor;
             context.fill();
             addStroke(lineWidth, borderColor);
-            //high
-            context.beginPath();
-            context.moveTo(x2, isUP ? y : y1);//open
-            context.lineTo(x2, y2);
-            addStroke(lineWidth || 1, lineColor);
-
-            //low
-            context.beginPath();
-            context.moveTo(x2, !isUP ? y : y1);//close
-            context.lineTo(x2, y3);
-            addStroke(lineWidth || 1, lineColor);
+            //high or low
+            [y2, y3].forEach(function (p) {
+                context.beginPath();
+                context.moveTo(x2, isUP ? y : y1);//open
+                context.lineTo(x2, p);
+                series.selected !== false && addStroke(lineWidth || 1, lineColor);
+            });
             
             context.restore();
-        }
         },
         animateTo: function (initialize) {
             var chart = this;
@@ -18063,10 +18075,12 @@ var DataLabels = (function () {
                         high: newShape.high,
                         x: newShape.x, y: newShape.y,
                         x1: newShape.x1, y1: newShape.y1,
-                        x2: newShape.x2, y2: newShape.y2
+                        x2: newShape.x2, y2: newShape.y2,
+                        selected: series.selected
                     });
                     previous.push(to);
                     shapes.push(newShape);
+                    series.animationEnabled = !((series.selected === false) && (oldShape.selected === false));
                 }).each();
                 series._shapes = previous;
             });

@@ -239,7 +239,7 @@
                         diffAngle = endAngle - startAngle;
                     if (isNumber(series.startAngle, true)) {
                         startAngle = series.startAngle;
-                        //endAngle = startAngle + endAngle;
+                        endAngle = startAngle + endAngle;
                     }
                     if (isNumber(series.endAngle, true)) {
                         endAngle = series.endAngle;
