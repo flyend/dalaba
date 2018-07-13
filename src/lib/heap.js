@@ -27,9 +27,9 @@
                 l = r - 1,
                 j = i;
             var child = array[j];
-            if(l < size && defaultCompare(child, array[l]) > 0) child = array[j = l];
-            if(r < size && defaultCompare(child, array[r]) > 0) child = array[j = r];
-            if(j === i) break;
+            if (l < size && defaultCompare(child, array[l]) > 0) child = array[j = l];
+            if (r < size && defaultCompare(child, array[r]) > 0) child = array[j = r];
+            if (j === i) break;
             array[i] = child;
             array[i = j] = value;
         }

@@ -169,7 +169,8 @@
                 y1 = shape.y1;
             var borderWidth = pack("number", series.borderWidth, 0),
                 borderColor = pack("string", series.borderColor, "#FFFFFF"),
-                borderRadius = series.borderRadius;
+                borderRadius = series.borderRadius,
+                opacity = series.opacity;
             var rotation = pack("number", shape.rotation, 0);
             var color = shape.color;
 
@@ -186,6 +187,9 @@
             }
             else {
                 color = Color.parse(color);
+                if (isNumber(opacity, true)) {
+                    color.a = mathMax(0, mathMin(1, opacity));
+                }
                 if (defined(shape.current)) {
                     color.a = 0.55;
                 }

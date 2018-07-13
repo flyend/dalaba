@@ -398,7 +398,7 @@ require("./define");
             };
             var transform = newData.transform || {
                 scale: undefined,
-                translate: [0, 0]
+                translate: undefined// [0, 0]
             }, translate = transform.translate;
 
             var parseRange = function (rangeSelector) {
@@ -417,13 +417,13 @@ require("./define");
             if (!isNumber(animation.delay) && !isFunction(animation.delay)) {
                 animation.delay = pack("number", chartAnimation.delay, 0);
             }
-            if (!defined(translate)) {
+            /*if (!defined(translate)) {
                 translate = [0, 0];
             }
-            else if (isFunction(translate)) {
-                translate = translate.call(newData, series, this);
+            else */if (isFunction(translate)) {
+                transform.translate = translate.call(newData, series, this);
             }
-            transform.translate = TRouBLe(translate);
+            //transform.translate = TRouBLe(translate);
 
             newSeries = extend({}, newData, {
                 type: type,
@@ -492,7 +492,6 @@ require("./define");
             };
             var axisSeries = Series.mapping(this.series);
             this.mapAxis = axisSeries;
-            console.log(this.series, axisSeries)
 
             this.panel.forEach(function (pane) {
                 paneltree.children.push({
@@ -1118,6 +1117,9 @@ require("./define");
                 series.plotRadius = pack("number", pane.plotRadius, mathMin(pane.width, pane.height), 0);
                 types && (types[type] = { type: type, weight: pack("number", series.zIndex, i + 1) });
             });
+            if (this.series.length && isObject(types) && isEmpty(types)) {
+                types[chartType] = { type: chartType, weight: 0 };
+            }
         },
         draw: function (event) {
             var options = this.options,
@@ -1125,9 +1127,6 @@ require("./define");
             var Graphers = Dalaba.Chart.graphers;
             var chart = this;
             var types = {};
-            if (isEmpty(types)) {
-                types[this.type] = { type: this.type, weight: 0 };
-            }
 
             var addChartor = function (chart, types, options) {
                 var charts = chart.charts;
@@ -1245,7 +1244,7 @@ require("./define");
                 });
                 return shapes;
             };
-            var drawAixs = function () {
+            var drawAxis = function () {
                 chart.yAxis.concat(chart.xAxis).forEach(function (axis) {
                     if (axis.options.enabled !== false) {
                         axis.setCrosshair(event.moveX, event.moveY).draw();
@@ -1342,15 +1341,13 @@ require("./define");
             function paintComponent (charts, ani, once) {
                 chart.clear();
                 chart.renderAll(event);
-                drawAixs();
+                drawAxis();
                 chart.series.forEach(function (series) {
                     series.animationCompleted = globalAnimation.isReady;
                 });
+                chart.renderChart(charts);
                 if (ani) {
                     ani();
-                }
-                else {
-                    chart.renderChart(charts);
                 }
                 drawLegend();
 
@@ -1408,7 +1405,7 @@ require("./define");
                         onLoad();
                     });
                 }
-                animationCharts.length | noAnimationCharts.length || (globalAnimation.isReady = true, chart.renderAll(event), drawAixs(), onLoad(), onReady());
+                animationCharts.length | noAnimationCharts.length || (globalAnimation.isReady = true, chart.renderAll(event), drawAxis(), onLoad(), onReady());
                 !animationCharts.length & !!noAnimationCharts.length && (globalAnimation.isReady = true, onLoad(), onReady());
                 //globalAnimation.isReady = true;
             };

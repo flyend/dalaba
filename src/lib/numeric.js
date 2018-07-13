@@ -139,6 +139,25 @@
         })(n, precision);
     };
 
+    var prediction = function (values) {
+        var n = values.length,
+            sum = 0,
+            mean = false;
+        var each = function (cb) {
+            var l = n & 1,
+                r = n;
+            l && cb(values[0], mean === false ? 0 : mean);
+            while (l < r) {
+                cb(values[l++], values[--r]);
+            }
+        };
+        each(function (a, b) { sum += a; sum += b; });
+        mean = sum / n, sum = 0;
+        each(function (a, b) { sum += (a - mean) * (a - mean), sum += (b - mean) * (b - mean); });
+
+        return values[n - 1]; //mean;// n ? Math.sqrt(sum / n) : 0;
+    };
+
     var quantile = function (data, percent) {
         var size = 1 + (data.length - 1) * percent,
             length = Math.floor(size);
@@ -214,6 +233,7 @@
         valueOf: valueOf,
         quantile: quantile,
         quartile: quartile,
+        prediction: prediction,
         indexOfRange: indexOfRange
     };
     return Numeric;

@@ -84,9 +84,9 @@
             var render = function () {
                 context.beginPath();
                 points.forEach(function (point, i) {
-                    context[i && !point.isNext ? "lineTo" : "moveTo"](point.x - borderWidth / 2, point.y - borderWidth / 2);
+                    context[i && !point.isNext ? "lineTo" : "moveTo"](point.x, point.y);
                 });
-                context.closePath();
+                //context.closePath();
             };
 
             if (fillColor.linearGradient || fillColor.radialGradient) {

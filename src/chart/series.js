@@ -3,25 +3,6 @@
     var clamp = function (v, max) {
         return mathMax(0, mathMax(pack("number", max, 0), pack("number", v, 0)));
     };
-    
-    var prediction = function (values) {
-        var n = values.length,
-            sum = 0,
-            mean = false;
-        var each = function (cb) {
-            var l = n & 1,
-                r = n;
-            l && cb(values[0], mean === false ? 0 : mean);
-            while (l < r) {
-                cb(values[l++], values[--r]);
-            }
-        };
-        each(function (a, b) { sum += a; sum += b; });
-        mean = sum / n, sum = 0;
-        each(function (a, b) { sum += (a - mean) * (a - mean), sum += (b - mean) * (b - mean); });
-
-        return values[n - 1]; //mean;// n ? Math.sqrt(sum / n) : 0;
-    };
 
     function factoy (global, Numeric, List, Animate) {
 
@@ -30,6 +11,8 @@
         var indexOf = List.indexOf;
 
         var valueOf = Numeric.valueOf;
+
+        var prediction = Numeric.prediction;
 
         function Series (series, options) {
             this.options = options;
@@ -232,9 +215,10 @@
             destroy: function () {
 
             }
+            //transform, projection
         };
 
-        Series.mapping = function (series) {
+        Series.mapping = function (allSeries) {
             var axisSeries = {
                 yAxis: {},
                 xAxis: {},
@@ -253,7 +237,7 @@
             };
             var isAxis2D = false;
 
-            partition(series, function (a, b) {
+            partition(allSeries, function (a, b) {
                 return a.panelIndex === b.panelIndex;
             }).forEach(function (groups) {
                 var maxLength = 0,
@@ -339,8 +323,7 @@
                 var m = endIndex - startIndex, n = item.length, i, j;
                 var data, source, value, x = null, y = null;
                 var lowValue, highValue;//no negative
-                var isSelected = false;
-                
+
                 for (j = 0; j < m; j++) {
                     var positive = 0, negative = 0;
                     var isNegative = false,
@@ -356,7 +339,6 @@
 
                     for (i = 0; i < n; i++) {
                         series = item[i];
-                        isSelected = isSelected || series.selected !== false;
                         if (series.selected !== false) {
                             data = series.shapes[j] || {};
                             source = series.data[~~(startIndex + j)];
@@ -483,6 +465,10 @@
             var revalue = {
                 min: minValue,
                 max: maxValue,
+                minX: minAxisX,
+                maxX: maxAxisX,
+                minY: minAxisY,
+                maxY: maxAxisY,
                 length: maxLength,
                 axisLength: axisLength,
                 //max value and x, y

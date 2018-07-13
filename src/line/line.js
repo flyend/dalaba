@@ -209,7 +209,7 @@
             if (initialize === true) {
                 this.series.forEach(function (series) {
                     var shapes = series.shapes;
-                    series._image && Clip[series.inverted ? "Vertical" : "Horizontal"](series._image, 0, 0, series._image.width, series._image.height).clip(context, pack("number", shapes[0].timer, 1));
+                    series._image && Clip[series.inverted ? "Vertical" : "Horizontal"](series._image, 0, 0, series._image.width, series._image.height).clip(context, pack("number", (shapes[0] || {}).timer, 1));
                 });
             }
             else {

@@ -35,13 +35,11 @@
                         plotWidth = pack("number", series.plotWidth, 0),
                         plotHeight = pack("number", series.plotHeight, 0);
                     var transform = series.transform,
-                        translateX = transform.translate[0],
-                        translateY = transform.translate[1],
-                        scale = pack("number", transform.scale, 0.75);
+                        translate = TRouBLe(transform.translate),
+                        scale = pack("number", transform.scale, 1);
                     var projection = series.projection;
-                    var center = [0, 0];
                     var seriesTarget;
-                    if (projection === "geo" && defined(series.seriesTarget)) {
+                    if ((projection === "geo" || isObject(projection)) && defined(series.seriesTarget)) {
                         var seriesTarget = seriesFind(series.seriesTarget, allseries);
                         if (seriesTarget !== null) {
                             projection = null;
@@ -52,9 +50,6 @@
                     }
                     else if (isFunction(projection)) {
                         projection = projection.call(series);
-                    }
-                    if (defined(seriesTarget && seriesTarget.__transform__)) {
-                        center = seriesTarget.__transform__.center;
                     }
 
                     var xAxisOptions, yAxisOptions;
@@ -81,8 +76,6 @@
                         var shape = shapes[j],
                             value = shape.value;
                         var x, y;
-                        var tx = translateX,
-                            ty = translateY;
                         var radius;
                         var key = j;
                         radius = pack("number",
@@ -91,13 +84,11 @@
                             isFunction(series.radius) && series.radius.call(shape, shape.source, value, series.minValue, series.maxValue, series),
                             5
                         );
+
                         if (isFunction(projection)) {
                             x = projection([shape._x, shape._y]);
-                            tx += center[0];
-                            ty += center[1];                            
-                            y = setTransform(x[1], ty, scale);
-                            x = setTransform(x[0], tx, scale);
-                            
+                            y = setTransform(x[1], translate[1], scale);
+                            x = setTransform(x[0], translate[0], scale);
                         }
                         else {
                             if (isArray(shape.source) && shape.source.length > 1) {

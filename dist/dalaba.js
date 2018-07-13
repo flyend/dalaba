@@ -1,6 +1,6 @@
 /**
  * dalaba - A JavaScript chart library for Canvas.
- * @date 2018/07/09
+ * @date 2018/07/12
  * @version v0.3.1
  * @license ISC
  */
@@ -282,6 +282,25 @@
         })(n, precision);
     };
 
+    var prediction = function (values) {
+        var n = values.length,
+            sum = 0,
+            mean = false;
+        var each = function (cb) {
+            var l = n & 1,
+                r = n;
+            l && cb(values[0], mean === false ? 0 : mean);
+            while (l < r) {
+                cb(values[l++], values[--r]);
+            }
+        };
+        each(function (a, b) { sum += a; sum += b; });
+        mean = sum / n, sum = 0;
+        each(function (a, b) { sum += (a - mean) * (a - mean), sum += (b - mean) * (b - mean); });
+
+        return values[n - 1]; //mean;// n ? Math.sqrt(sum / n) : 0;
+    };
+
     var quantile = function (data, percent) {
         var size = 1 + (data.length - 1) * percent,
             length = Math.floor(size);
@@ -357,6 +376,7 @@
         valueOf: valueOf,
         quantile: quantile,
         quartile: quartile,
+        prediction: prediction,
         indexOfRange: indexOfRange
     };
     return Numeric;
@@ -639,9 +659,9 @@
                 l = r - 1,
                 j = i;
             var child = array[j];
-            if(l < size && defaultCompare(child, array[l]) > 0) child = array[j = l];
-            if(r < size && defaultCompare(child, array[r]) > 0) child = array[j = r];
-            if(j === i) break;
+            if (l < size && defaultCompare(child, array[l]) > 0) child = array[j = l];
+            if (r < size && defaultCompare(child, array[r]) > 0) child = array[j = r];
+            if (j === i) break;
             array[i] = child;
             array[i = j] = value;
         }
@@ -2503,12 +2523,20 @@
     
     Dalaba.geo = (function () {
     var PI = Math.PI;
-    //var PI2 = PI * 2;
-    //var PI21 = PI / 2;
+    var PI2 = PI * 2;
+
+    var log = Math.log;
+
+    var tan = Math.tan;
+
     var PI41 = PI / 4;
 
     var toRadian = function (v) {
         return v * Math.PI / 180;
+    };
+
+    var setTransform = function (a, b, k) {
+        return a + b * k;
     };
 
     function lat2lng (lat, lng) {
@@ -2517,6 +2545,9 @@
             90 - lng
         ];
     }
+    function clamp (lat) {
+        return lat > PI ? lat - PI2 : lat < -PI ? lat + PI2 : lat;
+    };
     
     var Projection = {
         /**
@@ -2527,7 +2558,7 @@
          * -----------------------------  
         */
         mercator: function (lat, lng) {
-            return [lat, Math.log(Math.tan(PI / 4 + lng / 2))];
+            return [lat, log(tan(PI / 4 + lng / 2))];
         },
         simple: function (lat, lng) {
             var p = lat2lng(lat, lng);
@@ -2571,11 +2602,11 @@
             var geometry = feature.geometry,
                 geometryType = geometry.type,
                 coordinates = geometry.coordinates;
-            Feature[geometryType](coordinates, stream);
+            Feature[geometryType] && Feature[geometryType](coordinates, stream);
         },
         FeatureCollection: function (geojson, stream) {
             (geojson.features || []).forEach(function (feature) {
-                Geometry.Feature(feature, stream);
+                Feature.Feature(feature, stream);
             });
         }
     };
@@ -2589,24 +2620,16 @@
 
         var isObject = Dalaba.isObject;
 
+        var isFunction = Dalaba.isFunction;
+
+        var defined = Dalaba.defined;
+
         var extend = Dalaba.extend;
 
         /**
          * Projection
         **/
         var Projector = function () {
-            var isObject = Dalaba.isObject;
-
-            var isFunction = Dalaba.isFunction;
-
-            var defined = Dalaba.defined;
-
-            var PI = Math.PI;
-            var PI2 = PI * 2;
-
-            var clamp = function (lat) {
-                return lat > PI ? lat - PI2 : lat < -PI ? lat + PI2 : lat;
-            };
 
             var rescale = function (bounds, width, height) {
                 var topLeft = bounds[0],
@@ -2618,7 +2641,7 @@
 
             var Parse = function () {
                 this.center = function (_) {
-                    return arguments.length ? (this._center = _, this.celler = transform(_, this._scale, this._translate), this) : this._center;
+                    return arguments.length ? (this._center = _, this.celler = transform(_, this._scale, this._translate), this) : [this.centerX, this.centerY];
                 };
                 this.translate = function (_) {
                     return arguments.length ? (this._translate = _, this.celler = transform(this._center, this._scale, _), this) : this._translate;
@@ -2632,6 +2655,7 @@
                     cy = pack("number", center && center[1]) % 360 * PI / 180;
                 var x = pack("number", translate && translate[0], 480),
                     y = pack("number", translate && translate[1], 250);
+                scale = pack("number", scale, 1);
                 var point = Projection.mercator(cx, cy);
                 return [x - point[0] * scale, y + point[1] * scale];
             }
@@ -2643,6 +2667,7 @@
                 defined(params.scale) && (this.scale(params.scale));
                 defined(params.translate) && (this.translate(params.translate));
                 defined(params.center) && (this.center(params.center));
+                isFunction(params) && (this._projection = params);
             };
 
             Parse.parse.prototype = new Parse();
@@ -2653,8 +2678,8 @@
                 this._translate = options._translate;
                 this.centerX = (options.celler || [])[0];
                 this.centerY = (options.celler || [])[1];
-
                 Parse.call(this);
+                this._projection = options._projection ? options._projection : this.projection;
 
                 this.size = function (_) {
                     return arguments.length ? (this.width = pack("number", _[0]), this.height = pack("number", _[1]), this) : [pack("number", this.width), pack("number", this.height)];
@@ -2681,17 +2706,20 @@
                     var Stream = this.Stream;
                     var parsed = this;
                     var geoJsonType = geoJson.type;
+                    var centerX = parsed.centerX,
+                        centerY = parsed.centerY,
+                        scale = parsed._scale;
+                    // console.log(centerX, centerY, scale)
 
                     Stream.clear();
                     Stream.point = function (p) {
-                        var point = parsed.projection ? parsed.projection(p) : p,
-                            x = point[0],
-                            y = point[1];
-                        Stream.points.push([x, y]);
+                        var point = parsed._projection(p);
+
+                        Stream.points.push(parsed.point(point));
                         
                         pointCaller && pointCaller.call(p, p, point);
                     };
-                    
+
                     if (isObject(geoJson) && geoJsonType) {
                         if (geoJsonType === "FeatureCollection") {
                             (geoJson.features || []).forEach(function (feature) {
@@ -2705,10 +2733,22 @@
                         }
                     }
                 },
-                parse: function (geoJson, callback, pointCaller) {                
+                parse: function (geoJson, callback, pointCaller) {
                     this.centerAndZoom(geoJson);
                     this.feature(geoJson, callback, pointCaller);
                     return this;
+                },
+                point: function (point) {
+                    var centerX = this.centerX,
+                        centerY = this.centerY,
+                        scale = this._scale;
+
+                    var x = setTransform(centerX, point[0], scale),
+                        y = setTransform(centerY, -point[1], scale);
+                    return [
+                        x,
+                        y
+                    ];
                 },
                 centroid: function (geoJson) {
                     var x = 0, y = 0;
@@ -2741,13 +2781,12 @@
                     var width = this.width,
                         height = this.height;
                     var bounds = [[Infinity, Infinity], [-Infinity, -Infinity]];
-
                     if (!isArray(center)) {
                         this.center(center = this.centroid(geoJson));//no projection
                         this.centerX = this.celler[0];
                         this.centerY = this.celler[1];
                     }
-                    if (!isNumber(this._scale)) {
+                    if (!isNumber(this._scale, true)) {
                         new Dalaba.geo.Projection({
                             center: center,
                             scale: 1,
@@ -2766,37 +2805,38 @@
                         this.centerX = this.celler[0];
                         this.centerY = this.celler[1];
                     }
+                    // from call center()
+                    if (isArray(center) && !(isNumber(this.centerX, true) && isNumber(this.centerY, true))) {
+                        this.center(center);
+                        this.centerX = this.celler[0];
+                        this.centerY = this.celler[1];
+                    }
                 },
                 projection: function (point) {
-                    var centerX = this.centerX,
-                        centerY = this.centerY,
-                        scale = this._scale;
-
                     var lat = clamp(point[0] * PI / 180),
                         lng = point[1] * PI / 180;
-                    point = Projection.mercator(lat, lng);
-                    return [centerX + point[0] * scale, centerY - point[1] * scale];
+                    return Projection.mercator(lat, lng);// [centerX + point[0] * scale, centerY - point[1] * scale];
                 }
             });
             
             return function () {
-                var projectd;
-                var parsed = {};
+                var parsed = null;
 
                 var fixed = function (params) {
                     if (isObject(params)) {
                         parsed = new Parse.parse(params);
                     }
+                    else if (isFunction(params)) parsed = new Parse.parse(params);
                 };
 
                 var args = [].slice.call(arguments, 0),
                     n = args.length;
-                if (isFunction(args[0])) projectd = args[0];
+                
                 fixed(args[0]);
                 if (n > 1) {
                     fixed(args[1]);
                 }
-                return new GeoParse(parsed);
+                return new GeoParse(parsed || new Parse.parse({}));
             };
         };
 
@@ -4074,25 +4114,6 @@
     var clamp = function (v, max) {
         return mathMax(0, mathMax(pack("number", max, 0), pack("number", v, 0)));
     };
-    
-    var prediction = function (values) {
-        var n = values.length,
-            sum = 0,
-            mean = false;
-        var each = function (cb) {
-            var l = n & 1,
-                r = n;
-            l && cb(values[0], mean === false ? 0 : mean);
-            while (l < r) {
-                cb(values[l++], values[--r]);
-            }
-        };
-        each(function (a, b) { sum += a; sum += b; });
-        mean = sum / n, sum = 0;
-        each(function (a, b) { sum += (a - mean) * (a - mean), sum += (b - mean) * (b - mean); });
-
-        return values[n - 1]; //mean;// n ? Math.sqrt(sum / n) : 0;
-    };
 
     function factoy (global, Numeric, List, Animate) {
 
@@ -4101,6 +4122,8 @@
         var indexOf = List.indexOf;
 
         var valueOf = Numeric.valueOf;
+
+        var prediction = Numeric.prediction;
 
         function Series (series, options) {
             this.options = options;
@@ -4303,9 +4326,10 @@
             destroy: function () {
 
             }
+            //transform, projection
         };
 
-        Series.mapping = function (series) {
+        Series.mapping = function (allSeries) {
             var axisSeries = {
                 yAxis: {},
                 xAxis: {},
@@ -4324,7 +4348,7 @@
             };
             var isAxis2D = false;
 
-            partition(series, function (a, b) {
+            partition(allSeries, function (a, b) {
                 return a.panelIndex === b.panelIndex;
             }).forEach(function (groups) {
                 var maxLength = 0,
@@ -4410,8 +4434,7 @@
                 var m = endIndex - startIndex, n = item.length, i, j;
                 var data, source, value, x = null, y = null;
                 var lowValue, highValue;//no negative
-                var isSelected = false;
-                
+
                 for (j = 0; j < m; j++) {
                     var positive = 0, negative = 0;
                     var isNegative = false,
@@ -4427,7 +4450,6 @@
 
                     for (i = 0; i < n; i++) {
                         series = item[i];
-                        isSelected = isSelected || series.selected !== false;
                         if (series.selected !== false) {
                             data = series.shapes[j] || {};
                             source = series.data[~~(startIndex + j)];
@@ -4554,6 +4576,10 @@
             var revalue = {
                 min: minValue,
                 max: maxValue,
+                minX: minAxisX,
+                maxX: maxAxisX,
+                minY: minAxisY,
+                maxY: maxAxisY,
                 length: maxLength,
                 axisLength: axisLength,
                 //max value and x, y
@@ -5760,7 +5786,7 @@ var DataLabels = (function () {
             };
             var transform = newData.transform || {
                 scale: undefined,
-                translate: [0, 0]
+                translate: undefined// [0, 0]
             }, translate = transform.translate;
 
             var parseRange = function (rangeSelector) {
@@ -5779,13 +5805,13 @@ var DataLabels = (function () {
             if (!isNumber(animation.delay) && !isFunction(animation.delay)) {
                 animation.delay = pack("number", chartAnimation.delay, 0);
             }
-            if (!defined(translate)) {
+            /*if (!defined(translate)) {
                 translate = [0, 0];
             }
-            else if (isFunction(translate)) {
-                translate = translate.call(newData, series, this);
+            else */if (isFunction(translate)) {
+                transform.translate = translate.call(newData, series, this);
             }
-            transform.translate = TRouBLe(translate);
+            //transform.translate = TRouBLe(translate);
 
             newSeries = extend({}, newData, {
                 type: type,
@@ -5854,7 +5880,6 @@ var DataLabels = (function () {
             };
             var axisSeries = Series.mapping(this.series);
             this.mapAxis = axisSeries;
-            console.log(this.series, axisSeries)
 
             this.panel.forEach(function (pane) {
                 paneltree.children.push({
@@ -6480,6 +6505,9 @@ var DataLabels = (function () {
                 series.plotRadius = pack("number", pane.plotRadius, mathMin(pane.width, pane.height), 0);
                 types && (types[type] = { type: type, weight: pack("number", series.zIndex, i + 1) });
             });
+            if (this.series.length && isObject(types) && isEmpty(types)) {
+                types[chartType] = { type: chartType, weight: 0 };
+            }
         },
         draw: function (event) {
             var options = this.options,
@@ -6487,9 +6515,6 @@ var DataLabels = (function () {
             var Graphers = Dalaba.Chart.graphers;
             var chart = this;
             var types = {};
-            if (isEmpty(types)) {
-                types[this.type] = { type: this.type, weight: 0 };
-            }
 
             var addChartor = function (chart, types, options) {
                 var charts = chart.charts;
@@ -6607,7 +6632,7 @@ var DataLabels = (function () {
                 });
                 return shapes;
             };
-            var drawAixs = function () {
+            var drawAxis = function () {
                 chart.yAxis.concat(chart.xAxis).forEach(function (axis) {
                     if (axis.options.enabled !== false) {
                         axis.setCrosshair(event.moveX, event.moveY).draw();
@@ -6704,15 +6729,13 @@ var DataLabels = (function () {
             function paintComponent (charts, ani, once) {
                 chart.clear();
                 chart.renderAll(event);
-                drawAixs();
+                drawAxis();
                 chart.series.forEach(function (series) {
                     series.animationCompleted = globalAnimation.isReady;
                 });
+                chart.renderChart(charts);
                 if (ani) {
                     ani();
-                }
-                else {
-                    chart.renderChart(charts);
                 }
                 drawLegend();
 
@@ -6770,7 +6793,7 @@ var DataLabels = (function () {
                         onLoad();
                     });
                 }
-                animationCharts.length | noAnimationCharts.length || (globalAnimation.isReady = true, chart.renderAll(event), drawAixs(), onLoad(), onReady());
+                animationCharts.length | noAnimationCharts.length || (globalAnimation.isReady = true, chart.renderAll(event), drawAxis(), onLoad(), onReady());
                 !animationCharts.length & !!noAnimationCharts.length && (globalAnimation.isReady = true, onLoad(), onReady());
                 //globalAnimation.isReady = true;
             };
@@ -12720,7 +12743,7 @@ var DataLabels = (function () {
             if (initialize === true) {
                 this.series.forEach(function (series) {
                     var shapes = series.shapes;
-                    series._image && Clip[series.inverted ? "Vertical" : "Horizontal"](series._image, 0, 0, series._image.width, series._image.height).clip(context, pack("number", shapes[0].timer, 1));
+                    series._image && Clip[series.inverted ? "Vertical" : "Horizontal"](series._image, 0, 0, series._image.width, series._image.height).clip(context, pack("number", (shapes[0] || {}).timer, 1));
                 });
             }
             else {
@@ -13766,7 +13789,8 @@ var DataLabels = (function () {
                 y1 = shape.y1;
             var borderWidth = pack("number", series.borderWidth, 0),
                 borderColor = pack("string", series.borderColor, "#FFFFFF"),
-                borderRadius = series.borderRadius;
+                borderRadius = series.borderRadius,
+                opacity = series.opacity;
             var rotation = pack("number", shape.rotation, 0);
             var color = shape.color;
 
@@ -13783,6 +13807,9 @@ var DataLabels = (function () {
             }
             else {
                 color = Color.parse(color);
+                if (isNumber(opacity, true)) {
+                    color.a = mathMax(0, mathMin(1, opacity));
+                }
                 if (defined(shape.current)) {
                     color.a = 0.55;
                 }
@@ -14810,13 +14837,11 @@ var DataLabels = (function () {
                         plotWidth = pack("number", series.plotWidth, 0),
                         plotHeight = pack("number", series.plotHeight, 0);
                     var transform = series.transform,
-                        translateX = transform.translate[0],
-                        translateY = transform.translate[1],
-                        scale = pack("number", transform.scale, 0.75);
+                        translate = TRouBLe(transform.translate),
+                        scale = pack("number", transform.scale, 1);
                     var projection = series.projection;
-                    var center = [0, 0];
                     var seriesTarget;
-                    if (projection === "geo" && defined(series.seriesTarget)) {
+                    if ((projection === "geo" || isObject(projection)) && defined(series.seriesTarget)) {
                         var seriesTarget = seriesFind(series.seriesTarget, allseries);
                         if (seriesTarget !== null) {
                             projection = null;
@@ -14827,9 +14852,6 @@ var DataLabels = (function () {
                     }
                     else if (isFunction(projection)) {
                         projection = projection.call(series);
-                    }
-                    if (defined(seriesTarget && seriesTarget.__transform__)) {
-                        center = seriesTarget.__transform__.center;
                     }
 
                     var xAxisOptions, yAxisOptions;
@@ -14856,8 +14878,6 @@ var DataLabels = (function () {
                         var shape = shapes[j],
                             value = shape.value;
                         var x, y;
-                        var tx = translateX,
-                            ty = translateY;
                         var radius;
                         var key = j;
                         radius = pack("number",
@@ -14866,13 +14886,11 @@ var DataLabels = (function () {
                             isFunction(series.radius) && series.radius.call(shape, shape.source, value, series.minValue, series.maxValue, series),
                             5
                         );
+
                         if (isFunction(projection)) {
                             x = projection([shape._x, shape._y]);
-                            tx += center[0];
-                            ty += center[1];                            
-                            y = setTransform(x[1], ty, scale);
-                            x = setTransform(x[0], tx, scale);
-                            
+                            y = setTransform(x[1], translate[1], scale);
+                            x = setTransform(x[0], translate[0], scale);
                         }
                         else {
                             if (isArray(shape.source) && shape.source.length > 1) {
@@ -16210,7 +16228,7 @@ var DataLabels = (function () {
     var MAX_VALUE = Number.MAX_VALUE;
 
     var setTransform = function (a, b, k) {
-        return a * k + b;
+        return a + b * k;
     };
 
     var setBounds = function (bounds, x, y) {
@@ -16247,20 +16265,18 @@ var DataLabels = (function () {
                         lerp;
                     var minValue = colorAxisOptions.minValue,
                         maxValue = colorAxisOptions.maxValue;
-                    var scale = [1, 1],
-                        translate = [0, 0];
                     var transform = series.transform,
-                        scaleRadio = Math.max(0, pack("number", transform.scale, 0.75)),
-                        translateX = transform.translate[0],
-                        translateY = transform.translate[1];
+                        translate = transform.translate,
+                        scaleRadio = Math.max(0, pack("number", transform.scale, 0.75));
 
                     var projection = series.projection,
                         projectAt;
                     if (isObject(projection)) {
                         projectAt = extend({}, projection);//geoJson.cp;
+                        //projectAt.translate = [plotWidth / 2, plotHeight / 2]
                     }
                     else if (isFunction(projection)) {
-                        projectAt = projection.call(series);
+                        projectAt = projection.call(series);//series.options.mapping
                     }
 
                     if (defined(colorAxisOptions) && isArray(colorAxisOptions.stops)) {
@@ -16270,7 +16286,7 @@ var DataLabels = (function () {
                         });
                         lerp = Color.lerp(domain, range, Color.interpolate);
                     }
-                        
+                    
                     if (defined(geoJson)) {
                         var bounds = [[MAX_VALUE, MAX_VALUE], [-MAX_VALUE, -MAX_VALUE]];
                         var centerX = 0,
@@ -16290,31 +16306,32 @@ var DataLabels = (function () {
                                 points: points
                             };
                             var cp = properties.cp;
-
                             groups.forEach(function (polygon, i) {
                                 var x, y;
                                 var length = polygon.length,
                                     j;
                                 var point;
-                                x = setTransform(polygon[j = 0][0], 0, scaleRadio);
-                                y = setTransform(polygon[j][1], 0, scaleRadio);
-
+                                x = setTransform(0, polygon[j = 0][0], scaleRadio);
+                                y = setTransform(0, polygon[j][1], scaleRadio);
                                 bounds = setBounds(bounds, x, y);
-                                i && points.push({x: x, y: y, isNext: true});
+                                i && points.push({x: x, y: y, isNext: true, type: feature.geometry.type});
                                 for (j = 1; j < length; j++) {
                                     point = polygon[j];
-                                    x = setTransform(point[0], 0, scaleRadio);
-                                    y = setTransform(point[1], 0, scaleRadio);
+                                    x = setTransform(0, point[0], scaleRadio);
+                                    y = setTransform(0, point[1], scaleRadio);
                                     cx += (x - cx) / ++count;
                                     cy += (y - cy) / count;
                                     points.push({x: x, y: y});
                                     bounds = setBounds(bounds, x, y);
                                 }
+                                if (!i && feature.geometry.type === "Polygon") {
+                                    points.push({x: points[0].x, y: points[0].y});
+                                }
                             });
                             if (defined(cp) && isNumber(cp[0], true) && isNumber(cp[1], true)) {
                                 cp = projected.projection(cp);
-                                cx = setTransform(cp[0], 0, scaleRadio);
-                                cy = setTransform(cp[1], 0, scaleRadio);
+                                cx = setTransform(0, cp[0], scaleRadio);
+                                cy = setTransform(0, cp[1], scaleRadio);
                             }
                             shape.shapeArgs = {
                                 x: cx, y: cy,
@@ -16337,16 +16354,25 @@ var DataLabels = (function () {
                             }
                             extend(shape, data);
                             shape.name = properties.name;
+                            shape.key = series.name;
                             shape.series = series;
                             shapes.push(shape);
                         });
-                        centerX = plotX + (plotWidth - (bounds[1][0] - bounds[0][0])) / 2 - bounds[0][0];
-                        centerY = plotY + (plotHeight - (bounds[1][1] - bounds[0][1])) / 2 - bounds[0][1];
-
+                        if (!defined(projectAt) || (projectAt && !defined(projectAt.translate))) {
+                            if (defined(translate)) {
+                                translate = TRouBLe(translate);
+                                centerX = -bounds[0][0] + translate[0] + plotX;
+                                centerY = -bounds[0][1] + translate[1] + plotY;
+                            }
+                            else {
+                                centerX = plotX + (plotWidth - (bounds[1][0] - bounds[0][0])) / 2 - bounds[0][0];
+                                centerY = plotY + (plotHeight - (bounds[1][1] - bounds[0][1])) / 2 - bounds[0][1];
+                            }
+                        }
                         shapes.forEach(function (shape) {
-                            shape.points.forEach(function (point) {
-                                point.x += centerX + translateX;
-                                point.y += centerY + translateY;
+                            shape.points.forEach(function (point, i) {
+                                point.x += centerX;
+                                point.y += centerY;
                             });
                             shape.shapeArgs.x += centerX;
                             shape.shapeArgs.y += centerY;
@@ -16356,10 +16382,10 @@ var DataLabels = (function () {
                         };
                         series.__projector__ = {
                             projection: function (point) {
-                                var p = projected.projection.call(projected, point);
+                                var p = projected.point(projected.projection.call(projected, point));
                                 return [
-                                    setTransform(p[0], 0, scaleRadio) + centerX + translateX,
-                                    setTransform(p[1], 0, scaleRadio) + centerY + translateY
+                                    setTransform(0, p[0], scaleRadio) + centerX,
+                                    setTransform(0, p[1], scaleRadio) + centerY
                                 ];
                             },
                             //scale: projection.scale(),
@@ -16461,9 +16487,9 @@ var DataLabels = (function () {
             var render = function () {
                 context.beginPath();
                 points.forEach(function (point, i) {
-                    context[i && !point.isNext ? "lineTo" : "moveTo"](point.x - borderWidth / 2, point.y - borderWidth / 2);
+                    context[i && !point.isNext ? "lineTo" : "moveTo"](point.x, point.y);
                 });
-                context.closePath();
+                //context.closePath();
             };
 
             if (fillColor.linearGradient || fillColor.radialGradient) {

@@ -1,11 +1,19 @@
 (function () {
     var PI = Math.PI;
-    //var PI2 = PI * 2;
-    //var PI21 = PI / 2;
+    var PI2 = PI * 2;
+
+    var log = Math.log;
+
+    var tan = Math.tan;
+
     var PI41 = PI / 4;
 
     var toRadian = function (v) {
         return v * Math.PI / 180;
+    };
+
+    var setTransform = function (a, b, k) {
+        return a + b * k;
     };
 
     function lat2lng (lat, lng) {
@@ -14,6 +22,9 @@
             90 - lng
         ];
     }
+    function clamp (lat) {
+        return lat > PI ? lat - PI2 : lat < -PI ? lat + PI2 : lat;
+    };
     
     var Projection = {
         /**
@@ -24,7 +35,7 @@
          * -----------------------------  
         */
         mercator: function (lat, lng) {
-            return [lat, Math.log(Math.tan(PI / 4 + lng / 2))];
+            return [lat, log(tan(PI / 4 + lng / 2))];
         },
         simple: function (lat, lng) {
             var p = lat2lng(lat, lng);
@@ -68,11 +79,11 @@
             var geometry = feature.geometry,
                 geometryType = geometry.type,
                 coordinates = geometry.coordinates;
-            Feature[geometryType](coordinates, stream);
+            Feature[geometryType] && Feature[geometryType](coordinates, stream);
         },
         FeatureCollection: function (geojson, stream) {
             (geojson.features || []).forEach(function (feature) {
-                Geometry.Feature(feature, stream);
+                Feature.Feature(feature, stream);
             });
         }
     };
@@ -86,24 +97,16 @@
 
         var isObject = Dalaba.isObject;
 
+        var isFunction = Dalaba.isFunction;
+
+        var defined = Dalaba.defined;
+
         var extend = Dalaba.extend;
 
         /**
          * Projection
         **/
         var Projector = function () {
-            var isObject = Dalaba.isObject;
-
-            var isFunction = Dalaba.isFunction;
-
-            var defined = Dalaba.defined;
-
-            var PI = Math.PI;
-            var PI2 = PI * 2;
-
-            var clamp = function (lat) {
-                return lat > PI ? lat - PI2 : lat < -PI ? lat + PI2 : lat;
-            };
 
             var rescale = function (bounds, width, height) {
                 var topLeft = bounds[0],
@@ -115,7 +118,7 @@
 
             var Parse = function () {
                 this.center = function (_) {
-                    return arguments.length ? (this._center = _, this.celler = transform(_, this._scale, this._translate), this) : this._center;
+                    return arguments.length ? (this._center = _, this.celler = transform(_, this._scale, this._translate), this) : [this.centerX, this.centerY];
                 };
                 this.translate = function (_) {
                     return arguments.length ? (this._translate = _, this.celler = transform(this._center, this._scale, _), this) : this._translate;
@@ -129,6 +132,7 @@
                     cy = pack("number", center && center[1]) % 360 * PI / 180;
                 var x = pack("number", translate && translate[0], 480),
                     y = pack("number", translate && translate[1], 250);
+                scale = pack("number", scale, 1);
                 var point = Projection.mercator(cx, cy);
                 return [x - point[0] * scale, y + point[1] * scale];
             }
@@ -140,6 +144,7 @@
                 defined(params.scale) && (this.scale(params.scale));
                 defined(params.translate) && (this.translate(params.translate));
                 defined(params.center) && (this.center(params.center));
+                isFunction(params) && (this._projection = params);
             };
 
             Parse.parse.prototype = new Parse();
@@ -150,8 +155,8 @@
                 this._translate = options._translate;
                 this.centerX = (options.celler || [])[0];
                 this.centerY = (options.celler || [])[1];
-
                 Parse.call(this);
+                this._projection = options._projection ? options._projection : this.projection;
 
                 this.size = function (_) {
                     return arguments.length ? (this.width = pack("number", _[0]), this.height = pack("number", _[1]), this) : [pack("number", this.width), pack("number", this.height)];
@@ -178,17 +183,20 @@
                     var Stream = this.Stream;
                     var parsed = this;
                     var geoJsonType = geoJson.type;
+                    var centerX = parsed.centerX,
+                        centerY = parsed.centerY,
+                        scale = parsed._scale;
+                    // console.log(centerX, centerY, scale)
 
                     Stream.clear();
                     Stream.point = function (p) {
-                        var point = parsed.projection ? parsed.projection(p) : p,
-                            x = point[0],
-                            y = point[1];
-                        Stream.points.push([x, y]);
+                        var point = parsed._projection(p);
+
+                        Stream.points.push(parsed.point(point));
                         
                         pointCaller && pointCaller.call(p, p, point);
                     };
-                    
+
                     if (isObject(geoJson) && geoJsonType) {
                         if (geoJsonType === "FeatureCollection") {
                             (geoJson.features || []).forEach(function (feature) {
@@ -202,10 +210,22 @@
                         }
                     }
                 },
-                parse: function (geoJson, callback, pointCaller) {                
+                parse: function (geoJson, callback, pointCaller) {
                     this.centerAndZoom(geoJson);
                     this.feature(geoJson, callback, pointCaller);
                     return this;
+                },
+                point: function (point) {
+                    var centerX = this.centerX,
+                        centerY = this.centerY,
+                        scale = this._scale;
+
+                    var x = setTransform(centerX, point[0], scale),
+                        y = setTransform(centerY, -point[1], scale);
+                    return [
+                        x,
+                        y
+                    ];
                 },
                 centroid: function (geoJson) {
                     var x = 0, y = 0;
@@ -238,13 +258,12 @@
                     var width = this.width,
                         height = this.height;
                     var bounds = [[Infinity, Infinity], [-Infinity, -Infinity]];
-
                     if (!isArray(center)) {
                         this.center(center = this.centroid(geoJson));//no projection
                         this.centerX = this.celler[0];
                         this.centerY = this.celler[1];
                     }
-                    if (!isNumber(this._scale)) {
+                    if (!isNumber(this._scale, true)) {
                         new Dalaba.geo.Projection({
                             center: center,
                             scale: 1,
@@ -263,37 +282,38 @@
                         this.centerX = this.celler[0];
                         this.centerY = this.celler[1];
                     }
+                    // from call center()
+                    if (isArray(center) && !(isNumber(this.centerX, true) && isNumber(this.centerY, true))) {
+                        this.center(center);
+                        this.centerX = this.celler[0];
+                        this.centerY = this.celler[1];
+                    }
                 },
                 projection: function (point) {
-                    var centerX = this.centerX,
-                        centerY = this.centerY,
-                        scale = this._scale;
-
                     var lat = clamp(point[0] * PI / 180),
                         lng = point[1] * PI / 180;
-                    point = Projection.mercator(lat, lng);
-                    return [centerX + point[0] * scale, centerY - point[1] * scale];
+                    return Projection.mercator(lat, lng);// [centerX + point[0] * scale, centerY - point[1] * scale];
                 }
             });
             
             return function () {
-                var projectd;
-                var parsed = {};
+                var parsed = null;
 
                 var fixed = function (params) {
                     if (isObject(params)) {
                         parsed = new Parse.parse(params);
                     }
+                    else if (isFunction(params)) parsed = new Parse.parse(params);
                 };
 
                 var args = [].slice.call(arguments, 0),
                     n = args.length;
-                if (isFunction(args[0])) projectd = args[0];
+                
                 fixed(args[0]);
                 if (n > 1) {
                     fixed(args[1]);
                 }
-                return new GeoParse(parsed);
+                return new GeoParse(parsed || new Parse.parse({}));
             };
         };
 
