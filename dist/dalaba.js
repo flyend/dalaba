@@ -14811,7 +14811,7 @@ var DataLabels = (function () {
                     var projection = series.projection;
                     var seriesTarget;
                     if ((projection === "geo" || isObject(projection)) && defined(series.seriesTarget)) {
-                        var seriesTarget = seriesFind(series.seriesTarget, allseries);
+                        seriesTarget = seriesFind(series.seriesTarget, allseries);
                         if (seriesTarget !== null) {
                             projection = null;
                             if (defined(seriesTarget.__projector__)) {
@@ -14860,7 +14860,10 @@ var DataLabels = (function () {
                             x = projection([shape._x, shape._y]);
                             y = setTransform(x[1], translate[1], scale);
                             x = setTransform(x[0], translate[0], scale);
-                            shape.key = series.name;
+                            if (isObject(shape.source) && defined(shape.source.name))
+                                shape.key = shape.source.name;
+                            else
+                                shape.key = series.name;
                         }
                         else {
                             if (isArray(shape.source) && shape.source.length > 1) {
@@ -14906,6 +14909,7 @@ var DataLabels = (function () {
                                     reversed === true ? [0, plotHeight] : [plotHeight, 0]
                                 ));
                                 y += plotY;
+                                shape.dataLabel.value = shape._y;
                             }
                             else {
                                 x = j * tickWidth;
@@ -14914,9 +14918,9 @@ var DataLabels = (function () {
                                     reversed === true ? [0, plotHeight] : [plotHeight, 0]
                                 ));
                                 y += plotY;
+                                shape.dataLabel.value = value;
                             }
                             shape.name = series.name;
-                            //console.log(shape.dataLabel)
                             shape.key = getKey((inverted || yAxisOptions.type === "categories") ? yAxisOptions.categories : xAxisOptions.categories, key);
                         }
                         if (series.selected === false) {
@@ -15052,8 +15056,8 @@ var DataLabels = (function () {
         },
         dataLabels: function (context, shape, series) {
             var radius = shape.radius;
-            if (defined(shape.name)) {
-                DataLabels.value(shape.name);
+            if (defined(shape.dataLabel.value)) {
+                DataLabels.value(shape.dataLabel.value);
             }
             shape.dataLabel = DataLabels.align(function (type, bbox, options) {
                 var x = shape.x;
@@ -15064,7 +15068,7 @@ var DataLabels = (function () {
                     center: x - bbox.width / 2,
                     right: x + radius + margin
                 }[t];
-            }).vertical(function (type, bbox, options) {
+            }).vertical(function (type, bbox) {
                 var y = shape.y;
                 var t = pack("string", type, "middle");
                 var margin = 5;
@@ -16380,7 +16384,6 @@ var DataLabels = (function () {
         redraw: function () {
             relayout(this.panels, true);
             this.reflow();
-            //this.draw();
         },
         drawShape: function (context, shape, series) {
             var borderWidth = pack("number", series.borderWidth, 0),

@@ -110,8 +110,8 @@
         },
         dataLabels: function (context, shape, series) {
             var radius = shape.radius;
-            if (defined(shape.name)) {
-                DataLabels.value(shape.name);
+            if (defined(shape.dataLabel.value)) {
+                DataLabels.value(shape.dataLabel.value);
             }
             shape.dataLabel = DataLabels.align(function (type, bbox, options) {
                 var x = shape.x;
@@ -122,7 +122,7 @@
                     center: x - bbox.width / 2,
                     right: x + radius + margin
                 }[t];
-            }).vertical(function (type, bbox, options) {
+            }).vertical(function (type, bbox) {
                 var y = shape.y;
                 var t = pack("string", type, "middle");
                 var margin = 5;

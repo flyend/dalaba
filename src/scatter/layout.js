@@ -41,7 +41,7 @@
                     var projection = series.projection;
                     var seriesTarget;
                     if ((projection === "geo" || isObject(projection)) && defined(series.seriesTarget)) {
-                        var seriesTarget = seriesFind(series.seriesTarget, allseries);
+                        seriesTarget = seriesFind(series.seriesTarget, allseries);
                         if (seriesTarget !== null) {
                             projection = null;
                             if (defined(seriesTarget.__projector__)) {
@@ -90,7 +90,10 @@
                             x = projection([shape._x, shape._y]);
                             y = setTransform(x[1], translate[1], scale);
                             x = setTransform(x[0], translate[0], scale);
-                            shape.key = series.name;
+                            if (isObject(shape.source) && defined(shape.source.name))
+                                shape.key = shape.source.name;
+                            else
+                                shape.key = series.name;
                         }
                         else {
                             if (isArray(shape.source) && shape.source.length > 1) {
@@ -136,6 +139,7 @@
                                     reversed === true ? [0, plotHeight] : [plotHeight, 0]
                                 ));
                                 y += plotY;
+                                shape.dataLabel.value = shape._y;
                             }
                             else {
                                 x = j * tickWidth;
@@ -144,9 +148,9 @@
                                     reversed === true ? [0, plotHeight] : [plotHeight, 0]
                                 ));
                                 y += plotY;
+                                shape.dataLabel.value = value;
                             }
                             shape.name = series.name;
-                            //console.log(shape.dataLabel)
                             shape.key = getKey((inverted || yAxisOptions.type === "categories") ? yAxisOptions.categories : xAxisOptions.categories, key);
                         }
                         if (series.selected === false) {

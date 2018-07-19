@@ -51,7 +51,6 @@
         redraw: function () {
             relayout(this.panels, true);
             this.reflow();
-            //this.draw();
         },
         drawShape: function (context, shape, series) {
             var borderWidth = pack("number", series.borderWidth, 0),
