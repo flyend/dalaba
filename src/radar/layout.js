@@ -3,8 +3,8 @@
     function factoy (Numeric) {
         var interpolate = Numeric.interpolate;
 
-        return function (type, options) {
-
+        return function (panels, isResized) {
+            var allseries = [];
             var getKey = function (index, axis) {
                 var categories;
                 if (isArray(categories = axis.categories) && categories.length) {
@@ -12,11 +12,8 @@
                 }
                 return index;
             };
-            options.panel.forEach(function (pane) {
-                var series = arrayFilter(pane.series, function (series) {
-                    return series.type === type;
-                });
-                series.forEach(function (series) {
+            panels.forEach(function (pane) {
+                pane.series.forEach(function (series) {
                     var startAngle, endAngle;
                     var minValue, maxValue, logBase;
                     var polarAxisOptions = series._polarAxis || {};
@@ -62,7 +59,9 @@
                         shape.series._endAngle = endAngle;
                     }
                 });
+                allseries = allseries.concat(pane.series);
             });
+            return allseries;
         };
     }
     return {

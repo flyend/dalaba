@@ -417,10 +417,7 @@ require("./define");
             if (!isNumber(animation.delay) && !isFunction(animation.delay)) {
                 animation.delay = pack("number", chartAnimation.delay, 0);
             }
-            /*if (!defined(translate)) {
-                translate = [0, 0];
-            }
-            else */if (isFunction(translate)) {
+            if (isFunction(translate)) {
                 transform.translate = translate.call(newData, series, this);
             }
             //transform.translate = TRouBLe(translate);
@@ -807,8 +804,7 @@ require("./define");
                 var legendHeight = 0,
                     legendX = 0,
                     legendY = 0;
-                var seriesData = [],
-                    seriesColors = options.colors || [];
+                var seriesData = [];
                 if (options.legend.enabled !== false) {
                     this.series.forEach(function (series, i) {
                         var data = series.shapes;
@@ -902,7 +898,7 @@ require("./define");
             var Tooltip = Dalaba.Chart.Tooltip;
 
             if (defined(Tooltip) && tooltipOptions.enabled !== false) {
-                Comparative(panel, this.panel).update(function (d, oldData) {
+                Comparative(panel, this.panel).update(function (d) {
                     d.tooltip = new Tooltip(chart.addLayer(tooltipOptions.layer), tooltipOptions);
                 }, function (d) {
                     if (d.tooltip) {
@@ -930,7 +926,7 @@ require("./define");
             });
             return shapes;
         },
-        renderAll: function (event) {
+        renderAll: function () {
             var options = this.options;
             var context = this.context,
                 chart = this;
@@ -1027,7 +1023,7 @@ require("./define");
                     {z: 2, render: Renderer.image},
                     {z: 3, render: function () {
                         var grid = options.layout.grid || {};
-                        chart.panel.forEach(function(pane){
+                        chart.panel.forEach(function (pane) {
                             var x, y, width, height;
                             var linePixel;
 
@@ -1048,11 +1044,11 @@ require("./define");
                             isNumber(shadowBlur) && (context.shadowBlur = shadowBlur);
                             isNumber(shadowOffsetX) && (context.shadowOffsetX = shadowOffsetX);
                             isNumber(shadowOffsetY) && (context.shadowOffsetY = shadowOffsetY);
-                            if(defined(backgroundColor)){
+                            if (defined(backgroundColor)) {
                                 context.fillStyle = backgroundColor;
                                 context.fillRect(x, y, width, height);
                             }
-                            if(borderWidth > 0){
+                            if (borderWidth > 0) {
                                 context.beginPath();
                                 context.moveTo(x, y);
                                 context.lineTo(x + width, y);
@@ -1092,7 +1088,6 @@ require("./define");
         clear: function () {
             var width = this.width,
                 height = this.height;
-            var chart = this;
             this.series.concat([{context: this.context}]).forEach(function (series) {
                 var context = series.context;
                 if (defined(context)) {
@@ -1103,7 +1098,6 @@ require("./define");
         addPlotSeries: function (types) {
             var chartType = this.type;
             var panel = this.panel;
-            var chart = this;
 
             this.series.forEach(function (series, i) {
                 var type = series.type || chartType;
@@ -1128,6 +1122,23 @@ require("./define");
             var chart = this;
             var types = {};
 
+            var addPanel = function (type, panel) {
+                var panels = [];
+                var n = panel.length,
+                    i = -1,
+                    nn, j;
+                var newSeries, series;
+
+                while (++i < n) {
+                    newSeries = [];
+                    for (j = 0, nn = panel[i].series.length; j < nn; j++) if ((series = panel[i].series[j]).type === type) {
+                        newSeries.push(series);
+                    }
+                    panels.push({series: newSeries});
+                }
+                return panels;
+            };
+
             var addChartor = function (chart, types, options) {
                 var charts = chart.charts;
                 var creator = {};
@@ -1141,10 +1152,12 @@ require("./define");
                         isCreated = charts[i].type === type;
                     }
                     if (isCreated) {
+                        options.panels = addPanel(type, options.panel);
                         charts[~-i].init(options);
                     }
                     else if (defined(Graphers[type]) && !(type in creator)) {
                         creator[type] = true;
+                        options.panels = addPanel(type, options.panel);
                         charts[!oldvalue || (oldvalue && oldvalue.weight < value.weight) ? "push" : "unshift"](new Graphers[type](chart.canvas, options));
                         oldvalue = value;
                     }
@@ -1202,7 +1215,6 @@ require("./define");
                 events = (options.chart || {}).events || {},
                 charts = this.charts,
                 chart = this;
-            var context = chart.context;
             var globalAnimation = chart.globalAnimation;
             var background = chart.background;
             var tooltipOptions = options.tooltip || {};
@@ -1305,8 +1317,7 @@ require("./define");
 
                 if (defined(curPanel)) {
                     if (event.type !== "mousemove") {
-                        var item = curPanel.tooltip.move(event.moveX, event.moveY, true)[0],
-                            shape;
+                        var item = curPanel.tooltip.move(event.moveX, event.moveY, true)[0];
                         var curIndex;
                         if (item && panels.length) {
                             curIndex = item.shape.index;
@@ -1364,8 +1375,6 @@ require("./define");
             var isDragging = function (chart) {
                 return chart.globalEvent.isDragging === false;
             };
-
-            var Animation;
 
             var animateTo = function (charts, onStep, onLoad) {
                 var noAnimationCharts, animationCharts = filterNotAnimation(charts, noAnimationCharts = []);
@@ -1480,7 +1489,7 @@ require("./define");
                     }
                     event.type === "update" && (noAnimationCharts.length & !animationCharts.length) && (onRedraw());
                 }
-                if (isAnimationReady(chart) && isDragging(chart) && isEventing(event)) {
+                else if (isAnimationReady(chart) && isDragging(chart) && isEventing(event)) {
                     paintComponent(charts);
                     onRedraw();
                 }
@@ -1514,7 +1523,7 @@ require("./define");
                     series.shapes.forEach(function (shape) {
                         var boxDataLabels = shape.boxDataLabels;
                         if (isArray(boxDataLabels)) {
-                            boxDataLabels.forEach(function (dataLabel, i) {
+                            boxDataLabels.forEach(function (dataLabel) {
                                 labelPoints(shape, dataLabel, labels, pointHTML);
                             });
                         }
@@ -1671,7 +1680,7 @@ require("./define");
             var series = [];
             var seriesOptions,
                 axisOptions,
-                chartOptions = options.chart || {};;
+                chartOptions = options.chart || {};
             var chart = this;
             extend(this.options, options);
 
@@ -1749,16 +1758,14 @@ require("./define");
         },
         setSize: function (width, height, event) {
             var options = this.options,
-                spacing = TRouBLe(options.chart.spacing || []);
+                spacing = TRouBLe(options.chart.spacing),
+                layout = options.layout;
             var panel = this.panel;
             var percentage = Numeric.percentage;
             var chart = this;
             var oldWidth = this.width,
                 oldHeight = this.height;
-            var ratioWidth = width - oldWidth,
-                ratioHeight = height - oldHeight;
-            var canvas = this.canvas;
-            var chart = this;
+            var ratioWidth = width - oldWidth;
 
             this.width = width;
             this.height = height;
@@ -1785,13 +1792,12 @@ require("./define");
                     this.height / 2
                 );
             }
+            ratioWidth = width / oldWidth;
+            
             panel.forEach(function (pane) {
-                //pane.plotX = pane.x *= ratioWidth;
-                //pane.plotY = pane.y *= ratioHeight;
-                //pane.plotWidth = pane.width *= ratioWidth;
-                //pane.plotHeight = pane.height *= ratioHeight;
-                pane.width += ratioWidth;// spacing[1] - spacing[3];
-                pane.height += ratioHeight;
+                pane.plotX = pane.x *= ratioWidth;
+                pane.plotWidth = pane.width *= ratioWidth;
+                //pane.width += ratioWidth;
             });
             this.translateAxis();
             this.addPlotSeries();

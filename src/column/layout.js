@@ -107,6 +107,7 @@
                     size: pointSize,
                     margin: center,
                     yBottom: zeroY + plotY,
+                    name: series.name,
                     key: key,
                     index: j
                 });
@@ -173,6 +174,7 @@
                         yBottom: zeroY + plotY,
                         total: total,
                         percentage: value / total * 100,
+                        name: series.name,
                         key: key,
                         index: j
                     });
@@ -286,6 +288,7 @@
                     size: pointSize,
                     margin: center,
                     yBottom: zeroX + plotX,
+                    name: series.name,
                     key: key
                 });
 
@@ -363,6 +366,7 @@
                         yBottom: zeroX + plotX,
                         total: total,
                         percentage: value / total * 100,
+                        name: series.name,
                         key: key,
                     });
                 }
@@ -416,6 +420,7 @@
         };
 
         return function (panels, isResized) {
+            var allseries = [];
             panels.forEach(function (pane) {
                 var series = pane.series;
                 groupLength = 0,
@@ -437,7 +442,9 @@
                         computeBar(group, group[0].plotWidth, group[0].plotHeight, groupCounting, groupLength)
                         : computeColumn(group, group[0].plotWidth, group[0].plotHeight, groupCounting, groupLength);
                 });
+                allseries = allseries.concat(series);
             });
+            return allseries;
         };
     }
 

@@ -61,12 +61,9 @@
             var type = this.type,
                 canvas = this.canvas;
             var chart = this;
-
-            this.options = extend({}, options);
-            this.series = arrayFilter(options.series, function (series) {
-                return series.type === type;
-            });
-            relayout(type, this.options);
+            this.options = options;
+            this.panels = options.panels;
+            this.series = relayout(this.panels);
 
             if (canvas.nodeType === 1) {
                 this.series.forEach(function(series){
@@ -116,9 +113,8 @@
             }
         },
         redraw: function () {
-            relayout(this.type, this.options);
+            relayout(this.panels, true);
             this.reflow();
-            this.draw();
         },
         getShape: function (x, y) {
             var series,

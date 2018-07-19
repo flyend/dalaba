@@ -21,35 +21,16 @@
     K.prototype = {
         constructor: K,
         init: function (options) {
-            var canvas = this.canvas,
-                type = this.type,
-                animation = (options.chart || {}).animation;
-            var panels = [],
-                panel = options.panel;
-            var n = panel.length,
-                i = -1,
-                nn, j;
-            var newSeries, series;
+            var canvas = this.canvas;
             var chart = this;
 
-            this.series = [];
-
-            while (++i < n) {
-                newSeries = [];
-                for (j = 0, nn = panel[i].series.length; j < nn; j++) if ((series = panel[i].series[j]).type === this.type) {
-                    newSeries.push(series);
-                    this.series = this.series.concat(series);
-                }
-                panels.push({series: newSeries});
-            }
             this.options = options;
-            this.panels = panels;
-
-            relayout(panels, options);
+            this.series = relayout(options.panels);
+            this.panels = options.panels;// 组合图options panels被重置
 
             if (canvas.nodeType === 1) {
                 this.series.forEach(function (series) {
-                    if(series.animationEnabled){
+                    if (series.animationEnabled) {
                         var image = document.createElement("canvas"),
                             context = image.getContext("2d");
                         Chart.scale(
@@ -88,7 +69,6 @@
         },
         redraw: function () {
             relayout(this.panels, true);
-            this.draw();
         },
         drawShape: function (context, shape, series) {
             var x = shape.x, y = shape.y,

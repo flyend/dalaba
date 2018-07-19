@@ -2,7 +2,7 @@
 
     var Symbol = Geometry.Symbol;
 
-    var addLayout = require("./layout").deps(Numeric);
+    var relayout = require("./layout").deps(Numeric);
 
     var extent = function (series) {
         var a, b;
@@ -36,28 +36,8 @@
 	Column.prototype = {
         constructor: Column,
 		init: function (options) {
-            var panels = [],
-                panel = options.panel;
-            var n = panel.length, i = -1, j, nn;
-
-            var newSeries = [],
-                series;
-            this.series = [];
-
-            while (++i < n) {
-                newSeries = [];
-                for (j = 0, nn = panel[i].series.length; j < nn; j++) if ((series = panel[i].series[j]).type === this.type) {
-                    newSeries.push(series);
-                    this.series = this.series.concat(series);
-                }
-                panels.push({
-                    series: newSeries
-                });
-            }
             this.options = options;//update
-            this.panels = panels;
-
-            addLayout(panels);
+            this.series = relayout(options.panels);
             this.reflow();
         },
         reflow: function () {
@@ -96,7 +76,7 @@
             });
         },
         redraw: function () {
-            addLayout(this.panels, 1);
+            relayout(this.options.panels, 1);
             this.reflow();
         },
         animateTo: function () {

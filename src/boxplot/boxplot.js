@@ -1,29 +1,9 @@
 (function (global, Chart) {
 
-    var Symbol = Geometry.Symbol;
-
     var relayout = require("./layout").deps(Numeric);
-
-    var extent = function (series) {
-        var a, b;
-        var n = series.length,
-            i = 0;
-        var l = 0,
-            r = n - 1;
-        a = series[i];
-        b = series[n - 1];
-       
-        while (++i < n) {
-            if (a.selected === false) a = series[++l];
-            if (b.selected === false) b = series[--r];
-        }
-        return [a, b];
-    };
 
     function Boxplot (canvas, options) {
         this.type = "boxplot";
-
-        this.shapes = [];
 
         this.canvas = canvas;
         this.context = canvas.getContext("2d");
@@ -33,28 +13,9 @@
 	Boxplot.prototype = {
         constructor: Boxplot,
 		init: function (options) {
-            var panels = [],
-                panel = options.panel;
-            var n = panel.length, i = -1, j, nn;
-
-            var newSeries = [],
-                series;
-            this.series = [];
-
-            while (++i < n) {
-                newSeries = [];
-                for (j = 0, nn = panel[i].series.length; j < nn; j++) if ((series = panel[i].series[j]).type === this.type) {
-                    newSeries.push(series);
-                    this.series = this.series.concat(series);
-                }
-                panels.push({
-                    series: newSeries
-                });
-            }
-            this.options = options;//update
-            this.panels = panels;
-
-            relayout(panels);
+            this.options = options;
+            this.series = relayout(options.panels);
+            this.panels = options.panels;
             this.reflow();
         },
         reflow: function () {
@@ -66,7 +27,7 @@
                 });
             });
         },
-        draw: function (initialize) {
+        draw: function () {
             var context = this.context,
                 chart = this;
             //only render
@@ -95,7 +56,7 @@
             this.reflow();
             this.draw();
         },
-        animateTo: function (initialize, isCurrented) {
+        animateTo: function () {
             var shapes = [];
             this.series.forEach(function (series) {
                 var newData = series.shapes,
@@ -477,7 +438,6 @@
                     }
                 }
             }
-            //console.log(results.length);
         }
     };
 

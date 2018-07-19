@@ -307,6 +307,7 @@
             };
         };
         return function (panels) {
+            var allseries = [];
             panels.forEach(function (pane) {
                 pane.series.forEach(function (series) {
                     var plotX, plotY, plotWidth, plotHeight;
@@ -424,7 +425,9 @@
                         }));
                     });
                 });
+                allseries = allseries.concat(pane.series);
             });
+            return allseries;
         };
     }
     return {

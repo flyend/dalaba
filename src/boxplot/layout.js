@@ -12,16 +12,16 @@
     };
     function factoy () {
         return function (panels, isResized) {
+            var allseries = [];
             panels.forEach(function (pane) {
                 pane.series.forEach(function (series, i) {
                     var plotX = pack("number", series.plotX, 0),
                         plotY = pack("number", series.plotY, 0),
                         plotWidth = pack("number", series.plotWidth, 0),
                         plotHeight = pack("number", series.plotHeight, 0);
-                    var transform = series.transform,
-                        translateX = transform.translate[0],
-                        translateY = transform.translate[1],
-                        scale = pack("number", transform.scale, 0.75);
+                    /*var transform = series.transform,
+                        translate = transform.translate,
+                        scale = pack("number", transform.scale, 0.75);*/
 
                     var yAxisOptions = series._yAxis || {},
                         xAxisOptions = series._xAxis || {},
@@ -109,11 +109,14 @@
                             x3: x3, y3: y3,// lower
                             x4: x4, y4: y4,// upper
                             index: j,
+                            name: series.name,
                             key: getKey(inverted ? yAxisOptions.categories : xAxisOptions.categories, j)
                         });
                     }
+                    allseries = allseries.concat(series);
                 });
             });
+            return allseries;
         };
     }
 

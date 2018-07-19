@@ -136,40 +136,19 @@
         this.type = "line";
         
         this.series = [];
-        this.shapes = [];
         this.init(options);
     }
     Line.prototype = {
         constructor: Line,
         init: function (options) {
             var canvas = this.canvas,
-                type = this.type,
-                animation = (options.chart || {}).animation;
-            var panels = [],
-                panel = options.panel;
-            var n = panel.length,
-                i = -1,
-                nn, j;
-            var newSeries, series;
-
-            this.series = [];
-
-            while (++i < n) {
-                newSeries = [];
-                for (j = 0, nn = panel[i].series.length; j < nn; j++) if ((series = panel[i].series[j]).type === this.type) {
-                    newSeries.push(series);
-                    this.series = this.series.concat(series);
-                }
-                panels.push({series: newSeries});
-            }
+                type = this.type;
             this.options = options;
-            this.panels = panels;
+            this.series = relayout(options.panels);
+            this.panels = options.panels;
 
-            relayout(panels, options);
-
-            if ((animation === true || (animation && animation.enabled !== false))
-                    && canvas.nodeType === 1) {
-                this.series.forEach(function (series) {
+            this.series.forEach(function (series) {
+                if (series.animationEnabled) {
                     var image = document.createElement("canvas"),
                         context = image.getContext("2d");
                     Chart.scale(
@@ -182,14 +161,12 @@
                     if (type === "area" || type === "areaspline" || type === "arearange") {
                         Renderer.area(context, series.shapes, series);
                         if (type === "arearange") {
-                            Renderer.line(context, series.shapes, series, {
-                                y: "highY"
-                            });
+                            Renderer.line(context, series.shapes, series, {y: "highY"});
                         }
                     }
                     Renderer.line(context, series.shapes, series, { y: "y" });
-                });
-            }
+                }
+            });
             this.reflow();
         },
         reflow: function () {
@@ -202,8 +179,7 @@
             });
         },
         draw: function (initialize) {
-            var context = this.context,
-                chart = this;
+            var context = this.context;
             var chart = this;
 
             if (initialize === true) {
@@ -233,11 +209,11 @@
                 });
             }
         },
-        redraw: function () {
-            relayout(this.panels, this.options);
+        redraw: function (event) {
+            relayout(this.panels, true);
             this.reflow();
         },
-        animateTo: function (initialize) {
+        animateTo: function () {
             var shapes = [];
             this.series.forEach(function (series) {
                 var newData = series.shapes,

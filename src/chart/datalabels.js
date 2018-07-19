@@ -91,6 +91,7 @@
                         position: "absolute",
                         color: options.color,
                         "white-space": "nowrap",
+                        "line-height": "100%",
                         "font-size": options.fontSize,
                         visibility: "hidden",
                         cursor: "pointer"
@@ -119,10 +120,10 @@
                         }
 
                         x = pack("number",
-                            align.call(isObject(shape.dataLabels) ? shape.dataLabels : series.dataLabels, options.align, bbox), shape.x0, shape.x, 0
+                            align.call(isObject(shape.dataLabels) ? shape.dataLabels : series.dataLabels, options.align, bbox, options), shape.x0, shape.x, 0
                         );
                         y = pack("number",
-                            vertical.call(isObject(shape.dataLabels) ? shape.dataLabels : series.dataLabels, verticalAlign, bbox), shape.y0, shape.y, 0
+                            vertical.call(isObject(shape.dataLabels) ? shape.dataLabels : series.dataLabels, verticalAlign, bbox, options), shape.y0, shape.y, 0
                         );
 
                         x = isFunction(xCallback) ? x + pack("number", xCallback.call(shape, x, bbox, shape, value, series)) : (x + options.x);
@@ -169,7 +170,7 @@
                         context.textBaseline = "alphabetic";
                         context.fillStyle = dataLabel.color;
                         context.font = dataLabel.fontStyle + " " + dataLabel.fontWeight + " " + dataLabel.fontSize + " " + fontFamily;
-                        context.translate(dataLabel.translateX, dataLabel.translateY);//  + dataLabel.height
+                        context.translate(dataLabel.translateX, dataLabel.translateY);// + dataLabel.height
                         dataLabel.rotation && context.rotate(dataLabel.angle);
                         tag.toCanvas(context);
                         context.restore();

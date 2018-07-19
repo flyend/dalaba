@@ -9,7 +9,7 @@
     var PI41 = PI / 4;
 
     var toRadian = function (v) {
-        return v * Math.PI / 180;
+        return v * PI / 180;
     };
 
     var setTransform = function (a, b, k) {
@@ -24,7 +24,7 @@
     }
     function clamp (lat) {
         return lat > PI ? lat - PI2 : lat < -PI ? lat + PI2 : lat;
-    };
+    }
     
     var Projection = {
         /**
@@ -35,7 +35,7 @@
          * -----------------------------  
         */
         mercator: function (lat, lng) {
-            return [lat, log(tan(PI / 4 + lng / 2))];
+            return [lat, log(tan(PI41 + lng / 2))];
         },
         simple: function (lat, lng) {
             var p = lat2lng(lat, lng);
@@ -191,7 +191,6 @@
                     Stream.clear();
                     Stream.point = function (p) {
                         var point = parsed._projection(p);
-
                         Stream.points.push(parsed.point(point));
                         
                         pointCaller && pointCaller.call(p, p, point);
@@ -292,6 +291,7 @@
                 projection: function (point) {
                     var lat = clamp(point[0] * PI / 180),
                         lng = point[1] * PI / 180;
+
                     return Projection.mercator(lat, lng);// [centerX + point[0] * scale, centerY - point[1] * scale];
                 }
             });

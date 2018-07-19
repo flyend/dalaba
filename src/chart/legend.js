@@ -124,44 +124,45 @@
                 verticalAlign = pack("string", options.verticalAlign, "bottom"),
                 padding = pack("number", options.padding, 0),
                 borderWidth = pack("number", options.borderWidth, 0),
+                useHTML = options.useHTML,
                // margin = pack("number", options.margin, 0),
                 width = this.width,//legend width
-                height = this.maxHeight,//legend viewport height
+                height = this.maxHeight * (useHTML !== true),//legend viewport height
                 chartWidth = pack("number", this.container.width / DEVICE_PIXEL_RATIO, width),
                 chartHeight = pack("number", this.container.height / DEVICE_PIXEL_RATIO, this.height);
 
-            if(align === "left"){
+            if (align === "left") {
                 x += borderWidth;
             }
-            else if(align === "right"){
+            else if (align === "right") {
                 x = chartWidth - width - borderWidth - padding - x;// options.width - width + padding + margin;
             }
-            else{
+            else {
                 x += (chartWidth - width) / 2;//default middle
             }
-            if(verticalAlign === "top"){
+            if (verticalAlign === "top") {
                 y += borderWidth;
             }
-            else if(verticalAlign === "middle"){
+            else if (verticalAlign === "middle") {
                 y += (chartHeight - height) / 2;
             }
-            else{
+            else {
                 y = chartHeight - height - borderWidth - y;
             }
             this.x = x, this.y = y;
         },
-        setData: function(series){
+        setData: function (series) {
             this.data = series.slice(0);
             //this.translateY = 0;
             this.setLabels();
             return this;
         },
-        setOptions: function(params){
+        setOptions: function (params) {
             extend(this.options, params);
             this.setLabels();
             return this;
         },
-        setWidth: function(width){
+        setWidth: function (width) {
             this.width = width;
             this.setLabels();
         },
@@ -224,7 +225,7 @@
                     context.restore();
                     textHeight = symbolWidth;// Math.max(symbolWidth, bbox.height);
 
-                    if(bbox.width >= itemWidth){
+                    if (bbox.width >= itemWidth) {
                         text = Text.multipText(text, itemWidth, fontStyle);
                     }
                     bbox.width = Text.measureText(text, fontStyle).width;
@@ -234,7 +235,7 @@
                         line: symbolWidth + 4
                     }[item.type] || symbolWidth) + symbolPadding;
                     //第一个除外
-                    if(count && (layout === "vertical" || ((x + width) >= options.width - padding * 2))){
+                    if (count && (layout === "vertical" || ((x + width) >= options.width - padding * 2))) {
                         nowrap = true;
                         x = padding;
                         //width -= itemDistance;
@@ -332,15 +333,16 @@
                 var bbox;
                 canvas.innerHTML = itemHTML;
                 setStyle(canvas, {
-                    overflow: "auto",
+                    //overflow: "auto",
                     "white-space": "nowrap"
                 });
                 bbox = canvas.getBoundingClientRect();
                 this.height = bbox.height;
                 this.width = bbox.width;
+                this.maxHeight = Math.min(150, this.height);
                 setStyle(canvas, {
                     left: (this.x) + linePixel.x + "px",
-                    top: this.y + "px",
+                    top: this.y - this.maxHeight + "px",
                     height: this.maxHeight + "px",
                     width: this.width + "px"
                 });

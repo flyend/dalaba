@@ -219,6 +219,7 @@
     function factoy () {
         var minRadius = 10;
         return function (panels, isResized) {
+            var allseries = [];
             panels.forEach(function (pane) {
                 pane.series.forEach(function (series) {
                     var plotX = pack("number", series.plotX, 0),
@@ -342,7 +343,9 @@
                     }
                     series.shapes.length && addDataLabels(series.shapes, series);
                 });
+                allseries = allseries.concat(pane.series);
             });
+            return allseries;
         }
     }
     return {
