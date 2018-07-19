@@ -295,6 +295,7 @@
             });
         };
         return function (panels, isResized) {
+            var allseries = [];
             panels.forEach(function (pane) {
                 pane.series.forEach(function (series) {
                     var plotX = pack("number", series.plotX),
@@ -307,7 +308,9 @@
                     series.neck === true ? neckHeight.apply(null, args) : neckWidth.apply(null, args);
                     dataLabels(series);
                 });
+                allseries = allseries.concat(pane.series);
             });
+            return allseries;
         };
     }
 

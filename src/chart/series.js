@@ -82,8 +82,15 @@
                         extend(shape, item);
                         delete shape.x;
                         delete shape.y;
-                        defined(item.x) && (shape._x = item.x);
-                        defined(item.y) && (shape._y = item.y);
+                        if (isArray(value)) {
+                            shape._x = value[0];
+                            shape._y = value[1];
+                            value = value[1];
+                        }
+                        else {
+                            defined(item.x) && (shape._x = item.x);
+                            defined(item.y) && (shape._y = item.y);
+                        }
                     }
                     else if (isArray(item)) {
                         value = defined(item[1]) ? item[1] : item[0];
@@ -201,8 +208,8 @@
                         data[start] = isObject(item) || isArray(item) ? item : {value: item};//legend data
                     }
                     else {
-                        if (type !== "diagram" && type !== "sankey")
-                            shape.name = newSeries.name;
+                        //if (type !== "diagram" && type !== "sankey")
+                        //    shape.name = newSeries.name;
                         !defined(shape.color) && (shape.color = newSeries.color);
                     }
                     shapes.push(shape);
@@ -211,6 +218,9 @@
                 newSeries.maxValue = size ? maxValue : 0;
                 newSeries.sumValue = size ? sumValue : 0;
                 return shapes;
+            },
+            getOptions: function () {
+                return this.__options__;
             },
             destroy: function () {
 

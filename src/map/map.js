@@ -7,8 +7,6 @@
     function Map (canvas, options) {
         this.type = "map";
 
-        this.series = [];
-
         this.canvas = canvas;
         this.context = canvas.getContext("2d");
         
@@ -17,23 +15,9 @@
     Map.prototype = {
         constructor: Map,
         init: function (options) {
-            var type = this.type;
-            this.options = extend({}, options);
-
-            this.series = arrayFilter(pack("array", this.options.series, []), function (item) {
-                var f = (item.type === type);
-                if (f) {
-                    var mapKey = {};
-                    item.data.forEach(function(d){
-                        if(defined(d.name)){
-                            mapKey[d.name] = d;
-                        }
-                    });
-                    item.mapKey = mapKey;
-                }
-                return f;
-            });
-            relayout(type, this.options);
+            this.options = options;
+            this.panels = options.panels;
+            this.series = relayout(this.panels);
             this.reflow();
         },
         reflow: function () {
@@ -52,10 +36,9 @@
         draw: function () {
             var context = this.context,
                 chart = this;
-              
             this.series.forEach(function (series) {
                 var shapes = series.shapes;
-                if(defined(series.mapData)){
+                if (defined(series.mapData)) {
                     shapes.forEach(function (shape) {
                         chart.drawShape(context, shape, series);
                     });
@@ -66,9 +49,9 @@
             });
         },
         redraw: function () {
-            relayout(this.type, this.options);
+            relayout(this.panels, true);
             this.reflow();
-            this.draw();
+            //this.draw();
         },
         drawShape: function (context, shape, series) {
             var borderWidth = pack("number", series.borderWidth, 0),
@@ -160,7 +143,7 @@
                         x: x,
                         y: y
                     }, shape.points)) {
-                        shape.$value = shape.isNULL ? "--" : "" + shape.value;
+                        shape.$value = shape.isNULL || !isNumber(shape.value, true) ? "--" : "" + shape.value;
                         ret.push({shape: shape, series: series});
                         shape.current = j;
                         break;

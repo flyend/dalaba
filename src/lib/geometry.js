@@ -229,7 +229,7 @@
                 var correction, ret = null;
                 x = curPoint.x;
                 y = curPoint.y;
-                if(prevPoint && nextPoint){
+                if (prevPoint && nextPoint) {
                     prevX = prevPoint.x;
                     prevY = prevPoint.y;
                     nextX = nextPoint.x;
@@ -241,44 +241,44 @@
                     rightContY = (nextY + smoothing * y) / denom;
 
                     
-                    if(inverted){
+                    if (inverted) {
                         correction = ((rightContX - leftContX) * (rightContY - y)) / (rightContY - leftContY) + x - rightContX;
                         leftContX += correction;
                         rightContX += correction;
-                        if(leftContX > prevX && leftContX > x){
+                        if (leftContX > prevX && leftContX > x) {
                             leftContX = Math.max(prevX, x);
                             rightContX = x * 2 - leftContX;
                         }
-                        else if(leftContX < prevX && leftContX < x){
+                        else if (leftContX < prevX && leftContX < x) {
                             leftContX = Math.min(prevX, x);
                             rightContX = x * 2 - leftContX;
                         }
-                        if(rightContX > nextX && rightContX > x){
+                        if (rightContX > nextX && rightContX > x) {
                             rightContX = Math.max(nextX, x);
                             leftContX = x * 2 - rightContX;
                         }
-                        else if(rightContX < nextX && rightContX < x){
+                        else if (rightContX < nextX && rightContX < x) {
                             rightContX = Math.min(nextX, x);
                             leftContX = x * 2 - rightContX;
                         }
                     }
-                    else{
+                    else {
                         correction = ((rightContY - leftContY) * (rightContX - x)) / (rightContX - leftContX) + y - rightContY;
                         leftContY += correction;
                         rightContY += correction;
-                        if(leftContY > prevY && leftContY > y){
+                        if (leftContY > prevY && leftContY > y) {
                             leftContY = Math.max(prevY, y);
                             rightContY = y * 2 - leftContY;
                         }
-                        else if(leftContY < prevY && leftContY < y){
+                        else if (leftContY < prevY && leftContY < y) {
                             leftContY = Math.min(prevY, y);
                             rightContY = y * 2 - leftContY;
                         }
-                        if(rightContY > nextY && rightContY > y){
+                        if (rightContY > nextY && rightContY > y) {
                             rightContY = Math.max(nextY, y);
                             leftContY = y * 2 - rightContY;
                         }
-                        else if(rightContY < nextY && rightContY < y){
+                        else if (rightContY < nextY && rightContY < y) {
                             rightContY = Math.min(nextY, y);
                             leftContY = y * 2 - rightContY;
                         }

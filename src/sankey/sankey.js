@@ -34,65 +34,43 @@
     Sankey.prototype = {
         constructor: Sankey,
         init: function (options) {
-            this.options = extend({}, options);
             var canvas = this.canvas;
             var chart = this;
 
-            var panels = [],
-                panel = options.panel;
-            var n = panel.length, i = -1, j, nn;
-
-            var newSeries = [],
-                series;
-            this.series = [];
-
-            while (++i < n) {
-                newSeries = [];
-                for (j = 0, nn = panel[i].series.length; j < nn; j++) if ((series = panel[i].series[j]).type === this.type) {
-                    newSeries.push(series);
-                    this.series = this.series.concat(series);
-                }
-                panels.push({
-                    series: newSeries
-                });
-            }
-            this.options = options;//update
-            this.panels = panels;
+            this.options = options;
+            this.panels = options.panels;            
+            this.series = relayout(this.panels);
             this.actived = {};
-            
-            relayout(panels);
 
-            if (canvas.nodeType === 1) {
-                this.series.forEach(function (series) {
-                    if(series.animationEnabled){
-                        var image = document.createElement("canvas"),
-                            context = image.getContext("2d");
-                        var shapes = series.shapes;
-                        var selectedShapes = [];
-                        Chart.scale(
-                            context,
-                            pack("number", series.plotWidth + series.plotX, canvas.width),
-                            pack("number", series.plotHeight + series.plotY, canvas.height),
-                            DEVICE_PIXEL_RATIO
-                        );
-                        series._image = image;
-                        shapes.forEach(function (shape) {
-                            if (shape.selected !== true) {
-                                chart.drawLink(context, shape, series);
-                            }
-                            else {
-                                selectedShapes.push(shape);
-                            }
-                        });
-                        selectedShapes.forEach(function (shape) {
+            this.series.forEach(function (series) {
+                if (series.animationEnabled && canvas.nodeType === 1) {
+                    var image = document.createElement("canvas"),
+                        context = image.getContext("2d");
+                    var shapes = series.shapes;
+                    var selectedShapes = [];
+                    Chart.scale(
+                        context,
+                        pack("number", series.plotWidth + series.plotX, canvas.width),
+                        pack("number", series.plotHeight + series.plotY, canvas.height),
+                        DEVICE_PIXEL_RATIO
+                    );
+                    series._image = image;
+                    shapes.forEach(function (shape) {
+                        if (shape.selected !== true) {
                             chart.drawLink(context, shape, series);
-                        });
-                        shapes.forEach(function(shape){
-                            chart.drawShape(context, shape, series);
-                        });
-                    }
-                });
-            }
+                        }
+                        else {
+                            selectedShapes.push(shape);
+                        }
+                    });
+                    selectedShapes.forEach(function (shape) {
+                        chart.drawLink(context, shape, series);
+                    });
+                    shapes.forEach(function(shape){
+                        chart.drawShape(context, shape, series);
+                    });
+                }
+            });
             this.reflow();
         },
         reflow: function () {
@@ -145,7 +123,6 @@
         redraw: function () {
             relayout(this.panels, true);
             this.reflow();
-            this.draw();
         },
         drawShape: function (context, shape, series) {
             var x = shape.x, y = shape.y,

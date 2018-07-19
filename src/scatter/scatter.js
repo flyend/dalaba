@@ -14,27 +14,9 @@
     Scatter.prototype = {
         constructor: Scatter,
         init: function (options) {
-            var panels = [],
-                panel = options.panel;
-            var n = panel.length, i = -1, j, nn;
-
-            var newSeries = [],
-                series;
-            this.series = [];
-
-            while (++i < n) {
-                newSeries = [];
-                for (j = 0, nn = panel[i].series.length; j < nn; j++) if ((series = panel[i].series[j]).type === this.type) {
-                    newSeries.push(series);
-                    this.series = this.series.concat(series);
-                }
-                panels.push({
-                    series: newSeries
-                });
-            }
             this.options = options;//update
-            this.panels = panels;
-            relayout(panels, false, options.series);
+            this.panels = options.panels;
+            this.series = relayout(this.panels, false, options.series);
             this.reflow();
         },
         reflow: function () {
@@ -64,7 +46,6 @@
         redraw: function () {
             relayout(this.panels, true, this.options.series);
             this.reflow();
-            this.draw();
         },
         drawShape: function (context, shape, series) {
             var borderWidth = pack("number", series.borderWidth, 0),
@@ -81,16 +62,12 @@
                 cx = shape.x,
                 cy = shape.y,
                 width, height;
-            var symbol = "circle";
+            var symbol = pack("string", marker && marker.symbol, "circle");
 
             var color = fillColor;
             //cy += radius
             width = radius;
             height = radius;
-
-            if (defined(marker) && marker.symbol) {
-                symbol = marker.symbol;
-            }
             if (shape.isNULL) {
                 return this;
             }
@@ -133,21 +110,26 @@
         },
         dataLabels: function (context, shape, series) {
             var radius = shape.radius;
-            shape.dataLabel = DataLabels.align(function (type, bbox) {
+            if (defined(shape.name)) {
+                DataLabels.value(shape.name);
+            }
+            shape.dataLabel = DataLabels.align(function (type, bbox, options) {
                 var x = shape.x;
                 var t = pack("string", type, "center");
+                var margin = 5;
                 return {
-                    left: x - bbox.width,
+                    left: x - radius - bbox.width - margin,
                     center: x - bbox.width / 2,
-                    right: x
+                    right: x + radius + margin
                 }[t];
-            }).vertical(function (type, bbox) {
+            }).vertical(function (type, bbox, options) {
                 var y = shape.y;
-                var t = pack("string", "top", type, "top");
+                var t = pack("string", type, "middle");
+                var margin = 5;
                 return {
-                    top: y,
-                    middle: y - bbox.height / 2,// start center
-                    bottom: y + radius
+                    top: y - radius - margin,
+                    middle: y + bbox.height / 2,// start center
+                    bottom: y + radius + bbox.height + margin
                 }[t];
             }).call(shape, series, context);
         },

@@ -28,6 +28,7 @@
 
     function factoy () {
         return function (panels, isResized, allseries) {
+            var allSeries = [];
             panels.forEach(function (pane) {
                 pane.series.forEach(function (series) {
                     var plotX = pack("number", series.plotX, 0),
@@ -89,6 +90,7 @@
                             x = projection([shape._x, shape._y]);
                             y = setTransform(x[1], translate[1], scale);
                             x = setTransform(x[0], translate[0], scale);
+                            shape.key = series.name;
                         }
                         else {
                             if (isArray(shape.source) && shape.source.length > 1) {
@@ -118,10 +120,9 @@
 
                                 if (inverted === true) {
                                     tickHeight = plotHeight / mathMax(1, yAxisOptions.maxLength),
-                                    center = tickHeight / 2;
                                     x = plotX + interpolate(shape.source[1], xAxisOptions.minValue, xAxisOptions.maxValue, 0, plotWidth);
                                     if (yAxisOptions.type === "categories") {
-                                        y = plotY + interpolate(shape.source[0], 0, yAxisOptions.maxLength, plotHeight, 0) - center;
+                                        y = plotY + interpolate(shape.source[0], 0, yAxisOptions.maxLength, plotHeight, 0) - tickHeight / 2;
                                     }
                                     else {
                                         y = plotY + (~-length - j) * pointHeight;
@@ -144,6 +145,9 @@
                                 ));
                                 y += plotY;
                             }
+                            shape.name = series.name;
+                            //console.log(shape.dataLabel)
+                            shape.key = getKey((inverted || yAxisOptions.type === "categories") ? yAxisOptions.categories : xAxisOptions.categories, key);
                         }
                         if (series.selected === false) {
                             radius = 0;
@@ -155,10 +159,11 @@
                         shape.x = x;
                         shape.y = y;
                         shape.radius = radius;
-                        shape.key = getKey((inverted || yAxisOptions.type === "categories") ? yAxisOptions.categories : xAxisOptions.categories, key);
                     }
                 });
+                allSeries = allSeries.concat(pane.series);
             });
+            return allSeries;
         };
     }
     return {

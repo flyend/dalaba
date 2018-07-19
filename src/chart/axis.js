@@ -80,7 +80,7 @@
         },
         week: {
             interval: 7 * ONE_DAY,
-            format: function (timestamp){
+            format: function (timestamp) {
                 var date = new Date(timestamp),
                     year = date.getFullYear(),
                     day = date.getDate(),

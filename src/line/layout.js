@@ -72,6 +72,7 @@
         }
 
         return function (panels) {
+            var allseries = [];
             panels.forEach(function (pane) {
                 var series = pane.series;
                 var newData = partition(series, function (a, b) {
@@ -264,6 +265,7 @@
                             shape.xLeft = xLeft;
                             shape.key = getKey(series, xAxisOptions, j, center / plotWidth / m, m);
                             shape.index = j;
+                            shape.name = series.name;
                             shape.prevShape = prevShape;
                         }
                     }
@@ -274,7 +276,9 @@
                         spline(item.shapes, item);
                     }
                 });
+                allseries = allseries.concat(series);
             });
+            return allseries;
         };
     }
     return {

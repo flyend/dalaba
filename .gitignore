@@ -11,4 +11,5 @@ tools/
 bin/
 build/
 gulpfile.js
+package-lock.json
 index.html

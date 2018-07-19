@@ -16,31 +16,9 @@
     Pie.prototype = {
         constructor: Pie,
         init: function (options) {
-            var type = this.type;
-            this.options = extend({}, options);
-
-            var panels = [],
-                panel = options.panel;
-            var n = panel.length, i = -1, j, nn;
-
-            var newSeries = [],
-                series;
-            this.series = [];
-
-            while (++i < n) {
-                newSeries = [];
-                for (j = 0, nn = panel[i].series.length; j < nn; j++) if ((series = panel[i].series[j]).type === this.type) {
-                    newSeries.push(series);
-                    this.series = this.series.concat(series);
-                }
-
-                panels.push({
-                    series: newSeries
-                });
-            }
-            this.options = options;//update
-            this.panels = panels;
-            relayout(panels);
+            this.options = options;
+            this.series = relayout(options.panels);
+            this.panels = options.panels;
         },
         draw: function () {
             var context = this.context;

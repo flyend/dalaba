@@ -7,16 +7,16 @@
     };
     var getData = function (item) {
         var value = item;
-        if(isObject(item)){
+        if (isObject(item)) {
             value = [item.x, item.y, item.value, item.color];
         }
-        else if(isNumber(item)){
+        else if (isNumber(item)) {
             value = [item];
         }
         return value;
     };
 
-    function factoy (Numeric) {
+    function factoy () {
         return function (panels) {
             var getXY = function (shape, f0, f1) {
                 var x, y, data, value;
@@ -35,14 +35,15 @@
                 x = x.x;
 
                 extend(shape, {
-                    x0: x - radius / 2,
-                    y0: y - radius / 2,
+                    x0: x,
+                    y0: y,
                     x1: x + radius,
                     y1: y + radius,
                     width: radius,
                     height: radius,
                     blur: series.blur,
-                    alpha: f2(value, series.minValue, series.maxValue)
+                    alpha: f2(value, series.minValue, series.maxValue),
+                    key: shape.name
                 });
             };
             var addRect = function (shape, series, f0, f1, f2) {
@@ -60,9 +61,13 @@
                     y1: y + tickHeight,
                     width: tickWidth,
                     height: tickHeight,
-                    color: f2(value, series.minValue, series.maxValue)
+                    color: f2(value, series.minValue, series.maxValue),
+                    key: shape.name
                 });
             };
+
+            var allseries = [];
+
             panels.forEach(function (pane) {
                 var series = pane.series;
                 var newData = partition(series, function (a, b) {
@@ -74,7 +79,7 @@
                             plotY = pack("number", series.plotY, 0),
                             plotWidth = pack("number", series.plotWidth, 0),
                             plotHeight = pack("number", series.plotHeight, 0);
-                        var coordinate = series.coordinate,
+                        var projection = series.projection,
                             shapes = series.shapes;
                         var xAxisOptions = series._xAxis || {},
                             yAxisOptions = series._yAxis || {},
@@ -102,16 +107,16 @@
                             tickHeight = plotHeight / ((maxY - minY) + 1);
                         
                         shapes.forEach(function (shape, i) {
-                            if (defined(coordinate) || isObject(shape.source)) {
+                            if (projection === "2d" || isObject(shape.source)) {
                                 addCircle(shape, {
                                     minValue: series.minValue,
                                     maxValue: series.maxValue,
                                     radius: pack("number", shape.radius, series.radius, 0.1),
                                     blur: pack("number", series.blur, 0.05)
                                 }, function (x) {
-                                    return xy(xAxisOptions.minValue, xAxisOptions.maxValue, 0, plotWidth)(x) + plotX;
+                                    return projection === "2d" ? x : xy(xAxisOptions.minValue, xAxisOptions.maxValue, 0, plotWidth)(x) + plotX;
                                 }, function (x) {
-                                    return xy(yAxisOptions.minValue, yAxisOptions.maxValue, 0, plotHeight)(x) + plotY;
+                                    return projection === "2d" ? x : xy(yAxisOptions.minValue, yAxisOptions.maxValue, 0, plotHeight)(x) + plotY;
                                 }, function (x, min, max) {
                                     return Math.max((x - min) / (max - min), 0.01) || 0;
                                 });
@@ -151,10 +156,16 @@
                                     });
                                 }
                             }
+                            if (series.selected === false) {
+                                shape.width = shape.height = 0;
+                            }
+                            shape.name = series.name;
                         });
                     });
                 });
+                allseries = allseries.concat(series);
             });
+            return allseries;
         };
     }
     return {

@@ -1,11 +1,6 @@
-(function (global) {
-    var mathMin = Math.min;
-    var mathMax = Math.max;
-    var MAX_VALUE = Number.MAX_VALUE;
+(function () {
 
-    var setTransform = function (a, b, k) {
-        return a + b * k;
-    };
+    var setTransform = Numeric.lerp;
 
     var setBounds = function (bounds, x, y) {
         bounds[0][0] = mathMin(bounds[0][0], x);
@@ -16,24 +11,16 @@
     };
 
     function factoy (geo, Color) {
-        return function (type, options) {
-            var defaultGeoPath = {};
-            var Path = geo.Path;
-
-            options.panel.forEach(function (pane) {
-                var series = arrayFilter(pane.series, function (series) {
-                    return series.type === type;
-                });
-                series.forEach(function (series) {
+        return function (panels, isResized) {
+            var allseries = [];
+            panels.forEach(function (pane) {
+                pane.series.forEach(function (series) {
                     var geoJson = series.mapData,
-                        geoPath = defaultGeoPath,
                         shapes = [];
                     var plotX = pack("number", series.plotX, 0),
                         plotY = pack("number", series.plotY, 0),
                         plotWidth = pack("number", series.plotWidth, 0),
-                        plotHeight = pack("number", series.plotHeight, 0),
-                        chartWidth = pack("number", series.chartWidth, plotWidth, 0),
-                        chartHeight = pack("number", series.chartHeight, plotHeight, 0);
+                        plotHeight = pack("number", series.plotHeight, 0);
 
                     var colorAxisOptions = series._colorAxis,//[series.colorAxis | 0],
                         domain = [],
@@ -45,11 +32,13 @@
                         translate = transform.translate,
                         scaleRadio = Math.max(0, pack("number", transform.scale, 0.75));
 
-                    var projection = series.projection,
+                    var projection = series.projection,//series.getOptions()
                         projectAt;
+
+                    var mapKey = {};
+
                     if (isObject(projection)) {
                         projectAt = extend({}, projection);//geoJson.cp;
-                        //projectAt.translate = [plotWidth / 2, plotHeight / 2]
                     }
                     else if (isFunction(projection)) {
                         projectAt = projection.call(series);//series.options.mapping
@@ -62,6 +51,12 @@
                         });
                         lerp = Color.lerp(domain, range, Color.interpolate);
                     }
+
+                    (series.data || []).forEach(function (d) {
+                        if (defined(d.name)) {
+                            mapKey[d.name] = d;
+                        }
+                    });
                     
                     if (defined(geoJson)) {
                         var bounds = [[MAX_VALUE, MAX_VALUE], [-MAX_VALUE, -MAX_VALUE]];
@@ -76,7 +71,6 @@
                                 cy = 0;
                             var properties = feature.properties || {};
                             var shape = {
-                                key: properties.name,
                                 name: properties.name,
                                 code: properties.code || properties.id,
                                 points: points
@@ -90,7 +84,7 @@
                                 x = setTransform(0, polygon[j = 0][0], scaleRadio);
                                 y = setTransform(0, polygon[j][1], scaleRadio);
                                 bounds = setBounds(bounds, x, y);
-                                i && points.push({x: x, y: y, isNext: true, type: feature.geometry.type});
+                                i && points.push({x: x, y: y, isNext: true});
                                 for (j = 1; j < length; j++) {
                                     point = polygon[j];
                                     x = setTransform(0, point[0], scaleRadio);
@@ -105,7 +99,7 @@
                                 }
                             });
                             if (defined(cp) && isNumber(cp[0], true) && isNumber(cp[1], true)) {
-                                cp = projected.projection(cp);
+                                cp = projected.point(projected.projection.call(projected, cp));
                                 cx = setTransform(0, cp[0], scaleRadio);
                                 cy = setTransform(0, cp[1], scaleRadio);
                             }
@@ -115,7 +109,7 @@
                                 maxY: bounds[1][1]
                             };
 
-                            var data = series.mapKey[shape.name] || series.mapKey[shape.code],
+                            var data = series.selected !== false && (mapKey[shape.name] || mapKey[shape.code]),
                                 value,
                                 color;
                             if (defined(data)) {
@@ -130,7 +124,9 @@
                             }
                             extend(shape, data);
                             shape.name = properties.name;
-                            shape.key = series.name;
+                            if (data.value !== null) {
+                                shape.key = properties.name;
+                            }
                             shape.series = series;
                             shapes.push(shape);
                         });
@@ -146,7 +142,7 @@
                             }
                         }
                         shapes.forEach(function (shape) {
-                            shape.points.forEach(function (point, i) {
+                            shape.points.forEach(function (point) {
                                 point.x += centerX;
                                 point.y += centerY;
                             });
@@ -163,15 +159,15 @@
                                     setTransform(0, p[0], scaleRadio) + centerX,
                                     setTransform(0, p[1], scaleRadio) + centerY
                                 ];
-                            },
-                            //scale: projection.scale(),
-                            //translate: projection.translate(),
-                            //center: projection.center()
+                            }
                         };
+                        series.getProjection = series.__projector__.projection;
                     }
                     series.shapes = shapes;
                 });
+                allseries = allseries.concat(pane.series);
             });
+            return allseries;
         };
     }
     return {

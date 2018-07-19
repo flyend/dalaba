@@ -18,9 +18,9 @@
 
     var addTooltip = function () {
         var timer, moving = false;
+        var prevMoving = false;
         
         function clearBuffer (chart, event) {
-            var tooltip = chart.tooltip;
             chart.render(event);//no redraw
         }
         function axisTo (chart, x, y) {
@@ -135,9 +135,10 @@
             
             clearBuffer(chart, event);
             axisTo(chart, x, y);
-            if (!moving) {
+            if (!moving && prevMoving) {
                 tooltipHide(chart, e, pos);
             }
+            prevMoving = moving;
         };
 
         var tooltipEnd = function (chart, e) {
@@ -248,8 +249,8 @@
             }
             if (globalClick) {
                 globalClick.call(points, extend({}, e, { points: points, shapes: points, moveX: x, moveY: y }));
-            }
-            chart.render(event);
+                chart.render(event);
+            }            
             chart.toolbar && chart.toolbar.onClick && chart.toolbar.onClick.call(chart.container, e);
         }
     };

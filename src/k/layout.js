@@ -2,6 +2,7 @@
 
     function factoy () {
         return function (panels, isResized) {
+            var allseries = [];
             panels.forEach(function (pane) {
                 pane.series.forEach(function (series) {
                     var plotX = pack("number", series.plotX, 0),
@@ -61,7 +62,9 @@
                         });
                     }
                 });
+                allseries = allseries.concat(pane.series);
             });
+            return allseries;
         };
     }
     return {

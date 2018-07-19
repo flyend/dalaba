@@ -37,14 +37,14 @@
             //canvas.width = canvas.height = radius * 2;
             Chart.scale(context, radius, radius, DEVICE_PIXEL_RATIO);
 
-            if(blur == 1){
+            if (blur == 1) {
                 context.fillStyle = "rgba(0,0,0,1)";
                 context.beginPath();
                 context.arc(radius / 2, radius / 2, radius / 2, 0, 2 * Math.PI, true);
                 context.closePath();
                 context.fill();
             }
-            else{
+            else {
                 var g = context.createRadialGradient(
                     radius / 2, radius / 2,//start cx & cy
                     radius / 2 * blur,//start r
@@ -78,10 +78,6 @@
                     node = nodeCache[radius];
                 
                 context.globalAlpha = shape.alpha;
-                //context.fillRect(0, 0, shadow.width, shadow.height);
-                /*context.beginPath();
-                context.arc(x + viewport.left, y + viewport.top, radius, 0, Math.PI * 2);
-                context.fill();*/
                 context.drawImage(
                     node,
                     x,
@@ -141,32 +137,10 @@
     Heatmap.prototype = {
         constructor: Heatmap,
         init: function (options) {
-            var type = this.type;
-            this.options = extend({}, options);
-
-            var panels = [],
-                panel = options.panel;
-            var n = panel.length, i = -1, j, nn;
-
-            var newSeries = [],
-                series;
-            this.series = [];
-
-            while (++i < n) {
-                newSeries = [];
-                for (j = 0, nn = panel[i].series.length; j < nn; j++) if ((series = panel[i].series[j]).type === this.type) {
-                    newSeries.push(series);
-                    this.series = this.series.concat(series);
-                }
-                panels.push({
-                    series: newSeries
-                });
-            }
-            this.options = options;//update
-            this.panels = panels;
+            this.options = options;
+            this.series = relayout(options.panels);
+            this.panels = options.panels;
             this.tables = new Array(listFill(Math.ceil(options.chart.width), []));
-            
-            relayout(panels);
             this.reflow();
         },
         reflow: function () {
@@ -182,28 +156,24 @@
         draw: function () {
             var context = this.context,
                 chart = this;
-            var options = this.options;
-            var width = options.chart.width,
-                height = options.chart.height,
-                left = options.chart.spacing[3],
-                top = options.chart.spacing[0];
-
             this.series.forEach(function (series) {
                 var shapes = series.shapes;
-                if (defined(series.coordinate) || isObject(shapes[0].source)) {
-                    var shadow = Renderer.buffer(
-                        Renderer.shadow(shapes, series, width + left, height + top),
-                        series
-                    );
-                    context.save();
-                    context.drawImage(
-                        shadow,
-                        0,
-                        0,
-                        shadow.width / DEVICE_PIXEL_RATIO,
-                        shadow.height / DEVICE_PIXEL_RATIO
-                    );
-                    context.restore();
+                if (series.projection === "2d" || shapes.length && isObject(shapes[0].source)) {
+                    if (series.selected !== false) {
+                        var shadow = Renderer.buffer(
+                            Renderer.shadow(shapes, series, series.plotX + series.plotWidth, series.plotY + series.plotHeight),
+                            series
+                        );
+                        context.save();
+                        context.drawImage(
+                            shadow,
+                            0,
+                            0,
+                            shadow.width / DEVICE_PIXEL_RATIO,
+                            shadow.height / DEVICE_PIXEL_RATIO
+                        );
+                        context.restore();
+                    }
                 }
                 else {
                     shapes.forEach(function (shape) {
@@ -218,7 +188,6 @@
         redraw: function () {
             relayout(this.panels, true);
             this.reflow();
-            this.draw();
         },
         drawShape: function (context, shape, series) {
             var x0 = shape.x0,
@@ -236,11 +205,11 @@
                 context.lineTo(x0 + borderWidth / 2, y0 + borderWidth / 2);//left
                 context.stroke();
             };
-            if(shape.value === null){
+            if (shape.value === null){
                 return;
             }
             var color = shape.color;
-            if(isObject(color) && defined(color.stops) && isArray(color.stops)){
+            if (isObject(color) && defined(color.stops) && isArray(color.stops)){
                 var linearGradient = context.createLinearGradient(Math.abs(x1 - x0), y1, Math.abs(x1 - x0), y0);
                 color.stops.forEach(function(item){
                     if(isNumber(item[0]) && typeof item[1] === "string")
@@ -259,10 +228,10 @@
             context.lineTo(x0, y0);
             //context.fillRect(x0, y0, Math.abs(x0 - x1), Math.abs(y1 - y0));
             context.fill();
-            if(defined(shape.current)){
+            if (defined(shape.current)) {
                 setBorder(series.borderWidth || 1, series.borderColor);
             }
-            if(defined(series.borderWidth) && series.borderWidth > 0){
+            if (defined(series.borderWidth) && series.borderWidth > 0) {
                 setBorder(series.borderWidth, series.borderColor);
             }
             context.restore();
@@ -301,14 +270,14 @@
             }
             //[i / M + i % N]
             //var xy = ~~(x / width + y % height);
-            if(defined(this.tables[x]) && defined(this.tables[x][y]))
+            if (defined(this.tables[x]) && defined(this.tables[x][y]))
                 return this.tables[x][y];
 
-            for(var i = 0; i < length; i++){
+            for (var i = 0; i < length; i++) {
                 item = series[i];
                 reset(shapes = item.shapes);
                 shapeLength = shapes.length;
-                for(var j = 0; j < shapeLength; j++){
+                for(var j = 0; j < shapeLength; j++) {
                     shape = shapes[j];
                     if(shape.value === null){
                         continue;
@@ -318,17 +287,17 @@
                         {x: shape.x0, y: shape.y0, width: shape.x1, height: shape.y1}
                     )){
                         shape.current = j;
-                        if(isNumber(shape._x) && isNumber(shape._y)){
+                        if (isNumber(shape._x, true) && isNumber(shape._y, true)) {
                             shape.$value = shape._x + ", " + shape._y + ", " + shape.value;
                         }
-                        else{
+                        else {
                             shape.$value = shape.value;
                         }
                         ret.push({
                             shape: shape,
                             series: item
                         });
-                        if(defined(this.tables[x]))
+                        if (defined(this.tables[x]))
                             this.tables[x][y] = ret;
                         return ret;                        
                     }
