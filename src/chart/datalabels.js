@@ -17,7 +17,7 @@
         }
 
         labels.sort(function (a, b) {
-            return (b.labelrank || 0) - (a.labelrank || 0);
+            return (b.weight || 0) - (a.weight || 0);
         });
 
         for (i = 0; i < len; i++) {
@@ -37,7 +37,7 @@
                         width: label2.width - padding,
                         height: label2.height - padding
                     })) {
-                        (label1.labelrank < label2.labelrank ? label1 : label2).newOpacity = 0;
+                        (label1.weight < label2.weight ? label1 : label2).newOpacity = 0;
                     }
                 }
             }
@@ -89,23 +89,20 @@
                     var useHTML = dataLabels.useHTML;
                     var props = {
                         position: "absolute",
-                        color: options.color,
                         "white-space": "nowrap",
                         "line-height": "100%",
                         "font-size": options.fontSize,
-                        visibility: "hidden",
-                        cursor: "pointer"
+                        visibility: "hidden"
                     };
-                    var dataLabel = {
-                        x: 0, y: 0,
-                        width: 0, height: 0,
-                        isNULL: shape.isNULL
-                    };
+                    var dataLabel;
+                    // resize series selected
+                    if (shape.dataLabel) {
+                        shape.dataLabel.visibled = series.selected !== false && options.enabled === true;
+                    }
+                    if (shape.selected !== false && options.enabled === true && defined(value)) {
+                        var tag;
 
-                    newValue = null;
-
-                    if (shape.selected !== false && series.selected !== false && options.enabled === true && defined(value)) {
-                        var tag, bbox;
+                        dataLabel = extend(shape.dataLabel, options);
                         if (useHTML === true) {
                             tag = document.createElement("div");
                             tag.innerHTML = value;
@@ -145,35 +142,43 @@
                                 y += bbox.height;
                             }
                         }
-                        dataLabel = options;
-                        dataLabel.visibled = dataLabel.allowOverlap === true || (mathCeil(x) >= mathFloor(series.plotX) && x < series.plotX + series.plotWidth && y > series.plotY && y < series.plotY + series.plotHeight);// options.visibled;
+                        dataLabel.visibled = dataLabel.visibled && (dataLabel.allowOverlap === true || (mathCeil(x) >= mathFloor(series.plotX) && x < series.plotX + series.plotWidth && y > series.plotY && y < series.plotY + series.plotHeight));// options.visibled;
                         dataLabel.value = value;
-                        dataLabel.isNULL = shape.isNULL;
                         dataLabel.angle = angle;
                         dataLabel.translateX = x, dataLabel.translateY = y;
                         dataLabel.width = bbox.width, dataLabel.height = bbox.height;
-                        if (useHTML === true) {
-                            setStyle(tag, { left: x + bbox.width / 2 * (dataLabel.align === "left") + "px", top: y - bbox.height + "px", visibility: "visible"});
-                            dataLabel.valueHTML = tag.outerHTML;
-                        }
                     }
                     newValue = undefined;
-                    return dataLabel;
                 },
                 render: function (context, dataLabel) {
                     var tag, fontFamily;
-                    if (!dataLabel.isNULL && dataLabel && dataLabel.visibled && dataLabel.useHTML !== true) {
-                        tag = Text.HTML(Text.parseHTML(dataLabel.value), context, dataLabel);
-                        fontFamily = dataLabel.fontFamily === "inherit" ? (getStyle(context.canvas, "font-family") || "Arial") : dataLabel.fontFamily;
-                        context.save();
-                        context.textAlign = "start";
-                        context.textBaseline = "alphabetic";
-                        context.fillStyle = dataLabel.color;
-                        context.font = dataLabel.fontStyle + " " + dataLabel.fontWeight + " " + dataLabel.fontSize + " " + fontFamily;
-                        context.translate(dataLabel.translateX, dataLabel.translateY);// + dataLabel.height
-                        dataLabel.rotation && context.rotate(dataLabel.angle);
-                        tag.toCanvas(context);
-                        context.restore();
+                    if (dataLabel) {
+                        if (dataLabel.useHTML === true) {
+                            setStyle(dataLabel.domLabel, {
+                                position: "absolute",
+                                color: dataLabel.color,
+                                "white-space": "nowrap",
+                                "line-height": "100%",
+                                "font-size": dataLabel.fontSize,
+                                cursor: "pointer",
+                                left: dataLabel.translateX + dataLabel.width / 2 * (dataLabel.align === "left") + "px",
+                                top: dataLabel.translateY - dataLabel.height + "px",
+                                visibility: dataLabel.visibled ? "visible" : "hidden"
+                            });
+                        }
+                        else if (dataLabel && dataLabel.visibled) {
+                            tag = Text.HTML(Text.parseHTML(dataLabel.value), context, dataLabel);
+                            fontFamily = dataLabel.fontFamily === "inherit" ? (getStyle(context.canvas, "font-family") || "Arial") : dataLabel.fontFamily;
+                            context.save();
+                            context.textAlign = "start";
+                            context.textBaseline = "alphabetic";
+                            context.fillStyle = dataLabel.color;
+                            context.font = dataLabel.fontStyle + " " + dataLabel.fontWeight + " " + dataLabel.fontSize + " " + fontFamily;
+                            context.translate(dataLabel.translateX, dataLabel.translateY);// + dataLabel.height
+                            dataLabel.rotation && context.rotate(dataLabel.angle);
+                            tag.toCanvas(context);
+                            context.restore();
+                        }
                     }
                 }
             };
@@ -198,8 +203,8 @@
                 x: isFunction(dataLabels.x) ? dataLabels.x : pack("number", shapeLabels.x, dataLabels.x, 0),
                 y: isFunction(dataLabels.y) ? dataLabels.y : pack("number", shapeLabels.y, dataLabels.y, 0),
                 useHTML: dataLabels.useHTML === true || undefined,
-                allowOverlap: dataLabels.allowOverlap,
-                visibled: true
+                allowOverlap: dataLabels.allowOverlap
+                //visibled: true
             };
         };
         labels.value = function (shape, formatter, newValue) {

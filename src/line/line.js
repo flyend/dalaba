@@ -14,7 +14,7 @@
             var step = series.step,
                 type = series.type;
             var key = options.y || "y";
-            if (series.animationEnabled && (!series.animationCompleted || series.selected !== false) && shapes.length) {
+            if (series.selectionEnabled !== false && (!series.animationCompleted || series.selected !== false) && shapes.length) {
                 context.save();
                 if (type === "spline" || type === "areaspline") {
                     Linked.spline(context, shapes, {});
@@ -193,14 +193,14 @@
                     Renderer.line(context, series.shapes, series, { y: "y" });
                 });
                 this.series.forEach(function (series) {
-                    if (series.animationEnabled && (!series.animationCompleted || series.selected !== false)) {
+                    if (series.selectionEnabled !== false && (!series.animationCompleted || series.selected !== false)) {
                         series.shapes.forEach(function (shape) {
                             DataLabels.render(context, shape.dataLabel, series);//draw data labels
                         });
                     }
                 });
                 this.series.forEach(function (series) {
-                    if (series.animationEnabled && (!series.animationCompleted || series.selected !== false)) {
+                    if (series.selectionEnabled !== false && (!series.animationCompleted || series.selected !== false)) {
                         series.shapes.forEach(function (shape) {
                             chart.drawMarker(context, shape, series, "y");//draw marker
                             Renderer.hover(context, shape, series, "y");//hover points
@@ -223,6 +223,7 @@
                 List.diff(newData, oldData, function (a, b) {
                     return a && b && a.value === b.value;
                 }).add(function (newIndex) {
+
                 }).remove(function (newIndex) {
                     var newShape = newData[newIndex];
                     var to;
@@ -244,8 +245,7 @@
                     shapes.push(newShape);
                 }).modify(function (newIndex, oldIndex) {
                     var newShape = newData[newIndex],
-                        oldShape = oldData[oldIndex],
-                        mergeShape;
+                        oldShape = oldData[oldIndex];
                     var to;
                     newShape.animate({
                         x: oldShape.x,
@@ -266,7 +266,7 @@
                         highY: newShape.highY,
                         selected: series.selected
                     });
-                    series.animationEnabled = !((series.selected === false) && (oldShape.selected === false));
+                    series.selectionEnabled = !((series.selected === false) && (oldShape.selected === false));
                     previous.push(to);
                     shapes.push(newShape);
                 }).each();
@@ -281,7 +281,7 @@
         },
         drawLabels: function (context, shape, series) {
             var radius = pack("number", (shape.marker || {}).radius, (series.marker || {}).radius, 0);
-            shape.dataLabel = DataLabels.align(function (type, bbox) {
+            DataLabels.align(function (type, bbox) {
                 var t = pack("string", type, "center"),
                     x = shape.x,
                     w = bbox.width;
@@ -373,10 +373,6 @@
                         if(defined(shape) && !shape.isNULL){
                             shape.current = shape.index;
                             result = {shape: shape, series: series};
-                            result.shape.$value = shape._value;
-                            if(series.type === "arearange"){
-                                result.shape.$value = shape.source[1] + "," + (shape._value);
-                            }
                             results.push(result);
                         }
                     }
@@ -395,10 +391,6 @@
                 if(defined(shape) && !shape.isNULL){
                     shape.current = shape.index;
                     result = {shape: shape, series: shape.series};
-                    result.shape.$value = "" + shape._value;
-                    if(shape.series.type === "arearange"){
-                        result.shape.$value = shape._value + "," + (shape.source[2]);
-                    }
                     return [result];
                 }
             }

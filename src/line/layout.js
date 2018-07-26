@@ -165,45 +165,27 @@
                                 positiveTotal = mathLog(negativeTotal, logBase);
                             }
                             if (projection === "2d" || coordinate === "xy") {//projection 2d
-                                x = interpolate.apply(null, [
-                                    isArray(shape.source) ? shape.source[0] : isObject(shape.source) ? shape._x : null,
-                                    xAxisOptions.minX, xAxisOptions.maxX, 0, plotWidth
-                                ]);
+                                x = interpolate.apply(null, [shape._x, xAxisOptions.minX, xAxisOptions.maxX, 0, plotWidth]);
                                 x += plotX + center;
-                                y = interpolate.apply(null, [
-                                    isArray(shape.source) ? shape.source[1] : isObject(shape.source) ? shape._y : null,
-                                    minValue, maxValue
-                                ].concat(reversed === true ? [0, plotHeight] : [plotHeight, 0]));
+                                y = interpolate.apply(null, [shape._y, minValue, maxValue].concat(reversed === true ? [0, plotHeight] : [plotHeight, 0]));
                                 y += plotY;
                             }
                             else {
-                                if (isArray(shape.source) && shape.source.length > 1) {
+                                if (isNumber(shape._x, true) && isNumber(shape._y, true)) {
                                     //连续性
-                                    x = j * pointWidth;// interpolate.apply(null, [shape.source[0], xAxisOptions.minValue, xAxisOptions.maxValue, 0, plotWidth]);
-                                    x += plotX;
-                                    x += center;
-                                    y = isNumber(shape.source[1]) ? interpolate.apply(null,
-                                        [shape.source[1], minValue, maxValue].concat(
+                                    x = j * pointWidth + plotX + center;
+                                    y = isNumber(shape._y) ? interpolate.apply(null,
+                                        [shape._y, minValue, maxValue].concat(
                                             reversed === true ? [0, plotHeight] : [plotHeight, 0]
                                         )
                                     ) : NaN;
                                     y += plotY;
-                                    highY = isNumber(shape.source[2]) ? interpolate.apply(null,
-                                        [shape.source[2], minValue, maxValue].concat(
+                                    highY = isNumber(shape.high) ? interpolate.apply(null,
+                                        [shape.high, minValue, maxValue].concat(
                                             reversed === true ? [0, plotHeight] : [plotHeight, 0]
                                         )
                                     ) : NaN;
                                     highY += plotY;
-                                }
-                                else if (isNumber(shape._x) && isNumber(shape._y)) {
-                                    x = plotX + j * pointWidth;//离散性
-                                    x += center;
-                                    y = interpolate.apply(null,
-                                        [shape._y, minValue, maxValue].concat(
-                                            reversed === true ? [0, plotHeight] : [plotHeight, 0]
-                                        )
-                                    );
-                                    y += plotY;
                                 }
                                 else {
                                     if (inverted) {

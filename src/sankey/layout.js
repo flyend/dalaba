@@ -81,27 +81,27 @@
                 return d.data;
             });
 
-            data.forEach(function(d, i) {
-                if(d.empty){
+            data.forEach(function (d, i) {
+                if (d.empty) {
                     links[i].target = links[i].source = sankeyIndexOf(keys, d.source);
                     links[i].empty = true;
                 }
-                else{
+                else {
                     links[i].source = sankeyIndexOf(keys, d.source);
                     links[i].target = sankeyIndexOf(keys, d.target);
                 }
             });
-            nodes.forEach(function(node){
+            nodes.forEach(function (node) {
                 node.sourceLinks = [];
                 node.targetLinks = [];
             });
-            links.forEach(function(link){
+            links.forEach(function (link) {
                 var source = link.source,
                     target = link.target;
                 if (typeof source === "number") source = link.source = nodes[source];
                 if (typeof target === "number") target = link.target = nodes[target];
 
-                if(source && target){
+                if (source && target) {
                     source.sourceLinks.push(link);
                     target.targetLinks.push(link);
                 }

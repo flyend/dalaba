@@ -239,7 +239,7 @@
         },
         dataLabels: function (context, shape, series) {
             var radius = pack("number", (shape.marker || {}).radius, (series.marker || {}).radius, 0);
-            shape.dataLabel = DataLabels.align(function (type, bbox) {
+            DataLabels.align(function (type, bbox) {
                 var t = pack("string", type, "center"),
                     //angle = shape.angle,
                     x = shape.x,

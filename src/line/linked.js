@@ -45,16 +45,10 @@
             var length = points.length,
                 i = next(points, 0, length),//[a, b-1)
                 j;
-            var point, aniattr;
+            var point;
             var x, y, moveX, moveY;
             length = back(points, i, length);//(b, a]
             point = points[i];
-            /*aniattr = point.aniattr();
-
-            if (aniattr) {
-                isNumber(aniattr.x, true) && (moveX = aniattr.x);
-                isNumber(aniattr.y, true) && (moveY = aniattr.y);
-            }*/
             context.beginPath();
             context.moveTo(moveX, moveY);
             for (; i < length; i++) {
@@ -63,13 +57,10 @@
                     j = find(points, j = i + 1, length);
                     point = points[j];
                     moveX = point.x, moveY = point.y;
-                    //aniattr = point.aniattr();
-                    //aniattr && (isNumber(aniattr.x, true) && (moveX = aniattr.x), isNumber(aniattr.y, true) && (moveY = aniattr.y));
                     context.moveTo(moveX, moveY);
                 }
                 //step(point, i, moveX, moveY);
                 x = point.x, y = point.y;
-                //(aniattr = point.aniattr()) && (isNumber(aniattr.x, true) && (x = aniattr.x), isNumber(aniattr.y, true) && (y = aniattr.y));
                 DashLine[dashStyle] && dashStyle !== "solid" ? DashLine[dashStyle](
                     context,
                     moveX, moveY,

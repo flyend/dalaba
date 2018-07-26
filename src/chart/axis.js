@@ -366,8 +366,8 @@
                         if (gridLineInterpolation === "polygon") {
                             axis.ticks.forEach(function (tick, i) {
                                 context[i ? "lineTo" : "moveTo"](
-                                    MathCos(tick.angle * PI / 180) * radius + cx,
-                                    MathSin(tick.angle * PI / 180) * radius + cy
+                                    mathCos(tick.angle * PI / 180) * radius + cx,
+                                    mathSin(tick.angle * PI / 180) * radius + cy
                                 );
                             });
                             context.closePath();

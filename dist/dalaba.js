@@ -74,7 +74,7 @@
                 return v;
             }
         }
-        return t && t[0];
+        return isFunction(type) && n > 2 ? params[~-n] : t && t[0];
     };
 
     /*
@@ -206,7 +206,7 @@
         }
         if (p && defined(neighbor)) {
             if (!isObject(neighbor)) {
-                neighbor = { dim: "x", k: 1, filter: filter, distance: distance };
+                neighbor = { dim: "x", k: 1, filter: filter, distance: distance, base: neighbor };
             }
             !defined(neighbor.dim) && (neighbor.dim = "x");
             !isNumber(neighbor.k, true) && (neighbor.k = 1);
@@ -3293,8 +3293,11 @@
                         if (isArray(newValue)) {
                             lerpArray(oldValue, newValue, timer, that[p]);
                         }
-                        else if (isNumber(newValue, true)) {
+                        else if (isNumber(newValue, true) && isNumber(oldProps[p], true)) {
                             that[p] = lerp(oldProps[p], newValue, timer);
+                        }
+                        else {
+                            that[p] = newValue;
                         }
                     }
                 }
@@ -3530,6 +3533,7 @@
             series,
             plotPoint,
             point;
+        var isSliced = false;
         var i, j;
         var callbacks = [];
 
@@ -3542,7 +3546,7 @@
                 for (j = 0; j < graphics[i].series.length; j++) if ((series = graphic.series[j]).selected !== false) {
                     plotPoint = (plotOptions[series.type] || {}).point || {};
                     points = graphic.getShape && graphic.getShape(x, y);
-                    if (points.length) {
+                    if (points && points.length) {
                         click = (series.events || {}).click || (plotPoint.events || {}).click;
                         callbacks.push([
                             !!points.length && isFunction(click),
@@ -3561,6 +3565,7 @@
                 });
                 if (shapes.length && graphic.setSliced) {
                     graphic.setSliced(shapes);
+                    isSliced = true;
                 }
             });
             event = extend({}, e, { moveX: x, moveY: y });
@@ -3570,8 +3575,8 @@
                 point.point = graphic[1][0];
                 graphic[0] && graphic[2].call(graphic[1].length === 1  ? (point || {}) : graphic[1], event);
             }
-            if (globalClick) {
-                globalClick.call(points, extend({}, e, { points: points, shapes: points, moveX: x, moveY: y }));
+            if (globalClick || isSliced) {
+                globalClick && globalClick.call(points, extend({}, e, { points: points, shapes: points, moveX: x, moveY: y }));
                 chart.render(event);
             }            
             chart.toolbar && chart.toolbar.onClick && chart.toolbar.onClick.call(chart.container, e);
@@ -4110,8 +4115,30 @@
     };
 })().deps(Arc.angle2arc);
 
-    Chart.Series = (function (global) {
-    
+    Chart.Series = /**
+ * An array of data shapes for the series
+ * 1. An array of numerical values. 
+ * @case:
+ *   data = [1, 2, 3, 4]
+ *
+ * 2. An array of numerical values.
+ * @case:
+ *   data = ['A1', 'B2', '2018Q3']. Multiple numbers using adjacent
+ *
+ * 3. An array of arrays
+ * @case:
+ *   data = [[10, 20], [5, 12]]. The first one is x and the second is y for 2d projection
+ *   data = [[1, 2, 10], [2, 3, 30]]. expressed as x, y and value
+ *
+ * 4. An array of objects with named values
+ * @case:
+ *   data = [{name: 'A', value: 1}, {name: 'B', value: 2}, {name: 'C', value: 3}, {name: 'D', value: 4}]
+ * @case:
+ *   data = [{name: 'A', value: {numeric|arrays|string}}]
+ *
+**/
+(function (global) {
+
     var clamp = function (v, max) {
         return mathMax(0, mathMax(pack("number", max, 0), pack("number", v, 0)));
     };
@@ -4120,11 +4147,224 @@
 
         var partition = List.partition;
 
-        var indexOf = List.indexOf;
+        var vaoValuer = (function () {
+    var valueOf = Numeric.valueOf;
 
-        var valueOf = Numeric.valueOf;
+    var prediction = Numeric.prediction;
 
-        var prediction = Numeric.prediction;
+    var undef = function (v) {
+        return typeof v === "undefined";
+    };
+
+    var valuer = function (value) {
+        return {
+            _x: value,
+            _y: value,
+            value: value,
+            minValue: value,
+            maxValue: value,
+            sumValue: value
+        };
+    };
+
+    var copyAt = function (keys, values) {
+        var maps = {};
+        var key, value;
+        var flag = false;
+        var i = -1,
+            n;
+        if (!isArray(keys) || !isArray(values) || (((isArray(keys) & isArray(values)) && (n = keys.length) * values.length) === 0))
+            return null;
+        while (++i < n) if (defined(key = keys[i]) && defined(value = values[i]))
+            maps[key] = value;
+
+        return flag ? null : maps;
+    };
+
+    var mergeAt = function (a, b, keys) {
+        var ret = {},
+            p;
+        for (p in a) {
+            ret[p] = a[p];
+        }
+        for (p in b) {
+            var src = ret[p],
+                copy = b[p];
+            if (src === copy || (isObject(keys) && ({}).hasOwnProperty.call(keys, p)))
+                continue;
+            if (copy !== undefined) {
+                ret[p] = copy;
+            }
+        }
+        return ret;
+    };
+
+    var reValue = function (rv, value) {
+        rv.value = rv.sumValue = rv.minValue = rv.maxValue = value;
+    };
+
+    var isNULL = function (rev) {
+        return rev && (rev.isNULL = !((isNumber(rev._x, true) && isNumber(rev._y, true)) || isNumber(rev.value, true)));
+    };
+
+    var vari = [];
+
+    function revalue (value, rules, nocopy) {
+        var rv = valuer(value);
+        var flag = false;
+        if (isNumber(value, true)) {
+            rv._x = rv._y = undefined;
+            return rv;
+        }
+        if (isObject(value)) {
+            if (isObject(value) && defined(value.value)) {
+                rv = revalue(value.value, rules, nocopy);
+                rv = mergeAt(rv, value, {value: true});
+            }
+            else {
+                rv = mergeAt(rv, value, {value: true});// candlestick chart
+            }
+            !undef(value.x) && (rv._x = value.x, reValue(rv, undefined), flag = true);
+            !undef(value.y) && (rv._y = value.y, reValue(rv, undefined), flag = true);
+            isNumber(value.value, true) && (reValue(rv, value.value), flag = true);
+            return flag ? rv : null;
+        }
+        else if (isString(value)) {
+            rv._x = rv._y = undefined;
+            reValue(rv, valueOf(value, vari.length ? vari.length > 2 ? prediction(vari.slice(-10)) : vari[0] : 0));
+            return rv;
+        }
+        else if (isArray(value)) {
+            // TODO [x, value]
+            rv._x = value[0], rv._y = value[1];
+            rv.value = rv.sumValue = rv.minValue = rv.maxValue = pack(function (d) {
+                return isNumber(d, true);
+            }, value[2], value[1], undefined);// value.length > 2 ? value[2] : undefined;
+            return extend(rv, copyAt(rules, nocopy === true ? value : value.slice(3)));
+        }
+        return null;
+    }
+
+    /**
+     * 1. reset value
+     * 2. setting tooltip value
+     * 3. validate shape is null
+    **/
+    return {
+        var: function (_) {
+            vari = _;
+        },
+        line: function (data) {
+            var rev = revalue(data);
+            isNULL(rev);
+            rev && !rev.isNULL && ((isNumber(rev._y, true) && !isNumber(rev.value, true) && (reValue(rev, rev._y))), rev["$value"] = rev.value);
+            return rev;
+        },
+        spline: function (data) {
+            return this.line(data);
+        },
+        area: function (data) {
+            return this.line(data);
+        },
+        areaspline: function (data) {
+            return this.line(data);
+        },
+        radar: function (data) {
+            return this.line(data);
+        },
+        scatter: function (data) {
+            var rules = ["name", "color"];
+            var rev = revalue(data, rules);
+            rev && (isNumber(rev._x, true) && isNumber(rev._y, true) ? (rev["$value"] = rev._x + "," + rev._y) : (isNumber(rev._y, true) || isNumber(rev.value, true) && (rev["$value"] = pack("string", rev.value, rev._y))));
+            isNULL(rev);
+            return rev;
+        },
+        column: function (data) {
+            var rev = revalue(data, ["name", "color"]);
+            if (rev) {
+                isNULL(rev);
+                isNumber(rev._y, true) && !isNumber(rev.value, true) && (reValue(rev, rev._y)); //no projection
+                !rev.isNULL && (rev["$value"] = rev.value);
+            }
+            return rev;
+        },
+        bar: function (data) {
+            return this.column(data);
+        },
+        candlestick: function (data) {
+            var rev = revalue(data, ["open", "close", "high", "low"], true);// {open[0], close[1], high[2], low[3]}
+            if (rev) {
+                isNumber(rev.high, true) && (rev.value = rev.high);
+                isNumber(rev.low, true) && (rev.minValue = rev.low);
+                !(rev.isNULL = !(isNumber(rev.open, true) && isNumber(rev.close, true)
+                    && isNumber(rev.high, true) && isNumber(rev.low))) && (rev["$value"] = [
+                        "<br>",
+                        "open: " + rev.open + "<br>",
+                        "close: " + rev.close + "<br>",
+                        "low: " + rev.low + "<br>",
+                        "high: " + rev.high + "<br>"
+                    ].join(""));
+            }
+            return rev;
+        },
+        boxplot: function (data) {
+            var rev = revalue(data, ["low", "q1", "median", "q3", "high"], true);// the values correspond to x,low,q1,median,q3,high
+            if (rev) {
+                isNumber(rev.low, true) && (rev.minValue = rev.low);
+                isNumber(rev.high, true) && (rev.value = rev.maxValue = rev.high);
+                !(rev.isNULL = !(isNumber(rev.low, true) && isNumber(rev.q1, true)
+                    && isNumber(rev.median, true) && isNumber(rev.q3) && isNumber(rev.high))) && (rev["$value"] = [
+                        "<br>",
+                        "upper: " + rev.high + "<br>",
+                        "Q3: " + rev.q3 + "<br>",
+                        "median: " + rev.median + "<br>",
+                        "q1: " + rev.q1 + "<br>",
+                        "lower: " + rev.low + "<br>"
+                    ].join(""));
+            }
+            return rev;
+        },
+        arearange: function (data) {
+            var rev = revalue(data, ["_x", "low", "high"], true);
+            if (rev) {
+                isNumber(rev.low, true) && (rev.minValue = rev.low);
+                isNULL(rev);
+                !rev.isNULL && (rev["$value"] = rev.low + "," + rev.high);
+            }
+            return rev;
+        },
+        heatmap: function (data) {
+            var rev = revalue(data);
+            return rev;
+        },
+        pie: function (data, color) {
+            var rev = revalue(data, ["name", "value", "color"], true);
+            if (rev) {
+                rev.isNULL = !(isNumber(rev._y, true) || isNumber(rev.value, true));
+                !rev.isNULL && (isNumber(rev._y, true) && !isNumber(rev.value, true) && (reValue(rev, rev._y)), rev["$value"] = rev.value);
+                !defined(rev.name) && (rev.name = rev.value); // init name
+                !defined(rev.color) && defined(color) && (rev.color = color);
+            }
+            return rev;
+        },
+        funnel: function (data, color) {
+            return this.pie(data, color);
+        },
+        sankey: function (data) {
+            var rev = revalue(data);
+            if (rev) {
+                rev.isNULL = !defined(data.source) && !defined(data.target);
+            }
+            return rev;
+        },
+        diagram: function (data) {
+            return this.sankey(data);
+        },
+        map: function (data) {
+            return this.pie(data);
+        }
+    };
+})();;
 
         function Series (series, options) {
             this.options = options;
@@ -4160,7 +4400,6 @@
                 var type = this.type;
                 var length = data.length,
                     i = 0;
-                var isNULL = false;
 
                 var newSeries = this;
 
@@ -4174,10 +4413,15 @@
                 if (size = (end - start)) for (; start < end; start++, i++) {
                     item = data[start];
                     value = item;
-                    shape = {
-                        series: newSeries,
-                        source: item
-                    };
+                    vaoValuer.var(vari);
+                    
+                    var valuer = vaoValuer[type] ? (vaoValuer[type](value, colors[i % colors.length]) || {isNULL: !0, value: null}) : isNumber(value, true) ? {value: value, isNULL: !1} : {isNULL: !0, value: null};
+                    shape = valuer;
+                    shape.series = newSeries;
+                    shape._source = item;
+                    //console.log(valuer)
+
+                    value = shape.value;
                     if (newSeries.animationEnabled !== false) {
                         shape.duration = newSeries.animationDuration;
                         shape.easing = newSeries.animationEasing;
@@ -4185,145 +4429,24 @@
                         else if (isNumber(animationDelay)) shape.delay = animationDelay;
                         else shape.delay = isFunction(newSeries.delay) ? newSeries.delay.call(item, i) : newSeries.delay;
                     }
-
-                    if (isObject(item)) {
-                        value = defined(item.value) ? item.value : item.y;
-                        if (type === "arearange" && defined(item.high)) {
-                            value = item.high;
-                        }
-                        extend(shape, item);
-                        delete shape.x;
-                        delete shape.y;
-                        if (isArray(value)) {
-                            shape._x = value[0];
-                            shape._y = value[1];
-                            value = value[1];
-                        }
-                        else {
-                            defined(item.x) && (shape._x = item.x);
-                            defined(item.y) && (shape._y = item.y);
-                        }
-                    }
-                    else if (isArray(item)) {
-                        value = defined(item[1]) ? item[1] : item[0];
-                        //series.value()
-                        if (type === "arearange" || isNumber(item[2], true)) {
-                            value = isNumber(item[2], true) ? item[2] : item[1];
-                        }
-                        else if (type === "heatmap") {
-                            value = item[2];
-                        }
-                        extend(shape, {
-                            _x: item[0],
-                            _y: item[1]
-                        });
-                    }
-                    var svalue = value,
-                        $value = svalue;
-                    if (isString(value)) {
-                        value = valueOf(svalue = value, vari.length ? vari.length > 2 ? prediction(vari.slice(-10)) : vari[0] : 0);
-                    }
-                    
-                    if (!isNumber(value, true)) {
-                        value = svalue = null;
-                        $value = "--";
-                    }
-                    if (isNumber(value, true)) {
-                        minValue = mathMin(minValue, value);
-                        maxValue = mathMax(maxValue, value);
-                        item.selected !== false && (sumValue += value);
+                    if (/*item.selected !== false && */isNumber(value, true)) {
+                        sumValue += valuer.sumValue;
+                        minValue = mathMin(minValue, valuer.minValue);
+                        maxValue = mathMax(maxValue, valuer.maxValue);
                         vari.push(value);
                     }
-                    isNULL = value === null;
-                    if (type === "candlestick") {
-                        (isNULL = !(
-                            isObject(shape) &&
-                            isNumber(shape.open, true) &&
-                            isNumber(shape.close, true) &&
-                            isNumber(shape.low, true) &&
-                            isNumber(shape.high, true)
-                        )) || ($value = [
-                            "<br>",
-                            "open: " + shape.open + "<br>",
-                            "close: " + shape.close + "<br>",
-                            "low: " + shape.low + "<br>",
-                            "high: " + shape.high + "<br>"
-                        ].join(""));
-                        isNULL && ((isNULL = !(
-                            isArray(item) &&
-                            isNumber(item[0], true) &&
-                            isNumber(item[1], true) &&
-                            isNumber(item[2], true) &&
-                            isNumber(item[3], true)
-                        )) || ($value = [
-                            "<br>",
-                            "open: " + item[0] + "<br>",
-                            "close: " + item[1] + "<br>",
-                            "low: " + item[2]+ "<br>",
-                            "high: " + item[3] + "<br>"
-                        ].join("")));
-                        if (!isNULL) {
-                            minValue = mathMin(minValue, pack("number", item[2], shape.low, minValue));
-                            maxValue = mathMax(maxValue, pack("number", item[3], shape.high, maxValue));
-                        }
-                    }
-                    if (type === "boxplot") {
-                        (isNULL = isNULL || !(
-                            isObject(shape) &&
-                            isNumber(shape.upper, true) &&
-                            isNumber(shape.q3, true) &&
-                            isNumber(shape.median, true) &&
-                            isNumber(shape.q1, true) && 
-                            isNumber(shape.lower, true)
-                        )) || ($value = [
-                            "<br>",
-                            "upper: " + shape.upper + "<br>",
-                            "Q3: " + shape.q3 + "<br>",
-                            "median: " + shape.median + "<br>",
-                            "q1: " + shape.q1 + "<br>",
-                            "lower: " + shape.lower + "<br>"
-                        ].join(""));
-                        isNULL && ((isNULL = !(
-                            isArray(item) &&
-                            isNumber(item[0], true) &&
-                            isNumber(item[1], true) &&
-                            isNumber(item[2], true) &&
-                            isNumber(item[3], true)
-                        )) || ($value = [
-                            "<br>",
-                            "upper: " + item[4] + "<br>",
-                            "Q3: " + item[3] + "<br>",
-                            "median: " + item[2]+ "<br>",
-                            "Q1: " + item[1] + "<br>",
-                            "lower: " + item[0] + "<br>"
-                        ].join("")));
-                        if (!isNULL) {
-                            minValue = mathMin(minValue, pack("number", item[0], shape.lower, minValue));
-                            maxValue = mathMax(maxValue, pack("number", item[4], shape.upper, maxValue));
-                        }
-                    }
-                    if (type === "arearange") {
-                        minValue = mathMin(minValue, pack("number", item[0], minValue));
-                        maxValue = mathMax(maxValue, pack("number", item[1], maxValue));
-                    }
-                    
-                    shape._value = svalue;//show value
-                    shape.value = value;//cal value
-                    shape.$value = $value;//tooltip value
-                    shape.isNULL = isNULL;
-                    shape.dataLabel = {};
+                    shape._value = value;//show value
+                    //shape.value = value;//cal value
+                    //shape.$value = $value;//tooltip value
+                    shape.dataLabel = {
+                        visibled: true, // show or hide
+                        value: shape.name // data name
+                    };
                     shape.__proto__ = new Animate();
                     
-                    if (!!~(indexOf(["pie", "funnel", "venn"], type))) {
-                        !defined(shape.name) && (shape.name = svalue);
-                        !defined(shape.color) && (shape.color = colors[i % colors.length]);
-                        data[start] = isObject(item) || isArray(item) ? item : {value: item};//legend data
-                    }
-                    else {
-                        //if (type !== "diagram" && type !== "sankey")
-                        //    shape.name = newSeries.name;
-                        !defined(shape.color) && (shape.color = newSeries.color);
-                    }
+                    //data[start] = isObject(item) || isArray(item) ? item : {value: item};//legend data
+                    
+                    !defined(shape.color) && (shape.color = newSeries.color);
                     shapes.push(shape);
                 }
                 newSeries.minValue = size ? minValue : 0;
@@ -4778,7 +4901,7 @@ var DataLabels = (function () {
         }
 
         labels.sort(function (a, b) {
-            return (b.labelrank || 0) - (a.labelrank || 0);
+            return (b.weight || 0) - (a.weight || 0);
         });
 
         for (i = 0; i < len; i++) {
@@ -4798,7 +4921,7 @@ var DataLabels = (function () {
                         width: label2.width - padding,
                         height: label2.height - padding
                     })) {
-                        (label1.labelrank < label2.labelrank ? label1 : label2).newOpacity = 0;
+                        (label1.weight < label2.weight ? label1 : label2).newOpacity = 0;
                     }
                 }
             }
@@ -4850,23 +4973,20 @@ var DataLabels = (function () {
                     var useHTML = dataLabels.useHTML;
                     var props = {
                         position: "absolute",
-                        color: options.color,
                         "white-space": "nowrap",
                         "line-height": "100%",
                         "font-size": options.fontSize,
-                        visibility: "hidden",
-                        cursor: "pointer"
+                        visibility: "hidden"
                     };
-                    var dataLabel = {
-                        x: 0, y: 0,
-                        width: 0, height: 0,
-                        isNULL: shape.isNULL
-                    };
+                    var dataLabel;
+                    // resize series selected
+                    if (shape.dataLabel) {
+                        shape.dataLabel.visibled = series.selected !== false && options.enabled === true;
+                    }
+                    if (shape.selected !== false && options.enabled === true && defined(value)) {
+                        var tag;
 
-                    newValue = null;
-
-                    if (shape.selected !== false && series.selected !== false && options.enabled === true && defined(value)) {
-                        var tag, bbox;
+                        dataLabel = extend(shape.dataLabel, options);
                         if (useHTML === true) {
                             tag = document.createElement("div");
                             tag.innerHTML = value;
@@ -4906,35 +5026,43 @@ var DataLabels = (function () {
                                 y += bbox.height;
                             }
                         }
-                        dataLabel = options;
-                        dataLabel.visibled = dataLabel.allowOverlap === true || (mathCeil(x) >= mathFloor(series.plotX) && x < series.plotX + series.plotWidth && y > series.plotY && y < series.plotY + series.plotHeight);// options.visibled;
+                        dataLabel.visibled = dataLabel.visibled && (dataLabel.allowOverlap === true || (mathCeil(x) >= mathFloor(series.plotX) && x < series.plotX + series.plotWidth && y > series.plotY && y < series.plotY + series.plotHeight));// options.visibled;
                         dataLabel.value = value;
-                        dataLabel.isNULL = shape.isNULL;
                         dataLabel.angle = angle;
                         dataLabel.translateX = x, dataLabel.translateY = y;
                         dataLabel.width = bbox.width, dataLabel.height = bbox.height;
-                        if (useHTML === true) {
-                            setStyle(tag, { left: x + bbox.width / 2 * (dataLabel.align === "left") + "px", top: y - bbox.height + "px", visibility: "visible"});
-                            dataLabel.valueHTML = tag.outerHTML;
-                        }
                     }
                     newValue = undefined;
-                    return dataLabel;
                 },
                 render: function (context, dataLabel) {
                     var tag, fontFamily;
-                    if (!dataLabel.isNULL && dataLabel && dataLabel.visibled && dataLabel.useHTML !== true) {
-                        tag = Text.HTML(Text.parseHTML(dataLabel.value), context, dataLabel);
-                        fontFamily = dataLabel.fontFamily === "inherit" ? (getStyle(context.canvas, "font-family") || "Arial") : dataLabel.fontFamily;
-                        context.save();
-                        context.textAlign = "start";
-                        context.textBaseline = "alphabetic";
-                        context.fillStyle = dataLabel.color;
-                        context.font = dataLabel.fontStyle + " " + dataLabel.fontWeight + " " + dataLabel.fontSize + " " + fontFamily;
-                        context.translate(dataLabel.translateX, dataLabel.translateY);// + dataLabel.height
-                        dataLabel.rotation && context.rotate(dataLabel.angle);
-                        tag.toCanvas(context);
-                        context.restore();
+                    if (dataLabel) {
+                        if (dataLabel.useHTML === true) {
+                            setStyle(dataLabel.domLabel, {
+                                position: "absolute",
+                                color: dataLabel.color,
+                                "white-space": "nowrap",
+                                "line-height": "100%",
+                                "font-size": dataLabel.fontSize,
+                                cursor: "pointer",
+                                left: dataLabel.translateX + dataLabel.width / 2 * (dataLabel.align === "left") + "px",
+                                top: dataLabel.translateY - dataLabel.height + "px",
+                                visibility: dataLabel.visibled ? "visible" : "hidden"
+                            });
+                        }
+                        else if (dataLabel && dataLabel.visibled) {
+                            tag = Text.HTML(Text.parseHTML(dataLabel.value), context, dataLabel);
+                            fontFamily = dataLabel.fontFamily === "inherit" ? (getStyle(context.canvas, "font-family") || "Arial") : dataLabel.fontFamily;
+                            context.save();
+                            context.textAlign = "start";
+                            context.textBaseline = "alphabetic";
+                            context.fillStyle = dataLabel.color;
+                            context.font = dataLabel.fontStyle + " " + dataLabel.fontWeight + " " + dataLabel.fontSize + " " + fontFamily;
+                            context.translate(dataLabel.translateX, dataLabel.translateY);// + dataLabel.height
+                            dataLabel.rotation && context.rotate(dataLabel.angle);
+                            tag.toCanvas(context);
+                            context.restore();
+                        }
                     }
                 }
             };
@@ -4959,8 +5087,8 @@ var DataLabels = (function () {
                 x: isFunction(dataLabels.x) ? dataLabels.x : pack("number", shapeLabels.x, dataLabels.x, 0),
                 y: isFunction(dataLabels.y) ? dataLabels.y : pack("number", shapeLabels.y, dataLabels.y, 0),
                 useHTML: dataLabels.useHTML === true || undefined,
-                allowOverlap: dataLabels.allowOverlap,
-                visibled: true
+                allowOverlap: dataLabels.allowOverlap
+                //visibled: true
             };
         };
         labels.value = function (shape, formatter, newValue) {
@@ -5647,7 +5775,7 @@ var DataLabels = (function () {
         };
 
         this.globalHTML = {
-            dataLabels: null
+            dataLabels: []
         };
     }, chartProto;
 
@@ -6298,8 +6426,10 @@ var DataLabels = (function () {
             var Tooltip = Dalaba.Chart.Tooltip;
 
             if (defined(Tooltip) && tooltipOptions.enabled !== false) {
-                Comparative(panel, this.panel).update(function (d) {
-                    d.tooltip = new Tooltip(chart.addLayer(tooltipOptions.layer), tooltipOptions);
+                Comparative(panel, this.panel).update(function (d, _, i) {
+                    if (defined(chart.series[i])) {
+                        d.tooltip = new Tooltip(chart.addLayer(tooltipOptions.layer), tooltipOptions);
+                    }
                 }, function (d) {
                     if (d.tooltip) {
                         d.tooltip.destroy(true);
@@ -6607,7 +6737,13 @@ var DataLabels = (function () {
         },
         redraw: function (event) {
             this.linkAxis();
-            this.addOverlap();
+            if (event.type === "selected") {
+                this.addPlotSeries();
+                this.charts.forEach(function (graphic) {
+                    graphic.redraw(event);
+                });
+            }
+            DataLabels.overlapping(this.globalHTML.dataLabels);
             this.render(event);
         },
         render: function (event) {
@@ -6736,9 +6872,9 @@ var DataLabels = (function () {
                         }
                     }
                     curPanel.tooltip.draw();
-                    
+
                     panels.forEach(function (pane) {
-                        pane.tooltip.draw();
+                        pane.tooltip && pane.tooltip.draw();
                     });
                 }
                 //no moving
@@ -6837,12 +6973,6 @@ var DataLabels = (function () {
             else {
                 if (event.type === "update" || event.type === "selected") {
                     var noAnimationCharts, animationCharts = filterNotAnimation(charts, noAnimationCharts = []);
-                    if (event.type === "selected") {
-                        chart.addPlotSeries();
-                        charts.forEach(function (graphic) {
-                            graphic.redraw();
-                        });
-                    }
                     if (noAnimationCharts.length) {
                         paintComponent(noAnimationCharts);
                     }
@@ -6897,68 +7027,50 @@ var DataLabels = (function () {
         },
         addOverlap: function () {
             var labels = [];
-            var useHTML;
             var container = this.container;
-            var domDataLabels = [],
-                domLabel;
 
-            var labelPoints = function (shape, dataLabel, labels, points) {
+            var labelPoints = function (shape, dataLabel, labels, domLabel) {
+                var label;
                 if (dataLabel) {
                     dataLabel.placed = true;
-                    dataLabel.labelrank = shape.labelrank || dataLabel.height;
+                    dataLabel.weight = shape.weight || dataLabel.height;
+                    if (dataLabel.useHTML === true && domLabel) {
+                        label = document.createElement("div");
+                        domLabel.appendChild(label);
+                        label.innerHTML = dataLabel.value;
+                        dataLabel.domLabel = label;
+                    }
                     dataLabel.allowOverlap !== true && labels.push(dataLabel);
-                    dataLabel.useHTML === true && points.push(dataLabel);
                 }
             };
 
-            while (domLabel = (this.globalHTML.dataLabels || []).pop()) {
-                container.removeChild(domLabel);
-            }
+            this.series.forEach(function (series) {
+                series.domLabel && container.removeChild(series.domLabel);
+            });
 
             this.series.forEach(function (series) {
                 var dataLabels = series.dataLabels;
-                var pointHTML = [];
+                var domLabel;
                 if (defined(dataLabels) && dataLabels.enabled !== false) {
-                    useHTML = useHTML || dataLabels.useHTML === true;
+                    if (dataLabels.useHTML === true) {
+                        domLabel = document.createElement("div");
+                        isString(dataLabels.className) && setAttribute(domLabel, { "class": dataLabels.className});
+                        container.appendChild(domLabel);
+                        series.domLabel = domLabel;
+                    }
                     series.shapes.forEach(function (shape) {
                         var boxDataLabels = shape.boxDataLabels;
                         if (isArray(boxDataLabels)) {
                             boxDataLabels.forEach(function (dataLabel) {
-                                labelPoints(shape, dataLabel, labels, pointHTML);
+                                labelPoints(shape, dataLabel, labels, series.domLabel);
                             });
                         }
-                        labelPoints(shape, shape.dataLabel, labels, pointHTML);
+                        labelPoints(shape, shape.dataLabel, labels, series.domLabel);
                     });
-                    if (useHTML) {
-                        domLabel = document.createElement("div");
-                        isString(dataLabels.className) && setAttribute(domLabel, { "class": dataLabels.className});
-                        setStyle(domLabel, {
-                            position: "absolute",
-                            top: "0px",
-                            left: "0px"
-                        });
-                        container.appendChild(domLabel);
-                        domDataLabels.push({
-                            dom: domLabel,
-                            labels: pointHTML
-                        });
-                    }
                 }
             });
-            this.globalHTML.dataLabels = domDataLabels.map(function (d) { return d.dom; });
+            this.globalHTML.dataLabels = labels;
             DataLabels.overlapping(labels); // global checked
-            if (domDataLabels.length) {
-                domDataLabels.forEach(function (item) {
-                    var domHTML = [];
-                    item.labels.forEach(function (dataLabel) {
-                        if (dataLabel.visibled !== false && defined(dataLabel.valueHTML)) {
-                            domHTML.push(dataLabel.valueHTML);
-                        }
-                    });
-                    item.dom.innerHTML = domHTML.join("");
-                    domHTML = null;
-                });
-            }
         },
         getViewport: function () {
             var options = this.options,
@@ -7084,7 +7196,7 @@ var DataLabels = (function () {
             var chart = this;
             extend(this.options, options);
 
-            var execute = function(type, axisOptions) {
+            var execute = function (type, axisOptions) {
                 var oldAxis = chart[type];
                 axisOptions = pack("array", axisOptions, [axisOptions]);
                 Comparative(axisOptions, oldAxis).update(function (item) {
@@ -7106,7 +7218,7 @@ var DataLabels = (function () {
                     axis._options = item;
                 });
                 //reset index
-                oldAxis.forEach(function(axis, i){
+                oldAxis.forEach(function (axis, i) {
                     axis.index = i;
                 });
             };
@@ -7122,17 +7234,19 @@ var DataLabels = (function () {
                     return (defined(a.id) && defined(b.id) && a.id === b.id) || (a.name === b.name && a.type === b.type);
                 }).modify(function (newIndex, oldIndex) {
                     var newSeries, oldSeries;
+                    var mergeSeries;
                     oldSeries = chart.series[oldIndex];
-                    newSeries = seriesOptions[newIndex];
-                    newSeries.used = true;
-                    oldSeries.update(newSeries, false);
+                    newSeries = chart.series[newIndex];
+                    mergeSeries = seriesOptions[newIndex];
+                    mergeSeries.used = true;
+                    oldSeries.update(mergeSeries, false);
+                    //oldSeries._shapes = [];//newSeries._shapes;// oldSeries._shapes.slice(0, newSeries.shapes.length);
                     series.push(oldSeries);
                 }).each();
                 seriesOptions.forEach(function (item, i) {
                     var newSeries;
                     if(!item.used){
                         newSeries = chart.addSeries(item, i);
-                        newSeries._diffValues = [];
                         series.push(newSeries);
                         delete item.used;
                     }
@@ -7203,9 +7317,9 @@ var DataLabels = (function () {
             this.addPlotSeries();
 
             this.charts.forEach(function (graphic) {
-                graphic.redraw();
+                graphic.redraw(event);
             });
-            this.addOverlap();
+            DataLabels.overlapping(this.globalHTML.dataLabels); // global checked
 
             event !== null && chart.render(event);
         },
@@ -8449,7 +8563,7 @@ var DataLabels = (function () {
                 useHTML = options.useHTML,
                // margin = pack("number", options.margin, 0),
                 width = this.width,//legend width
-                height = this.maxHeight * (useHTML !== true),//legend viewport height
+                height = this.maxHeight,// * (useHTML !== true),//legend viewport height
                 chartWidth = pack("number", this.container.width / DEVICE_PIXEL_RATIO, width),
                 chartHeight = pack("number", this.container.height / DEVICE_PIXEL_RATIO, this.height);
 
@@ -8469,7 +8583,7 @@ var DataLabels = (function () {
                 y += (chartHeight - height) / 2;
             }
             else {
-                y = chartHeight - height - borderWidth - y;
+                y = chartHeight - height - (borderWidth * 2) - (y * (useHTML !== true));
             }
             this.x = x, this.y = y;
         },
@@ -8650,22 +8764,21 @@ var DataLabels = (function () {
             this.translate();
 
             linePixel = fixLinePixel(0, 0, this.width + (this.height > this.maxHeight) * 15, this.maxHeight - borderWidth, borderWidth);
-
             if (useHTML === true && itemHTML.length) {
                 var bbox;
                 canvas.innerHTML = itemHTML;
                 setStyle(canvas, {
-                    //overflow: "auto",
+                    overflow: "auto",
+                    height: this.maxHeight + "px",
                     "white-space": "nowrap"
                 });
                 bbox = canvas.getBoundingClientRect();
                 this.height = bbox.height;
                 this.width = bbox.width;
-                this.maxHeight = Math.min(150, this.height);
+
                 setStyle(canvas, {
                     left: (this.x) + linePixel.x + "px",
-                    top: this.y - this.maxHeight + "px",
-                    height: this.maxHeight + "px",
+                    top: this.y + "px",
                     width: this.width + "px"
                 });
             }
@@ -9493,8 +9606,8 @@ var DataLabels = (function () {
                         if (gridLineInterpolation === "polygon") {
                             axis.ticks.forEach(function (tick, i) {
                                 context[i ? "lineTo" : "moveTo"](
-                                    MathCos(tick.angle * PI / 180) * radius + cx,
-                                    MathSin(tick.angle * PI / 180) * radius + cy
+                                    mathCos(tick.angle * PI / 180) * radius + cx,
+                                    mathSin(tick.angle * PI / 180) * radius + cy
                                 );
                             });
                             context.closePath();
@@ -12166,45 +12279,27 @@ var DataLabels = (function () {
                                 positiveTotal = mathLog(negativeTotal, logBase);
                             }
                             if (projection === "2d" || coordinate === "xy") {//projection 2d
-                                x = interpolate.apply(null, [
-                                    isArray(shape.source) ? shape.source[0] : isObject(shape.source) ? shape._x : null,
-                                    xAxisOptions.minX, xAxisOptions.maxX, 0, plotWidth
-                                ]);
+                                x = interpolate.apply(null, [shape._x, xAxisOptions.minX, xAxisOptions.maxX, 0, plotWidth]);
                                 x += plotX + center;
-                                y = interpolate.apply(null, [
-                                    isArray(shape.source) ? shape.source[1] : isObject(shape.source) ? shape._y : null,
-                                    minValue, maxValue
-                                ].concat(reversed === true ? [0, plotHeight] : [plotHeight, 0]));
+                                y = interpolate.apply(null, [shape._y, minValue, maxValue].concat(reversed === true ? [0, plotHeight] : [plotHeight, 0]));
                                 y += plotY;
                             }
                             else {
-                                if (isArray(shape.source) && shape.source.length > 1) {
+                                if (isNumber(shape._x, true) && isNumber(shape._y, true)) {
                                     //连续性
-                                    x = j * pointWidth;// interpolate.apply(null, [shape.source[0], xAxisOptions.minValue, xAxisOptions.maxValue, 0, plotWidth]);
-                                    x += plotX;
-                                    x += center;
-                                    y = isNumber(shape.source[1]) ? interpolate.apply(null,
-                                        [shape.source[1], minValue, maxValue].concat(
+                                    x = j * pointWidth + plotX + center;
+                                    y = isNumber(shape._y) ? interpolate.apply(null,
+                                        [shape._y, minValue, maxValue].concat(
                                             reversed === true ? [0, plotHeight] : [plotHeight, 0]
                                         )
                                     ) : NaN;
                                     y += plotY;
-                                    highY = isNumber(shape.source[2]) ? interpolate.apply(null,
-                                        [shape.source[2], minValue, maxValue].concat(
+                                    highY = isNumber(shape.high) ? interpolate.apply(null,
+                                        [shape.high, minValue, maxValue].concat(
                                             reversed === true ? [0, plotHeight] : [plotHeight, 0]
                                         )
                                     ) : NaN;
                                     highY += plotY;
-                                }
-                                else if (isNumber(shape._x) && isNumber(shape._y)) {
-                                    x = plotX + j * pointWidth;//离散性
-                                    x += center;
-                                    y = interpolate.apply(null,
-                                        [shape._y, minValue, maxValue].concat(
-                                            reversed === true ? [0, plotHeight] : [plotHeight, 0]
-                                        )
-                                    );
-                                    y += plotY;
                                 }
                                 else {
                                     if (inverted) {
@@ -12336,16 +12431,10 @@ var DataLabels = (function () {
             var length = points.length,
                 i = next(points, 0, length),//[a, b-1)
                 j;
-            var point, aniattr;
+            var point;
             var x, y, moveX, moveY;
             length = back(points, i, length);//(b, a]
             point = points[i];
-            /*aniattr = point.aniattr();
-
-            if (aniattr) {
-                isNumber(aniattr.x, true) && (moveX = aniattr.x);
-                isNumber(aniattr.y, true) && (moveY = aniattr.y);
-            }*/
             context.beginPath();
             context.moveTo(moveX, moveY);
             for (; i < length; i++) {
@@ -12354,13 +12443,10 @@ var DataLabels = (function () {
                     j = find(points, j = i + 1, length);
                     point = points[j];
                     moveX = point.x, moveY = point.y;
-                    //aniattr = point.aniattr();
-                    //aniattr && (isNumber(aniattr.x, true) && (moveX = aniattr.x), isNumber(aniattr.y, true) && (moveY = aniattr.y));
                     context.moveTo(moveX, moveY);
                 }
                 //step(point, i, moveX, moveY);
                 x = point.x, y = point.y;
-                //(aniattr = point.aniattr()) && (isNumber(aniattr.x, true) && (x = aniattr.x), isNumber(aniattr.y, true) && (y = aniattr.y));
                 DashLine[dashStyle] && dashStyle !== "solid" ? DashLine[dashStyle](
                     context,
                     moveX, moveY,
@@ -12572,7 +12658,7 @@ var DataLabels = (function () {
             var step = series.step,
                 type = series.type;
             var key = options.y || "y";
-            if (series.animationEnabled && (!series.animationCompleted || series.selected !== false) && shapes.length) {
+            if (series.selectionEnabled !== false && (!series.animationCompleted || series.selected !== false) && shapes.length) {
                 context.save();
                 if (type === "spline" || type === "areaspline") {
                     Linked.spline(context, shapes, {});
@@ -12751,14 +12837,14 @@ var DataLabels = (function () {
                     Renderer.line(context, series.shapes, series, { y: "y" });
                 });
                 this.series.forEach(function (series) {
-                    if (series.animationEnabled && (!series.animationCompleted || series.selected !== false)) {
+                    if (series.selectionEnabled !== false && (!series.animationCompleted || series.selected !== false)) {
                         series.shapes.forEach(function (shape) {
                             DataLabels.render(context, shape.dataLabel, series);//draw data labels
                         });
                     }
                 });
                 this.series.forEach(function (series) {
-                    if (series.animationEnabled && (!series.animationCompleted || series.selected !== false)) {
+                    if (series.selectionEnabled !== false && (!series.animationCompleted || series.selected !== false)) {
                         series.shapes.forEach(function (shape) {
                             chart.drawMarker(context, shape, series, "y");//draw marker
                             Renderer.hover(context, shape, series, "y");//hover points
@@ -12781,6 +12867,7 @@ var DataLabels = (function () {
                 List.diff(newData, oldData, function (a, b) {
                     return a && b && a.value === b.value;
                 }).add(function (newIndex) {
+
                 }).remove(function (newIndex) {
                     var newShape = newData[newIndex];
                     var to;
@@ -12802,8 +12889,7 @@ var DataLabels = (function () {
                     shapes.push(newShape);
                 }).modify(function (newIndex, oldIndex) {
                     var newShape = newData[newIndex],
-                        oldShape = oldData[oldIndex],
-                        mergeShape;
+                        oldShape = oldData[oldIndex];
                     var to;
                     newShape.animate({
                         x: oldShape.x,
@@ -12824,7 +12910,7 @@ var DataLabels = (function () {
                         highY: newShape.highY,
                         selected: series.selected
                     });
-                    series.animationEnabled = !((series.selected === false) && (oldShape.selected === false));
+                    series.selectionEnabled = !((series.selected === false) && (oldShape.selected === false));
                     previous.push(to);
                     shapes.push(newShape);
                 }).each();
@@ -12839,7 +12925,7 @@ var DataLabels = (function () {
         },
         drawLabels: function (context, shape, series) {
             var radius = pack("number", (shape.marker || {}).radius, (series.marker || {}).radius, 0);
-            shape.dataLabel = DataLabels.align(function (type, bbox) {
+            DataLabels.align(function (type, bbox) {
                 var t = pack("string", type, "center"),
                     x = shape.x,
                     w = bbox.width;
@@ -12931,10 +13017,6 @@ var DataLabels = (function () {
                         if(defined(shape) && !shape.isNULL){
                             shape.current = shape.index;
                             result = {shape: shape, series: series};
-                            result.shape.$value = shape._value;
-                            if(series.type === "arearange"){
-                                result.shape.$value = shape.source[1] + "," + (shape._value);
-                            }
                             results.push(result);
                         }
                     }
@@ -12953,10 +13035,6 @@ var DataLabels = (function () {
                 if(defined(shape) && !shape.isNULL){
                     shape.current = shape.index;
                     result = {shape: shape, series: shape.series};
-                    result.shape.$value = "" + shape._value;
-                    if(shape.series.type === "arearange"){
-                        result.shape.$value = shape._value + "," + (shape.source[2]);
-                    }
                     return [result];
                 }
             }
@@ -13653,8 +13731,6 @@ var DataLabels = (function () {
     function Column (canvas, options) {
         this.type = "column";
 
-        this.shapes = [];
-
         this.canvas = canvas;
         this.context = canvas.getContext("2d");
 
@@ -13665,6 +13741,7 @@ var DataLabels = (function () {
 		init: function (options) {
             this.options = options;//update
             this.series = relayout(options.panels);
+            this.panels = options.panels;
             this.reflow();
         },
         reflow: function () {
@@ -13703,7 +13780,7 @@ var DataLabels = (function () {
             });
         },
         redraw: function () {
-            relayout(this.options.panels, 1);
+            relayout(this.panels, 1);
             this.reflow();
         },
         animateTo: function () {
@@ -13712,7 +13789,7 @@ var DataLabels = (function () {
                 var newData = series.shapes,
                     oldData = series._shapes || [];
                 var previous = [];
-                List.diff(series.shapes, series._shapes || [], function (a, b) {
+                List.diff(newData, oldData, function (a, b) {
                     return a && b && a.value === b.value;
                 }).remove(function (newIndex) {
                     var newShape = newData[newIndex];
@@ -13732,16 +13809,18 @@ var DataLabels = (function () {
                 }).add(function (newIndex) {
                     var oldShape = oldData[newIndex],
                         to;
-                    oldShape.animate({
-                        x1: oldShape.x0,// - (oldShape.x1 - oldShape.x0),
-                        y1: oldShape.y0// - (oldShape.y1 - oldShape.y0)
-                    }, to = {
-                        value: oldShape.value,
-                        x1: oldShape.x1,
-                        y1: oldShape.y1
-                    });
-                    shapes.push(oldShape);
-                    previous.push(to);
+                    if (oldShape.animate) {
+                        oldShape.animate({
+                            x1: oldShape.x0,// - (oldShape.x1 - oldShape.x0),
+                            y1: oldShape.y0// - (oldShape.y1 - oldShape.y0)
+                        }, to = {
+                            value: oldShape.value,
+                            x1: oldShape.x1,
+                            y1: oldShape.y1
+                        });
+                        shapes.push(oldShape);
+                        previous.push(to);
+                    }
                 }).modify(function (newIndex, oldIndex) {
                     var newShape = newData[newIndex], oldShape = oldData[oldIndex],
                         to = { value: newShape.value };
@@ -13837,7 +13916,7 @@ var DataLabels = (function () {
         },
         dataLabels: function (context, shape, series) {
             var isColumn = series.type === "column";
-            shape.dataLabel = DataLabels.align(function (type, bbox) {
+            DataLabels.align(function (type, bbox) {
                 var w = bbox.width,
                     w2 = Math.abs(shape.x1 - shape.x0);
                 var offset = 0;
@@ -13929,7 +14008,6 @@ var DataLabels = (function () {
                         }
                         if (Intersection.rect({x: x, y: y}, area)) {
                             result = {shape: shape, series: item};
-                            result.shape.$value = "" + shape._value;
                             results.push(result);
                             shape.current = j;
                             if (!shared) {
@@ -14569,9 +14647,6 @@ var DataLabels = (function () {
 
             if (defined(shape.current)) {
                 color = Color.parse(color).alpha(0.7);
-                color.r = Math.min(0xff, color.r + 20);
-                color.g = Math.min(0xff, color.g + 20);
-                color.b = Math.min(0xff, color.b + 20);
                 color = Color.rgba(color);
             }
 
@@ -14852,40 +14927,44 @@ var DataLabels = (function () {
                         radius = pack("number",
                             //shape.radius,
                             series.radius,
-                            isFunction(series.radius) && series.radius.call(shape, shape.source, value, series.minValue, series.maxValue, series),
+                            isFunction(series.radius) && series.radius.call(shape, shape._source, value, series.minValue, series.maxValue, series),
                             5
                         );
 
                         if (isFunction(projection)) {
+                            //投影数据需要x，y和value
                             x = projection([shape._x, shape._y]);
                             y = setTransform(x[1], translate[1], scale);
                             x = setTransform(x[0], translate[0], scale);
-                            if (isObject(shape.source) && defined(shape.source.name))
-                                shape.key = shape.source.name;
+                            if (isObject(shape._source) && defined(shape._source.name))
+                                shape.key = shape._source.name;
                             else
                                 shape.key = series.name;
+                            if (!defined(shape.dataLabel.value) && defined(shape.value))
+                                shape.dataLabel.value = shape.value;
                         }
                         else {
-                            if (isArray(shape.source) && shape.source.length > 1) {
-                                key = shape.source[0];
+                            // is arrays or objects
+                            if (isNumber(shape._x, true) && isNumber(shape._y, true)) {
+                                key = shape._x;
                                 if (xAxisOptions.type === "categories") {
-                                    x = plotX + interpolate(shape.source[0], xAxisOptions.minLength, xAxisOptions.maxLength, 0, plotWidth);
+                                    x = plotX + interpolate(shape._x, xAxisOptions.minLength, xAxisOptions.maxLength, 0, plotWidth);
                                     x += plotWidth / mathMax(1, xAxisOptions.maxLength) / 2; // center;
                                 }
                                 else if (xAxisOptions.type === "linear") {
-                                    x = plotX + interpolate(shape.source[0], xAxisOptions.minValue, xAxisOptions.maxValue, 0, plotWidth);
+                                    x = plotX + interpolate(shape._x, xAxisOptions.minValue, xAxisOptions.maxValue, 0, plotWidth);
                                 }
                                 else {
-                                    x = isNumber(shape.source[0]) ? interpolate.apply(null, [shape.source[0], xAxisOptions.minValue, xAxisOptions.maxValue, 0, plotWidth]) : NaN;
+                                    x = isNumber(shape._x) ? interpolate.apply(null, [shape._x, xAxisOptions.minValue, xAxisOptions.maxValue, 0, plotWidth]) : NaN;
                                     x += plotX;
                                 }
 
                                 if (yAxisOptions.type === "categories") {
-                                    y = plotY + interpolate(shape.source[0], yAxisOptions.minLength, yAxisOptions.maxLength, plotHeight, 0);
+                                    y = plotY + interpolate(shape._x, yAxisOptions.minLength, yAxisOptions.maxLength, plotHeight, 0);
                                     y -= plotHeight / mathMax(1, yAxisOptions.maxLength) / 2;
                                 }
                                 else {
-                                    y = isNumber(shape.source[1], true) ? interpolate.apply(null, [parseFloat(shape.source[1], 10), minValue, maxValue].concat(
+                                    y = isNumber(shape._y, true) ? interpolate.apply(null, [parseFloat(shape._y, 10), minValue, maxValue].concat(
                                         reversed === true ? [0, plotHeight] : [plotHeight, 0]
                                     )) : NaN;
                                     y += plotY;
@@ -14893,25 +14972,17 @@ var DataLabels = (function () {
 
                                 if (inverted === true) {
                                     tickHeight = plotHeight / mathMax(1, yAxisOptions.maxLength),
-                                    x = plotX + interpolate(shape.source[1], xAxisOptions.minValue, xAxisOptions.maxValue, 0, plotWidth);
+                                    x = plotX + interpolate(shape._source[1], xAxisOptions.minValue, xAxisOptions.maxValue, 0, plotWidth);
                                     if (yAxisOptions.type === "categories") {
-                                        y = plotY + interpolate(shape.source[0], 0, yAxisOptions.maxLength, plotHeight, 0) - tickHeight / 2;
+                                        y = plotY + interpolate(shape._source[0], 0, yAxisOptions.maxLength, plotHeight, 0) - tickHeight / 2;
                                     }
                                     else {
                                         y = plotY + (~-length - j) * pointHeight;
                                     }
                                 }
                             }
-                            else if (isNumber(shape._x) && isNumber(shape._y)) {
-                                x = interpolate.apply(null, [shape._x, xAxisOptions.minX, xAxisOptions.maxX, 0, plotWidth]);
-                                x += plotX;
-                                y = interpolate.apply(null, [shape._y, minValue, maxValue].concat(
-                                    reversed === true ? [0, plotHeight] : [plotHeight, 0]
-                                ));
-                                y += plotY;
-                                shape.dataLabel.value = shape._y;
-                            }
                             else {
+                                //is number
                                 x = j * tickWidth;
                                 x += plotX;
                                 y = interpolate.apply(null, [value, minValue, maxValue].concat(
@@ -14929,7 +15000,7 @@ var DataLabels = (function () {
 
                         extend(shape, {
                             index: j
-                        }, shape.source);
+                        }, shape._source);
                         shape.x = x;
                         shape.y = y;
                         shape.radius = radius;
@@ -14989,8 +15060,11 @@ var DataLabels = (function () {
                 });
             });
         },
-        redraw: function () {
-            relayout(this.panels, true, this.options.series);
+        redraw: function (event) {
+            relayout(this.panels, event.type === "resize", this.options.series);
+            if (event.type === "resize") {
+                //this.reflow();
+            }
             this.reflow();
         },
         drawShape: function (context, shape, series) {
@@ -15059,7 +15133,7 @@ var DataLabels = (function () {
             if (defined(shape.dataLabel.value)) {
                 DataLabels.value(shape.dataLabel.value);
             }
-            shape.dataLabel = DataLabels.align(function (type, bbox, options) {
+            DataLabels.align(function (type, bbox, options) {
                 var x = shape.x;
                 var t = pack("string", type, "center");
                 var margin = 5;
@@ -15711,7 +15785,7 @@ var DataLabels = (function () {
         },
         dataLabels: function (context, shape, series) {
             var labelAttr = {};
-            shape.dataLabel = DataLabels.align(function (type, bbox) {
+            DataLabels.align(function (type, bbox) {
                 var t = pack("string", type, "center");
                 var points = shape.points,
                     ls;
@@ -15809,9 +15883,9 @@ var DataLabels = (function () {
                         var shape = series.shapes[j],
                             value = shape.value;
                         var x, y, angle, radius;
-                        if (isArray(shape.source)) {
-                            angle = shape.source[0] * PI2 / 360 + startAngle;
-                            radius = interpolate(shape.source[1], minValue, maxValue, 0, plotRadius);
+                        if (isArray(shape._source)) {
+                            angle = shape._x * PI2 / 360 + startAngle;
+                            radius = interpolate(shape._y, minValue, maxValue, 0, plotRadius);
                         }
                         else {
                             angle = j * PI2 / Math.max(1, length) + startAngle;
@@ -15833,6 +15907,9 @@ var DataLabels = (function () {
                         });
                         shape.series._startAngle = startAngle;
                         shape.series._endAngle = endAngle;
+                        if (!defined(shape.name)) {
+                            shape.name = series.name;
+                        }
                     }
                 });
                 allseries = allseries.concat(pane.series);
@@ -16085,7 +16162,7 @@ var DataLabels = (function () {
         },
         dataLabels: function (context, shape, series) {
             var radius = pack("number", (shape.marker || {}).radius, (series.marker || {}).radius, 0);
-            shape.dataLabel = DataLabels.align(function (type, bbox) {
+            DataLabels.align(function (type, bbox) {
                 var t = pack("string", type, "center"),
                     //angle = shape.angle,
                     x = shape.x,
@@ -16267,7 +16344,7 @@ var DataLabels = (function () {
                                 maxY: bounds[1][1]
                             };
 
-                            var data = series.selected !== false && (mapKey[shape.name] || mapKey[shape.code]),
+                            var data = series.selected !== false && (mapKey[properties.name] || mapKey[properties.code]),
                                 value,
                                 color;
                             if (defined(data)) {
@@ -16276,7 +16353,7 @@ var DataLabels = (function () {
                             if (!isObject(data)) {
                                 data = {value: null};
                             }
-                            if (!defined(data.color) && isNumber(value = data.value)) {
+                            if (!defined(data.color) && isNumber(value = data.value, true)) {
                                 color = lerp && lerp(interpolate(value, minValue, maxValue, 0, 1));
                                 shape.color = color || shape.color || series.color;
                             }
@@ -16300,7 +16377,7 @@ var DataLabels = (function () {
                             }
                         }
                         shapes.forEach(function (shape) {
-                            shape.points.forEach(function (point) {
+                            shape.points.forEach(function (point, i) {
                                 point.x += centerX;
                                 point.y += centerY;
                             });
@@ -16494,7 +16571,7 @@ var DataLabels = (function () {
             return diffData;
         },
         drawLabels: function (context, shape, series) {
-            shape.dataLabel = DataLabels.value(shape.name).align(function (type, bbox) {
+            DataLabels.value(shape.name).align(function (type, bbox) {
                 var x = shape.shapeArgs.x,
                     w = bbox.width;
                 return x - w / 2;
@@ -17261,23 +17338,13 @@ var DataLabels = (function () {
             return interpolate(x, a, b, c, d);
         };
     };
-    var getData = function (item) {
-        var value = item;
-        if (isObject(item)) {
-            value = [item.x, item.y, item.value, item.color];
-        }
-        else if (isNumber(item)) {
-            value = [item];
-        }
-        return value;
-    };
 
     function factoy () {
         return function (panels) {
             var getXY = function (shape, f0, f1) {
-                var x, y, data, value;
-                data = getData(shape.source);
-                x = data[0], y = data[1], value = data[2];
+                var x = shape._x,
+                    y = shape._y,
+                    value = shape.value;
                 
                 x = f0(x);
                 y = f1(y);
@@ -17363,7 +17430,7 @@ var DataLabels = (function () {
                             tickHeight = plotHeight / ((maxY - minY) + 1);
                         
                         shapes.forEach(function (shape, i) {
-                            if (projection === "2d" || isObject(shape.source)) {
+                            if (projection === "2d") {
                                 addCircle(shape, {
                                     minValue: series.minValue,
                                     maxValue: series.maxValue,
@@ -17378,7 +17445,7 @@ var DataLabels = (function () {
                                 });
                             }
                             else {
-                                if (isArray(shape.source)) {
+                                if (isArray(shape._source)) {
                                     addRect(shape, {
                                         minValue: series.minValue,
                                         maxValue: series.maxValue,
@@ -17413,7 +17480,7 @@ var DataLabels = (function () {
                                 }
                             }
                             if (series.selected === false) {
-                                shape.width = shape.height = 0;
+                                shape.x1 = shape.x0, shape.y1 = shape.y0;
                             }
                             shape.name = series.name;
                         });
@@ -17586,7 +17653,7 @@ var DataLabels = (function () {
                 chart = this;
             this.series.forEach(function (series) {
                 var shapes = series.shapes;
-                if (series.projection === "2d" || shapes.length && isObject(shapes[0].source)) {
+                if (series.projection === "2d") {
                     if (series.selected !== false) {
                         var shadow = Renderer.buffer(
                             Renderer.shadow(shapes, series, series.plotX + series.plotWidth, series.plotY + series.plotHeight),
@@ -17665,7 +17732,7 @@ var DataLabels = (function () {
             context.restore();
         },
         drawLabels: function (context, shape, series) {
-            shape.dataLabel = DataLabels.align(function (type, bbox) {
+            DataLabels.align(function (type, bbox) {
                 var t = pack("string", type, "center");
                 var w = bbox.width,
                     w2 = mathAbs(shape.x1 - shape.x0);
@@ -17771,13 +17838,9 @@ var DataLabels = (function () {
                         x = plotX + j * tickWidth + center;
                         x1 = x + pointWidth;
                         x2 = x1 - pointWidth / 2;
-                        if (isArray(shape.source)) {
-                            open = shape.source[0], close = shape.source[1];
-                            high = shape.source[2], low = shape.source[3];
-                        }
-                        else if(isObject(shape.source)){
-                            open = shape.source.open, close = shape.source.close;
-                            high = shape.source.high, low = shape.source.low;
+                        if (isObject(shape)) {
+                            open = shape.open, close = shape.close;
+                            high = shape.high, low = shape.low;
                         }
                         else open = close = high = low = 0;
                         
@@ -17798,6 +17861,8 @@ var DataLabels = (function () {
                             x3: x2,
                             y3: y3,
                             index: j,
+                            name: series.name,
+                            key: undefined,
                             color: Color.isColor(color) ? color : (open > close) ? color[0] : color[1]
                         });
                     }
@@ -18082,23 +18147,13 @@ var DataLabels = (function () {
                     var q1, q3, median, lower, upper;
 
                     for (; j < length; j++) {
-                        var shape = series.shapes[j],
-                            value = shape.value;
-                        
-                        if (isArray(shape.source)) {
-                            lower = shape.source[0], q1 = shape.source[1];
-                            median = shape.source[2], q3 = shape.source[3];
-                            upper = shape.source[4];
-                            !defined(shape.lower) && isNumber(lower, true) && (shape.lower = lower);
-                            !defined(shape.q1) && isNumber(q1, true) && (shape.q1 = q1);
-                            !defined(shape.median) && isNumber(median, true) && (shape.median = median);
-                            !defined(shape.q3) && isNumber(q3, true) && (shape.q3 = q3);
-                            !defined(shape.upper) && isNumber(upper, true) && (shape.upper = upper);
-                        }
-                        else if (isObject(shape.source)) {
-                            lower = shape.source.lower, q1 = shape.source.q1;
-                            median = shape.source.median, q3 = shape.source.q3;
-                            upper = shape.source.upper;
+                        var shape = series.shapes[j];
+                        if (!shape.isNULL) {
+                            lower = shape.low;
+                            q1 = shape.q1;
+                            median = shape.median;
+                            q3 = shape.q3;
+                            upper = shape.high;
                         }
                         else q1 = q3 = median = lower = upper = 0;
 
@@ -18459,7 +18514,7 @@ var DataLabels = (function () {
                 };
             }
             shape.boxDataLabels = [];
-            (shape.source || []).slice(0, 5).forEach(function (item, i) {
+            (shape._source || []).slice(0, 5).forEach(function (item, i) {
                 var key = labelMaps[i] || {};
                 var dataLabel = DataLabels.value(item).align(function (type, bbox) {
                     var w = bbox.width,
@@ -18686,27 +18741,27 @@ var DataLabels = (function () {
                 return d.data;
             });
 
-            data.forEach(function(d, i) {
-                if(d.empty){
+            data.forEach(function (d, i) {
+                if (d.empty) {
                     links[i].target = links[i].source = sankeyIndexOf(keys, d.source);
                     links[i].empty = true;
                 }
-                else{
+                else {
                     links[i].source = sankeyIndexOf(keys, d.source);
                     links[i].target = sankeyIndexOf(keys, d.target);
                 }
             });
-            nodes.forEach(function(node){
+            nodes.forEach(function (node) {
                 node.sourceLinks = [];
                 node.targetLinks = [];
             });
-            links.forEach(function(link){
+            links.forEach(function (link) {
                 var source = link.source,
                     target = link.target;
                 if (typeof source === "number") source = link.source = nodes[source];
                 if (typeof target === "number") target = link.target = nodes[target];
 
-                if(source && target){
+                if (source && target) {
                     source.sourceLinks.push(link);
                     target.targetLinks.push(link);
                 }
@@ -19263,7 +19318,7 @@ var DataLabels = (function () {
             context.restore();
         },
         dataLabels: function (context, shape, series) {
-            shape.dataLabel = DataLabels.value(shape.value).align(function (type, bbox) {
+            DataLabels.value(shape.value).align(function (type, bbox) {
                 var x = shape.x,
                     w = bbox.width,
                     w2 = shape.width;

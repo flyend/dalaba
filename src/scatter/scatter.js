@@ -43,8 +43,11 @@
                 });
             });
         },
-        redraw: function () {
-            relayout(this.panels, true, this.options.series);
+        redraw: function (event) {
+            relayout(this.panels, event.type === "resize", this.options.series);
+            if (event.type === "resize") {
+                //this.reflow();
+            }
             this.reflow();
         },
         drawShape: function (context, shape, series) {
@@ -113,7 +116,7 @@
             if (defined(shape.dataLabel.value)) {
                 DataLabels.value(shape.dataLabel.value);
             }
-            shape.dataLabel = DataLabels.align(function (type, bbox, options) {
+            DataLabels.align(function (type, bbox, options) {
                 var x = shape.x;
                 var t = pack("string", type, "center");
                 var margin = 5;

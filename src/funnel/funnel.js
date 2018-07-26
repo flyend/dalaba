@@ -210,7 +210,7 @@
         },
         dataLabels: function (context, shape, series) {
             var labelAttr = {};
-            shape.dataLabel = DataLabels.align(function (type, bbox) {
+            DataLabels.align(function (type, bbox) {
                 var t = pack("string", type, "center");
                 var points = shape.points,
                     ls;

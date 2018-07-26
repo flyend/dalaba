@@ -49,23 +49,13 @@
                     var q1, q3, median, lower, upper;
 
                     for (; j < length; j++) {
-                        var shape = series.shapes[j],
-                            value = shape.value;
-                        
-                        if (isArray(shape.source)) {
-                            lower = shape.source[0], q1 = shape.source[1];
-                            median = shape.source[2], q3 = shape.source[3];
-                            upper = shape.source[4];
-                            !defined(shape.lower) && isNumber(lower, true) && (shape.lower = lower);
-                            !defined(shape.q1) && isNumber(q1, true) && (shape.q1 = q1);
-                            !defined(shape.median) && isNumber(median, true) && (shape.median = median);
-                            !defined(shape.q3) && isNumber(q3, true) && (shape.q3 = q3);
-                            !defined(shape.upper) && isNumber(upper, true) && (shape.upper = upper);
-                        }
-                        else if (isObject(shape.source)) {
-                            lower = shape.source.lower, q1 = shape.source.q1;
-                            median = shape.source.median, q3 = shape.source.q3;
-                            upper = shape.source.upper;
+                        var shape = series.shapes[j];
+                        if (!shape.isNULL) {
+                            lower = shape.low;
+                            q1 = shape.q1;
+                            median = shape.median;
+                            q3 = shape.q3;
+                            upper = shape.high;
                         }
                         else q1 = q3 = median = lower = upper = 0;
 

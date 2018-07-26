@@ -222,7 +222,7 @@
             context.restore();
         },
         dataLabels: function (context, shape, series) {
-            shape.dataLabel = DataLabels.value(shape.value).align(function (type, bbox) {
+            DataLabels.value(shape.value).align(function (type, bbox) {
                 var x = shape.x,
                     w = bbox.width,
                     w2 = shape.width;

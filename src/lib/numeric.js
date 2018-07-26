@@ -63,7 +63,7 @@
         }
         if (p && defined(neighbor)) {
             if (!isObject(neighbor)) {
-                neighbor = { dim: "x", k: 1, filter: filter, distance: distance };
+                neighbor = { dim: "x", k: 1, filter: filter, distance: distance, base: neighbor };
             }
             !defined(neighbor.dim) && (neighbor.dim = "x");
             !isNumber(neighbor.k, true) && (neighbor.k = 1);

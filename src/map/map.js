@@ -161,7 +161,7 @@
             return diffData;
         },
         drawLabels: function (context, shape, series) {
-            shape.dataLabel = DataLabels.value(shape.name).align(function (type, bbox) {
+            DataLabels.value(shape.name).align(function (type, bbox) {
                 var x = shape.shapeArgs.x,
                     w = bbox.width;
                 return x - w / 2;

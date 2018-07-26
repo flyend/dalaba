@@ -33,9 +33,9 @@
                         var shape = series.shapes[j],
                             value = shape.value;
                         var x, y, angle, radius;
-                        if (isArray(shape.source)) {
-                            angle = shape.source[0] * PI2 / 360 + startAngle;
-                            radius = interpolate(shape.source[1], minValue, maxValue, 0, plotRadius);
+                        if (isArray(shape._source)) {
+                            angle = shape._x * PI2 / 360 + startAngle;
+                            radius = interpolate(shape._y, minValue, maxValue, 0, plotRadius);
                         }
                         else {
                             angle = j * PI2 / Math.max(1, length) + startAngle;
@@ -57,6 +57,9 @@
                         });
                         shape.series._startAngle = startAngle;
                         shape.series._endAngle = endAngle;
+                        if (!defined(shape.name)) {
+                            shape.name = series.name;
+                        }
                     }
                 });
                 allseries = allseries.concat(pane.series);

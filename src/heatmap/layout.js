@@ -5,23 +5,13 @@
             return interpolate(x, a, b, c, d);
         };
     };
-    var getData = function (item) {
-        var value = item;
-        if (isObject(item)) {
-            value = [item.x, item.y, item.value, item.color];
-        }
-        else if (isNumber(item)) {
-            value = [item];
-        }
-        return value;
-    };
 
     function factoy () {
         return function (panels) {
             var getXY = function (shape, f0, f1) {
-                var x, y, data, value;
-                data = getData(shape.source);
-                x = data[0], y = data[1], value = data[2];
+                var x = shape._x,
+                    y = shape._y,
+                    value = shape.value;
                 
                 x = f0(x);
                 y = f1(y);
@@ -107,7 +97,7 @@
                             tickHeight = plotHeight / ((maxY - minY) + 1);
                         
                         shapes.forEach(function (shape, i) {
-                            if (projection === "2d" || isObject(shape.source)) {
+                            if (projection === "2d") {
                                 addCircle(shape, {
                                     minValue: series.minValue,
                                     maxValue: series.maxValue,
@@ -122,7 +112,7 @@
                                 });
                             }
                             else {
-                                if (isArray(shape.source)) {
+                                if (isArray(shape._source)) {
                                     addRect(shape, {
                                         minValue: series.minValue,
                                         maxValue: series.maxValue,
@@ -157,7 +147,7 @@
                                 }
                             }
                             if (series.selected === false) {
-                                shape.width = shape.height = 0;
+                                shape.x1 = shape.x0, shape.y1 = shape.y0;
                             }
                             shape.name = series.name;
                         });

@@ -247,7 +247,7 @@ require("./define");
         };
 
         this.globalHTML = {
-            dataLabels: null
+            dataLabels: []
         };
     }, chartProto;
 
@@ -898,8 +898,10 @@ require("./define");
             var Tooltip = Dalaba.Chart.Tooltip;
 
             if (defined(Tooltip) && tooltipOptions.enabled !== false) {
-                Comparative(panel, this.panel).update(function (d) {
-                    d.tooltip = new Tooltip(chart.addLayer(tooltipOptions.layer), tooltipOptions);
+                Comparative(panel, this.panel).update(function (d, _, i) {
+                    if (defined(chart.series[i])) {
+                        d.tooltip = new Tooltip(chart.addLayer(tooltipOptions.layer), tooltipOptions);
+                    }
                 }, function (d) {
                     if (d.tooltip) {
                         d.tooltip.destroy(true);
@@ -1207,7 +1209,13 @@ require("./define");
         },
         redraw: function (event) {
             this.linkAxis();
-            this.addOverlap();
+            if (event.type === "selected") {
+                this.addPlotSeries();
+                this.charts.forEach(function (graphic) {
+                    graphic.redraw(event);
+                });
+            }
+            DataLabels.overlapping(this.globalHTML.dataLabels);
             this.render(event);
         },
         render: function (event) {
@@ -1336,9 +1344,9 @@ require("./define");
                         }
                     }
                     curPanel.tooltip.draw();
-                    
+
                     panels.forEach(function (pane) {
-                        pane.tooltip.draw();
+                        pane.tooltip && pane.tooltip.draw();
                     });
                 }
                 //no moving
@@ -1437,12 +1445,6 @@ require("./define");
             else {
                 if (event.type === "update" || event.type === "selected") {
                     var noAnimationCharts, animationCharts = filterNotAnimation(charts, noAnimationCharts = []);
-                    if (event.type === "selected") {
-                        chart.addPlotSeries();
-                        charts.forEach(function (graphic) {
-                            graphic.redraw();
-                        });
-                    }
                     if (noAnimationCharts.length) {
                         paintComponent(noAnimationCharts);
                     }
@@ -1497,68 +1499,50 @@ require("./define");
         },
         addOverlap: function () {
             var labels = [];
-            var useHTML;
             var container = this.container;
-            var domDataLabels = [],
-                domLabel;
 
-            var labelPoints = function (shape, dataLabel, labels, points) {
+            var labelPoints = function (shape, dataLabel, labels, domLabel) {
+                var label;
                 if (dataLabel) {
                     dataLabel.placed = true;
-                    dataLabel.labelrank = shape.labelrank || dataLabel.height;
+                    dataLabel.weight = shape.weight || dataLabel.height;
+                    if (dataLabel.useHTML === true && domLabel) {
+                        label = document.createElement("div");
+                        domLabel.appendChild(label);
+                        label.innerHTML = dataLabel.value;
+                        dataLabel.domLabel = label;
+                    }
                     dataLabel.allowOverlap !== true && labels.push(dataLabel);
-                    dataLabel.useHTML === true && points.push(dataLabel);
                 }
             };
 
-            while (domLabel = (this.globalHTML.dataLabels || []).pop()) {
-                container.removeChild(domLabel);
-            }
+            this.series.forEach(function (series) {
+                series.domLabel && container.removeChild(series.domLabel);
+            });
 
             this.series.forEach(function (series) {
                 var dataLabels = series.dataLabels;
-                var pointHTML = [];
+                var domLabel;
                 if (defined(dataLabels) && dataLabels.enabled !== false) {
-                    useHTML = useHTML || dataLabels.useHTML === true;
+                    if (dataLabels.useHTML === true) {
+                        domLabel = document.createElement("div");
+                        isString(dataLabels.className) && setAttribute(domLabel, { "class": dataLabels.className});
+                        container.appendChild(domLabel);
+                        series.domLabel = domLabel;
+                    }
                     series.shapes.forEach(function (shape) {
                         var boxDataLabels = shape.boxDataLabels;
                         if (isArray(boxDataLabels)) {
                             boxDataLabels.forEach(function (dataLabel) {
-                                labelPoints(shape, dataLabel, labels, pointHTML);
+                                labelPoints(shape, dataLabel, labels, series.domLabel);
                             });
                         }
-                        labelPoints(shape, shape.dataLabel, labels, pointHTML);
+                        labelPoints(shape, shape.dataLabel, labels, series.domLabel);
                     });
-                    if (useHTML) {
-                        domLabel = document.createElement("div");
-                        isString(dataLabels.className) && setAttribute(domLabel, { "class": dataLabels.className});
-                        setStyle(domLabel, {
-                            position: "absolute",
-                            top: "0px",
-                            left: "0px"
-                        });
-                        container.appendChild(domLabel);
-                        domDataLabels.push({
-                            dom: domLabel,
-                            labels: pointHTML
-                        });
-                    }
                 }
             });
-            this.globalHTML.dataLabels = domDataLabels.map(function (d) { return d.dom; });
+            this.globalHTML.dataLabels = labels;
             DataLabels.overlapping(labels); // global checked
-            if (domDataLabels.length) {
-                domDataLabels.forEach(function (item) {
-                    var domHTML = [];
-                    item.labels.forEach(function (dataLabel) {
-                        if (dataLabel.visibled !== false && defined(dataLabel.valueHTML)) {
-                            domHTML.push(dataLabel.valueHTML);
-                        }
-                    });
-                    item.dom.innerHTML = domHTML.join("");
-                    domHTML = null;
-                });
-            }
         },
         getViewport: function () {
             var options = this.options,
@@ -1684,7 +1668,7 @@ require("./define");
             var chart = this;
             extend(this.options, options);
 
-            var execute = function(type, axisOptions) {
+            var execute = function (type, axisOptions) {
                 var oldAxis = chart[type];
                 axisOptions = pack("array", axisOptions, [axisOptions]);
                 Comparative(axisOptions, oldAxis).update(function (item) {
@@ -1706,7 +1690,7 @@ require("./define");
                     axis._options = item;
                 });
                 //reset index
-                oldAxis.forEach(function(axis, i){
+                oldAxis.forEach(function (axis, i) {
                     axis.index = i;
                 });
             };
@@ -1722,17 +1706,19 @@ require("./define");
                     return (defined(a.id) && defined(b.id) && a.id === b.id) || (a.name === b.name && a.type === b.type);
                 }).modify(function (newIndex, oldIndex) {
                     var newSeries, oldSeries;
+                    var mergeSeries;
                     oldSeries = chart.series[oldIndex];
-                    newSeries = seriesOptions[newIndex];
-                    newSeries.used = true;
-                    oldSeries.update(newSeries, false);
+                    newSeries = chart.series[newIndex];
+                    mergeSeries = seriesOptions[newIndex];
+                    mergeSeries.used = true;
+                    oldSeries.update(mergeSeries, false);
+                    //oldSeries._shapes = [];//newSeries._shapes;// oldSeries._shapes.slice(0, newSeries.shapes.length);
                     series.push(oldSeries);
                 }).each();
                 seriesOptions.forEach(function (item, i) {
                     var newSeries;
                     if(!item.used){
                         newSeries = chart.addSeries(item, i);
-                        newSeries._diffValues = [];
                         series.push(newSeries);
                         delete item.used;
                     }
@@ -1803,9 +1789,9 @@ require("./define");
             this.addPlotSeries();
 
             this.charts.forEach(function (graphic) {
-                graphic.redraw();
+                graphic.redraw(event);
             });
-            this.addOverlap();
+            DataLabels.overlapping(this.globalHTML.dataLabels); // global checked
 
             event !== null && chart.render(event);
         },

@@ -65,7 +65,7 @@
                 return v;
             }
         }
-        return t && t[0];
+        return isFunction(type) && n > 2 ? params[~-n] : t && t[0];
     };
 
     /*

@@ -31,13 +31,9 @@
                         x = plotX + j * tickWidth + center;
                         x1 = x + pointWidth;
                         x2 = x1 - pointWidth / 2;
-                        if (isArray(shape.source)) {
-                            open = shape.source[0], close = shape.source[1];
-                            high = shape.source[2], low = shape.source[3];
-                        }
-                        else if(isObject(shape.source)){
-                            open = shape.source.open, close = shape.source.close;
-                            high = shape.source.high, low = shape.source.low;
+                        if (isObject(shape)) {
+                            open = shape.open, close = shape.close;
+                            high = shape.high, low = shape.low;
                         }
                         else open = close = high = low = 0;
                         
@@ -58,6 +54,8 @@
                             x3: x2,
                             y3: y3,
                             index: j,
+                            name: series.name,
+                            key: undefined,
                             color: Color.isColor(color) ? color : (open > close) ? color[0] : color[1]
                         });
                     }

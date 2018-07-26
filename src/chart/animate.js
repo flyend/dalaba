@@ -50,8 +50,11 @@
                         if (isArray(newValue)) {
                             lerpArray(oldValue, newValue, timer, that[p]);
                         }
-                        else if (isNumber(newValue, true)) {
+                        else if (isNumber(newValue, true) && isNumber(oldProps[p], true)) {
                             that[p] = lerp(oldProps[p], newValue, timer);
+                        }
+                        else {
+                            that[p] = newValue;
                         }
                     }
                 }

@@ -82,40 +82,44 @@
                         radius = pack("number",
                             //shape.radius,
                             series.radius,
-                            isFunction(series.radius) && series.radius.call(shape, shape.source, value, series.minValue, series.maxValue, series),
+                            isFunction(series.radius) && series.radius.call(shape, shape._source, value, series.minValue, series.maxValue, series),
                             5
                         );
 
                         if (isFunction(projection)) {
+                            //投影数据需要x，y和value
                             x = projection([shape._x, shape._y]);
                             y = setTransform(x[1], translate[1], scale);
                             x = setTransform(x[0], translate[0], scale);
-                            if (isObject(shape.source) && defined(shape.source.name))
-                                shape.key = shape.source.name;
+                            if (isObject(shape._source) && defined(shape._source.name))
+                                shape.key = shape._source.name;
                             else
                                 shape.key = series.name;
+                            if (!defined(shape.dataLabel.value) && defined(shape.value))
+                                shape.dataLabel.value = shape.value;
                         }
                         else {
-                            if (isArray(shape.source) && shape.source.length > 1) {
-                                key = shape.source[0];
+                            // is arrays or objects
+                            if (isNumber(shape._x, true) && isNumber(shape._y, true)) {
+                                key = shape._x;
                                 if (xAxisOptions.type === "categories") {
-                                    x = plotX + interpolate(shape.source[0], xAxisOptions.minLength, xAxisOptions.maxLength, 0, plotWidth);
+                                    x = plotX + interpolate(shape._x, xAxisOptions.minLength, xAxisOptions.maxLength, 0, plotWidth);
                                     x += plotWidth / mathMax(1, xAxisOptions.maxLength) / 2; // center;
                                 }
                                 else if (xAxisOptions.type === "linear") {
-                                    x = plotX + interpolate(shape.source[0], xAxisOptions.minValue, xAxisOptions.maxValue, 0, plotWidth);
+                                    x = plotX + interpolate(shape._x, xAxisOptions.minValue, xAxisOptions.maxValue, 0, plotWidth);
                                 }
                                 else {
-                                    x = isNumber(shape.source[0]) ? interpolate.apply(null, [shape.source[0], xAxisOptions.minValue, xAxisOptions.maxValue, 0, plotWidth]) : NaN;
+                                    x = isNumber(shape._x) ? interpolate.apply(null, [shape._x, xAxisOptions.minValue, xAxisOptions.maxValue, 0, plotWidth]) : NaN;
                                     x += plotX;
                                 }
 
                                 if (yAxisOptions.type === "categories") {
-                                    y = plotY + interpolate(shape.source[0], yAxisOptions.minLength, yAxisOptions.maxLength, plotHeight, 0);
+                                    y = plotY + interpolate(shape._x, yAxisOptions.minLength, yAxisOptions.maxLength, plotHeight, 0);
                                     y -= plotHeight / mathMax(1, yAxisOptions.maxLength) / 2;
                                 }
                                 else {
-                                    y = isNumber(shape.source[1], true) ? interpolate.apply(null, [parseFloat(shape.source[1], 10), minValue, maxValue].concat(
+                                    y = isNumber(shape._y, true) ? interpolate.apply(null, [parseFloat(shape._y, 10), minValue, maxValue].concat(
                                         reversed === true ? [0, plotHeight] : [plotHeight, 0]
                                     )) : NaN;
                                     y += plotY;
@@ -123,25 +127,17 @@
 
                                 if (inverted === true) {
                                     tickHeight = plotHeight / mathMax(1, yAxisOptions.maxLength),
-                                    x = plotX + interpolate(shape.source[1], xAxisOptions.minValue, xAxisOptions.maxValue, 0, plotWidth);
+                                    x = plotX + interpolate(shape._source[1], xAxisOptions.minValue, xAxisOptions.maxValue, 0, plotWidth);
                                     if (yAxisOptions.type === "categories") {
-                                        y = plotY + interpolate(shape.source[0], 0, yAxisOptions.maxLength, plotHeight, 0) - tickHeight / 2;
+                                        y = plotY + interpolate(shape._source[0], 0, yAxisOptions.maxLength, plotHeight, 0) - tickHeight / 2;
                                     }
                                     else {
                                         y = plotY + (~-length - j) * pointHeight;
                                     }
                                 }
                             }
-                            else if (isNumber(shape._x) && isNumber(shape._y)) {
-                                x = interpolate.apply(null, [shape._x, xAxisOptions.minX, xAxisOptions.maxX, 0, plotWidth]);
-                                x += plotX;
-                                y = interpolate.apply(null, [shape._y, minValue, maxValue].concat(
-                                    reversed === true ? [0, plotHeight] : [plotHeight, 0]
-                                ));
-                                y += plotY;
-                                shape.dataLabel.value = shape._y;
-                            }
                             else {
+                                //is number
                                 x = j * tickWidth;
                                 x += plotX;
                                 y = interpolate.apply(null, [value, minValue, maxValue].concat(
@@ -159,7 +155,7 @@
 
                         extend(shape, {
                             index: j
-                        }, shape.source);
+                        }, shape._source);
                         shape.x = x;
                         shape.y = y;
                         shape.radius = radius;

@@ -109,7 +109,7 @@
                                 maxY: bounds[1][1]
                             };
 
-                            var data = series.selected !== false && (mapKey[shape.name] || mapKey[shape.code]),
+                            var data = series.selected !== false && (mapKey[properties.name] || mapKey[properties.code]),
                                 value,
                                 color;
                             if (defined(data)) {
@@ -118,7 +118,7 @@
                             if (!isObject(data)) {
                                 data = {value: null};
                             }
-                            if (!defined(data.color) && isNumber(value = data.value)) {
+                            if (!defined(data.color) && isNumber(value = data.value, true)) {
                                 color = lerp && lerp(interpolate(value, minValue, maxValue, 0, 1));
                                 shape.color = color || shape.color || series.color;
                             }
@@ -142,7 +142,7 @@
                             }
                         }
                         shapes.forEach(function (shape) {
-                            shape.points.forEach(function (point) {
+                            shape.points.forEach(function (point, i) {
                                 point.x += centerX;
                                 point.y += centerY;
                             });

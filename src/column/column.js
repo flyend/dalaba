@@ -26,8 +26,6 @@
     function Column (canvas, options) {
         this.type = "column";
 
-        this.shapes = [];
-
         this.canvas = canvas;
         this.context = canvas.getContext("2d");
 
@@ -38,6 +36,7 @@
 		init: function (options) {
             this.options = options;//update
             this.series = relayout(options.panels);
+            this.panels = options.panels;
             this.reflow();
         },
         reflow: function () {
@@ -76,7 +75,7 @@
             });
         },
         redraw: function () {
-            relayout(this.options.panels, 1);
+            relayout(this.panels, 1);
             this.reflow();
         },
         animateTo: function () {
@@ -85,7 +84,7 @@
                 var newData = series.shapes,
                     oldData = series._shapes || [];
                 var previous = [];
-                List.diff(series.shapes, series._shapes || [], function (a, b) {
+                List.diff(newData, oldData, function (a, b) {
                     return a && b && a.value === b.value;
                 }).remove(function (newIndex) {
                     var newShape = newData[newIndex];
@@ -105,16 +104,18 @@
                 }).add(function (newIndex) {
                     var oldShape = oldData[newIndex],
                         to;
-                    oldShape.animate({
-                        x1: oldShape.x0,// - (oldShape.x1 - oldShape.x0),
-                        y1: oldShape.y0// - (oldShape.y1 - oldShape.y0)
-                    }, to = {
-                        value: oldShape.value,
-                        x1: oldShape.x1,
-                        y1: oldShape.y1
-                    });
-                    shapes.push(oldShape);
-                    previous.push(to);
+                    if (oldShape.animate) {
+                        oldShape.animate({
+                            x1: oldShape.x0,// - (oldShape.x1 - oldShape.x0),
+                            y1: oldShape.y0// - (oldShape.y1 - oldShape.y0)
+                        }, to = {
+                            value: oldShape.value,
+                            x1: oldShape.x1,
+                            y1: oldShape.y1
+                        });
+                        shapes.push(oldShape);
+                        previous.push(to);
+                    }
                 }).modify(function (newIndex, oldIndex) {
                     var newShape = newData[newIndex], oldShape = oldData[oldIndex],
                         to = { value: newShape.value };
@@ -210,7 +211,7 @@
         },
         dataLabels: function (context, shape, series) {
             var isColumn = series.type === "column";
-            shape.dataLabel = DataLabels.align(function (type, bbox) {
+            DataLabels.align(function (type, bbox) {
                 var w = bbox.width,
                     w2 = Math.abs(shape.x1 - shape.x0);
                 var offset = 0;
@@ -302,7 +303,6 @@
                         }
                         if (Intersection.rect({x: x, y: y}, area)) {
                             result = {shape: shape, series: item};
-                            result.shape.$value = "" + shape._value;
                             results.push(result);
                             shape.current = j;
                             if (!shared) {

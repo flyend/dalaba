@@ -207,6 +207,7 @@
             series,
             plotPoint,
             point;
+        var isSliced = false;
         var i, j;
         var callbacks = [];
 
@@ -219,7 +220,7 @@
                 for (j = 0; j < graphics[i].series.length; j++) if ((series = graphic.series[j]).selected !== false) {
                     plotPoint = (plotOptions[series.type] || {}).point || {};
                     points = graphic.getShape && graphic.getShape(x, y);
-                    if (points.length) {
+                    if (points && points.length) {
                         click = (series.events || {}).click || (plotPoint.events || {}).click;
                         callbacks.push([
                             !!points.length && isFunction(click),
@@ -238,6 +239,7 @@
                 });
                 if (shapes.length && graphic.setSliced) {
                     graphic.setSliced(shapes);
+                    isSliced = true;
                 }
             });
             event = extend({}, e, { moveX: x, moveY: y });
@@ -247,8 +249,8 @@
                 point.point = graphic[1][0];
                 graphic[0] && graphic[2].call(graphic[1].length === 1  ? (point || {}) : graphic[1], event);
             }
-            if (globalClick) {
-                globalClick.call(points, extend({}, e, { points: points, shapes: points, moveX: x, moveY: y }));
+            if (globalClick || isSliced) {
+                globalClick && globalClick.call(points, extend({}, e, { points: points, shapes: points, moveX: x, moveY: y }));
                 chart.render(event);
             }            
             chart.toolbar && chart.toolbar.onClick && chart.toolbar.onClick.call(chart.container, e);

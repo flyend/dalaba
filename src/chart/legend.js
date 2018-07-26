@@ -127,7 +127,7 @@
                 useHTML = options.useHTML,
                // margin = pack("number", options.margin, 0),
                 width = this.width,//legend width
-                height = this.maxHeight * (useHTML !== true),//legend viewport height
+                height = this.maxHeight,// * (useHTML !== true),//legend viewport height
                 chartWidth = pack("number", this.container.width / DEVICE_PIXEL_RATIO, width),
                 chartHeight = pack("number", this.container.height / DEVICE_PIXEL_RATIO, this.height);
 
@@ -147,7 +147,7 @@
                 y += (chartHeight - height) / 2;
             }
             else {
-                y = chartHeight - height - borderWidth - y;
+                y = chartHeight - height - (borderWidth * 2) - (y * (useHTML !== true));
             }
             this.x = x, this.y = y;
         },
@@ -328,22 +328,21 @@
             this.translate();
 
             linePixel = fixLinePixel(0, 0, this.width + (this.height > this.maxHeight) * 15, this.maxHeight - borderWidth, borderWidth);
-
             if (useHTML === true && itemHTML.length) {
                 var bbox;
                 canvas.innerHTML = itemHTML;
                 setStyle(canvas, {
-                    //overflow: "auto",
+                    overflow: "auto",
+                    height: this.maxHeight + "px",
                     "white-space": "nowrap"
                 });
                 bbox = canvas.getBoundingClientRect();
                 this.height = bbox.height;
                 this.width = bbox.width;
-                this.maxHeight = Math.min(150, this.height);
+
                 setStyle(canvas, {
                     left: (this.x) + linePixel.x + "px",
-                    top: this.y - this.maxHeight + "px",
-                    height: this.maxHeight + "px",
+                    top: this.y + "px",
                     width: this.width + "px"
                 });
             }

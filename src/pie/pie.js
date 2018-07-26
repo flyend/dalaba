@@ -150,9 +150,6 @@
 
             if (defined(shape.current)) {
                 color = Color.parse(color).alpha(0.7);
-                color.r = Math.min(0xff, color.r + 20);
-                color.g = Math.min(0xff, color.g + 20);
-                color.b = Math.min(0xff, color.b + 20);
                 color = Color.rgba(color);
             }
 

@@ -301,7 +301,7 @@
                 };
             }
             shape.boxDataLabels = [];
-            (shape.source || []).slice(0, 5).forEach(function (item, i) {
+            (shape._source || []).slice(0, 5).forEach(function (item, i) {
                 var key = labelMaps[i] || {};
                 var dataLabel = DataLabels.value(item).align(function (type, bbox) {
                     var w = bbox.width,

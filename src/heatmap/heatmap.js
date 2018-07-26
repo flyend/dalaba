@@ -158,7 +158,7 @@
                 chart = this;
             this.series.forEach(function (series) {
                 var shapes = series.shapes;
-                if (series.projection === "2d" || shapes.length && isObject(shapes[0].source)) {
+                if (series.projection === "2d") {
                     if (series.selected !== false) {
                         var shadow = Renderer.buffer(
                             Renderer.shadow(shapes, series, series.plotX + series.plotWidth, series.plotY + series.plotHeight),
@@ -237,7 +237,7 @@
             context.restore();
         },
         drawLabels: function (context, shape, series) {
-            shape.dataLabel = DataLabels.align(function (type, bbox) {
+            DataLabels.align(function (type, bbox) {
                 var t = pack("string", type, "center");
                 var w = bbox.width,
                     w2 = mathAbs(shape.x1 - shape.x0);
