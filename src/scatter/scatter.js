@@ -61,16 +61,13 @@
                 shadowColor = shape.shadowColor || series.shadowColor,
                 marker = shape.marker || series.marker || {},
                 states = (series.states || {}).hover;
-            var radius = shape.radius,
-                cx = shape.x,
+            var cx = shape.x,
                 cy = shape.y,
-                width, height;
+                width = shape.width,
+                height = shape.height;
             var symbol = pack("string", marker && marker.symbol, "circle");
 
             var color = fillColor;
-            //cy += radius
-            width = radius;
-            height = radius;
             if (shape.isNULL) {
                 return this;
             }
@@ -95,6 +92,7 @@
                 context.fill();
                 context.restore();
             }
+            // symbol 按中心点偏移
             
             context.save();
             context.fillStyle = fillColor;
@@ -112,11 +110,11 @@
             context.restore();
         },
         dataLabels: function (context, shape, series) {
-            var radius = shape.radius;
             if (defined(shape.dataLabel.value)) {
                 DataLabels.value(shape.dataLabel.value);
             }
             DataLabels.align(function (type, bbox, options) {
+                var radius = shape.width;
                 var x = shape.x;
                 var t = pack("string", type, "center");
                 var margin = 5;
@@ -126,6 +124,7 @@
                     right: x + radius + margin
                 }[t];
             }).vertical(function (type, bbox) {
+                var radius = shape.height;
                 var y = shape.y;
                 var t = pack("string", type, "middle");
                 var margin = 5;

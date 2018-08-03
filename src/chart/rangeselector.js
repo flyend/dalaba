@@ -55,7 +55,7 @@
                 w = size,
                 h = 15;
             var linePixel = fixLinePixel(x, y, w, h);
-            return function(context){
+            return function (context) {
                 var bw = 1;
                 context.save();
                 context.fillStyle = color;
@@ -136,6 +136,7 @@
         },
         setWidth: function (width) {
             this.width = pack("number", width, 0);
+            console.log(width)
             this.from = Numeric.percentage(this.width, this.start) + this.x;
             this.to = Numeric.percentage(this.width, this.end) + this.x;
         },
@@ -175,7 +176,7 @@
                 case hasOwnProperty.call(options, "y"):
                     isNumber(options.min) && (this.minValue = options.min);
                     isNumber(options.max) && (this.maxValue = options.max);
-                    isNumber(options.x) && (this.x = pack("number", options.x, 0), this.setWidth(this.width - options.x));
+                    isNumber(options.x) && (this.x = pack("number", options.x, 0), this.setWidth(this.width - pack("number", options.x)));
                     isNumber(options.y) && (this.y = pack("number", options.y, 0));
                     defined(options.width) && this.setWidth(options.width);
                 break;
@@ -230,20 +231,15 @@
             var context = this.context;
             var startX = this.from,// interpolate(this.start, 0, 100, x, width),
                 endX = this.to;// interpolate(this.end, 0, 100, x, width);
-            //console.log(startX, endX, this.start, this.end);
             var z0 = {x: startX, y: y},
                 z1 = {x: endX, y: y};
-            if(startX > endX){
+            if (startX > endX) {
                 z0 = {x: endX, y: y};
                 z1 = {x: startX, y: y};
             }
             context.save();
             context.fillStyle = "rgba(51,92,173,0.2)";
             context.fillRect(z0.x, y, z1.x - z0.x, height);
-            /*context.fillStyle = zoomColor;
-            context.fillRect(startX, y, Math.abs(startX - endX), 1);
-            context.fillRect(startX, y + height, Math.abs(startX - endX), 1);*/
-            //context.translate(x, 0);
             handle = handles[0] || {};
             z0.viewport = handle.enabled !== false ? Symbol.rect(z0.x, z0.y, 8, height, handle)(context) : {};
             handle = handles[1] || handle;
@@ -258,6 +254,7 @@
                 ty = this.y,
                 width,
                 height = this.height;
+            var selector = this;
             var getDataValue = function (item) {
                 var value = item;
                 if (isArray(item)) {
@@ -271,10 +268,10 @@
             var plotX = MIN_VALUE,
                 plotWidth = plotX;
 
-            if (hasOwnProperty.call(options, "series")) {
+            if (hasOwnProperty.call(options, "series") && options.series.length) {
                 options.series.forEach(function (series) {
                     plotX = Math.max(plotX, series.plotX);
-                    plotWidth = mathMax(plotWidth, series.plotWidth);
+                    plotWidth = mathMax(plotWidth, pack("number", series.plotWidth, selector.width));
                 });
                 this.x = plotX;
                 this.setWidth(plotWidth);
@@ -380,7 +377,7 @@
             this.hasRange = target > -1 && target < 3;
             return cursor;
         },
-        getRangeValue: function(){
+        getRangeValue: function () {
             var options = this.options,
                 style = options.style || {},
                 fontStyle = {
@@ -419,7 +416,7 @@
             var context = this.context;
 
             this.setValue();
-            if(this.hasRange || this.dragging){
+            if (this.hasRange || this.dragging) {
                 context.save();
                 context.fillStyle = fontStyle.color;
                 context.font = [fontStyle.fontStyle, fontStyle.fontWeight,

@@ -68,11 +68,16 @@
                     i = 0;
 
                 var newSeries = this;
-
-                var start = pack("number", parseFloat(newSeries.start, 10) / 100, 0),
+                var start, end;
+                if (newSeries.bindAxis) {
+                    start = pack("number", parseFloat(newSeries.start, 10) / 100, 0);
                     end = pack("number", parseFloat(newSeries.end, 10) / 100, 1);
-                start = Math.max(0, Math.min(~~(length * start), ~-length));
-                end = Math.min(length, Math.max(~~(length * end), -~start));
+                    start = Math.max(0, Math.min(~~(length * start), ~-length));
+                    end = Math.min(length, Math.max(~~(length * end), -~start));
+                }
+                else {
+                    start = 0, end = length;
+                }
                 newSeries.startIndex = start;
                 newSeries.endIndex = end;
 
@@ -85,7 +90,7 @@
                     shape = valuer;
                     shape.series = newSeries;
                     shape._source = item;
-                    //console.log(valuer)
+                    // console.log(valuer)
 
                     value = shape.value;
                     if (newSeries.animationEnabled !== false) {

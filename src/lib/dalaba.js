@@ -102,12 +102,14 @@
         return a;
     };
 
+    Dalaba.LinkedList = require("./linkedlist");
+    Dalaba.Heap = require("./heap");
+
     Dalaba.Math = require("./math");
     Dalaba.Numeric = require("./numeric");
     Dalaba.Vector = require("./vector");
     Dalaba.Formatter = require("./formatter").deps(Dalaba);
-
-    Dalaba.Heap = require("./heap");
+    
     Dalaba.KDTree = require("./kdtree").deps(Dalaba.Heap);
 
     Dalaba.Geometry = require("./geometry").deps(Dalaba);

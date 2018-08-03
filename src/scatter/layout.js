@@ -57,6 +57,7 @@
                     var minValue, maxValue, logBase;
                     var reversed;
                     var inverted = series.inverted;
+                    var marker = series.marker;
 
                     xAxisOptions = series._xAxis || {};
                     yAxisOptions = series._yAxis || {};
@@ -85,6 +86,8 @@
                             isFunction(series.radius) && series.radius.call(shape, shape._source, value, series.minValue, series.maxValue, series),
                             5
                         );
+                        if (isObject(shape.marker))
+                            marker = shape.marker;
 
                         if (isFunction(projection)) {
                             //投影数据需要x，y和value
@@ -158,6 +161,8 @@
                         }, shape._source);
                         shape.x = x;
                         shape.y = y;
+                        shape.width = pack("number", marker.width, radius);
+                        shape.height = pack("number", marker.height, radius);
                         shape.radius = radius;
                     }
                 });

@@ -410,6 +410,7 @@ require("./define");
                     end = mathMin(100, mathMax(0, pack("number", parseFloat(end, 10), 100)));
                     rs.start = start + "%";
                     rs.end = end + "%";//xAxis=0
+                    rs.bindAxis = isNumber(rangeSelector.xAxis, true) || isNumber(rangeSelector.yAxis, true) || isNumber(rangeSelector.polarAxis, true);
                 }
                 return rs;
             };
@@ -908,7 +909,7 @@ require("./define");
                     }
                 }, function (d, newData, i) {
                     if (defined(chart.series[i])) {
-                        newData.tooltip = d.tooltip;
+                        newData.tooltip = d.tooltip || new Tooltip(chart.addLayer(tooltipOptions.layer), tooltipOptions);
                     }
                 });
                 this.tooltip = panel[0].tooltip;
@@ -967,7 +968,7 @@ require("./define");
                 image: function() {
                     defined(chart.background) && addBackgroundImage(chart.background);
                 },
-                background: function(){
+                background: function () {
                     var backgroundColor = (options.chart || {}).backgroundColor,
                         gradient;
                     var width = chart.canvas.width,
@@ -975,7 +976,7 @@ require("./define");
                         size = Math.min(width, height);
                     size = Math.sqrt(width * width + height * height) / 2;
                     if (defined(backgroundColor)) {
-                        if(backgroundColor.linearGradient || backgroundColor.radialGradient){
+                        if (backgroundColor.linearGradient || backgroundColor.radialGradient) {
                             gradient = Color.parse(backgroundColor);
                             backgroundColor = backgroundColor.radialGradient
                                 ? gradient.radial((width - size) / 2, (height - size) / 2, size)
@@ -1300,6 +1301,7 @@ require("./define");
                             setState(item, false);
                         });
                     }
+
                     legend.draw();
                 }
             };
@@ -1368,7 +1370,9 @@ require("./define");
                 if (ani) {
                     ani();
                 }
-                drawLegend();
+                if (charts.length) {
+                    drawLegend();
+                }
 
                 !once && drawTooltip();
             }
@@ -1462,22 +1466,6 @@ require("./define");
                                 complete: function () {}
                             });
                         });
-                        /*if (event.type === "update") {
-                            globalAnimation.instance.stop(false, true);
-                            shapes.forEach(function (shape) {
-                                globalAnimation.instance.addAnimate(shape, {
-                                    duration: pack("number", shape.duration, globalAnimation.duration, 500),
-                                    delay: 0,
-                                    easing: "linear",
-                                    complete: function () {}
-                                });
-                            });
-                        }
-                        else if (event.type === "selected") {
-                            globalAnimation.instance.setOptions({
-                                duration: 300
-                            }).stop();
-                        }*/
 
                         globalAnimation.instance.fire(function () {
                             globalAnimation.isReady = false;
@@ -1508,6 +1496,7 @@ require("./define");
                     dataLabel.weight = shape.weight || dataLabel.height;
                     if (dataLabel.useHTML === true && domLabel) {
                         label = document.createElement("div");
+                        setStyle(label, {visibility: "hidden"});
                         domLabel.appendChild(label);
                         label.innerHTML = dataLabel.value;
                         dataLabel.domLabel = label;
@@ -1833,7 +1822,7 @@ require("./define");
                 (layer.parentNode && layer.parentNode === container) && container.removeChild(layer);
             }
 
-            if (this.tooltip !== null) {
+            if (defined(this.tooltip)) {
                 layer = this.tooltip.canvas;
                 this.tooltip.useHTML === true && ((layer.parentNode && layer.parentNode === container) && container.removeChild(layer));
             }
@@ -2241,7 +2230,7 @@ require("./define");
                     var xAxisIndex = rangeSelectorOptions.xAxis,
                         yAxisIndex = rangeSelectorOptions.yAxis,
                         polarAxisIndex = rangeSelectorOptions.polarAxis;
-                    if(chart.xAxis[xAxisIndex] || chart.yAxis[yAxisIndex] || chart.polarAxis[polarAxisIndex]){
+                    //if (chart.xAxis[xAxisIndex] || chart.yAxis[yAxisIndex] || chart.polarAxis[polarAxisIndex]) {
                         var width = rangeSelectorOptions.width ||
                                 Numeric.percentage(chart.width, rangeSelectorOptions.width) ||
                                 chart.width - spacing[1] - spacing[3],
@@ -2264,7 +2253,7 @@ require("./define");
                             start: rangeSelectorOptions.start,
                             end: rangeSelectorOptions.end
                         });
-                    }
+                    //}
                 });
             }
 

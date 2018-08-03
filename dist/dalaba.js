@@ -1,6 +1,6 @@
 /**
  * dalaba - A JavaScript chart library for Canvas.
- * @date 2018/07/13
+ * @date 2018/08/01
  * @version v0.3.1
  * @license ISC
  */
@@ -110,6 +110,370 @@
         }
         return a;
     };
+
+    Dalaba.LinkedList = (function () {
+    /**
+     * @param data{Array}
+     * @param options{Object}
+     * @example
+     * var list = LinkedList(data);
+     * list.push(19);
+     * Doubly LinkedList
+     * new LinkedList(data, true)
+     * LinkedList(data, {
+     *    filter: function (d) { return d === null; }
+     * });
+     */
+    var toString = ({}).toString;
+
+    var isObject = function (v) {
+        return toString.call(v) === "[object Object]";
+    };
+
+    var isFunction = function (v) {
+        return toString.call(v) === "[object Function]";
+    };
+
+    var matrix = [];
+
+    // 过滤器将增加matrix
+    var linkedList = function (data) {
+        var n, i;
+        var d;
+        var node;
+        var has = toString.call(data) !== "[object Array]";
+        var filter = this.filter;
+        var isTrued;
+
+        if (has || (!has && !(n = data.length))) {
+            return this;
+        }
+        
+        d = data[i = 0];
+        node = {
+            value: d,
+            index: 0,
+            head: -1,// null,
+            tail: n - 1// null
+        };
+        if (filter) {
+            matrix[n] = n - 1;
+            node.value = data[n - 1];
+            isTrued = filter.call(node, node.value, 0) === true;            
+            node.nextIndex = (isTrued ? n : 0) - 1;
+            node.next = data[node.nextIndex];
+            node.first = !isTrued;
+        }
+        //this[0] = node; this.length++;
+
+        for (i = n - 1; i >= 0; i--) {
+            var nextIndex = node.nextIndex;
+            d = data[i];
+            node = insert(i, node, d, false);
+            this[i] = node;
+            this.length++;
+
+            if (filter) {
+                isTrued = filter.call(node, node.value, i) === true;// filter function is true
+                matrix[i] = isTrued ? matrix[i + 1] : i;
+                node.nextIndex = matrix[i];
+                node.next = data[node.nextIndex];
+                node.first = node.nextIndex === nextIndex;// && isTrued;// is previous null and cur is true
+            }
+        }
+        //console.log(matrix);
+    };
+
+    function insert (index, oldData, newData, isBefored) {
+        var data = { value: newData };
+        if (isBefored === true) {
+
+        }
+        else {
+            data.index = index;
+            data.head = index - 1;
+            data.tail = index === oldData.tail ? -1: index + 1;
+            //oldData.tail = index;
+        }
+        return data;
+    }
+
+    function up (first, list, length) {
+        var node;
+        for (var i = 1; i < length; i++) {
+            node = list[i];
+            first.value = node.value;
+            if (i === length - 1)
+                first.tail = -1;
+            first = node;
+        }
+    }
+
+    function down (first, list, length) {
+        var temp;
+        for (var i = 1; i < length; i++) {
+            temp = list[i].value;
+            list[i].value = first.value;
+            first.value = temp;
+        }
+    }
+
+    function nextTo (node) {
+        var filter = this.filter;
+        var nextIndex;
+        var isTrued;
+        if (isFunction(filter)) {
+            for (var i = this.length - 1; i >= 0; i--) {
+                nextIndex = node.nextIndex;
+                node = this[i];
+
+                isTrued = filter.call(node, node.value, i) === true;// filter function is true
+                matrix[i] = isTrued ? matrix[i + 1] : i;
+                node.nextIndex = matrix[i];
+                node.next = this._data[node.nextIndex];
+                node.first = node.nextIndex === nextIndex;// && isTrued;// is previous null and cur is true
+            }
+        }
+    }
+
+    function remove (list, index, length, isBefored) {
+        var node = list[index],
+            tail;
+        if (isBefored) {
+            if (length > 1) {
+                up(node, list, length);
+                delete list[length - 1];
+            }
+            else {
+                delete list[index];
+            }
+        }
+        else {
+            if (length > 1) {
+                tail = node.tail;
+                list[index - 1].tail = tail;
+                delete list[index];
+            }
+            else {
+                delete list[index];
+            }
+        }
+        return node;
+    }
+
+    /**
+     * class LinkedList
+     * {tail} and {head} are the basic elements of the linked list
+     * {prev} and {next} are data pointers
+     * support for array traversal, insert operations
+    **/
+
+    var LinkedList = function (data, options) {
+        return new LinkedList.init(data, options);
+    };
+    LinkedList.init = function (data, options) {
+        this.length = 0;
+        this._data = data.slice();
+
+        if (isFunction(options)) {
+            this.filter = options;
+        }
+        else if (isObject(options)) {
+            isFunction(options.filter) && (this.filter = options.filter);
+        }
+        matrix = [];
+        linkedList.call(this, data);//isSimpled
+        return this;
+    };
+
+    LinkedList.prototype = {
+        constructor: LinkedList,
+        push: function () {
+            var args = [].slice.call(arguments);
+            var length;
+            var oldData,
+                node;
+            var j = this.length;
+
+            for (var i = 0; i < args.length; i++) {
+                length = this.length;
+                if (length <= 0) {
+                    linkedList.call(this, args.slice(0, 1));
+                }
+                else {
+                    oldData = this[~-length];
+                    oldData.tail = length;
+                    this[this.length++] = node = insert(length, oldData, args[i]);
+                    matrix.push(j + args.length - 1);
+                }
+                this._data.push(args[i]);
+            }
+            nextTo.call(this, node);
+
+            return this.length;
+        },
+        pop: function () {
+            var length = this.length;
+            if (length <= 0)
+                return;
+            this.length--;
+            return remove(this, this.length, length);
+        },
+        unshift: function () {
+            var args = [].slice.call(arguments);
+            var length;
+            var oldData;
+            // insert last, each next, modified first element
+            for (var i = 0; i < args.length; i++) {
+                length = this.length;
+                if (length <= 0)
+                    linkedList.call(this, args.slice(0, 1));
+                else {
+                    this.length++;
+                    oldData = this[~-length];
+                    oldData.tail = length;
+                    
+                    this[length] = insert(length, oldData, oldData.value);
+                    down(this[0], this, length);
+                    this[0] = insert(0, this[~-length], args[i]);
+                }
+            }
+            return this.length;
+        },
+        shift: function () {
+            var length = this.length;
+            if (length <= 0)
+                return;
+            this.length--;
+            return remove(this, 0, length, true);
+        },
+        splice: [].splice,
+        forEach: function (callback) {
+            [].forEach.call(this, function (d, i, values) {
+                callback && callback.call(d, d.value, i, values);
+            });
+        },
+        reverse: function () {
+            var length = this.length;
+            for (var i = 0; i < length >> 1; i++) {
+                var left = this[i],
+                    right = this[length - i - 1];
+                var temp = left.value;
+                left.value = right.value;
+                right.value = temp;
+            }
+        },
+        size: function () {
+            return this.length;
+        },
+        empty: function () {
+            return this.length <= 0;
+        }
+    };
+
+    LinkedList.init.prototype = LinkedList.prototype;
+
+    return LinkedList;
+}).call(typeof window !== "undefined" ? window : this);;
+    Dalaba.Heap = (function () {
+    /**
+     * @param compare{Function}
+     * @example
+     * var heap = Heap(function(a, b){ return a - b; });
+     * heap.push(19);
+     * heap.push(29);
+     * heap.push(9);
+     * for(var i = 0; i < 6; i++){
+     *    heap.push(Math.random() * 20 | 0);
+     * }
+     * //var t = heap.pop();
+     * console.log(heap, heap.length);
+     * for(i = 0; i < 4; i++)
+     *    console.log(heap.pop(), heap.length);
+     */
+    var defaultCompare = function (a, b) {
+        return a - b;
+    };
+
+    function down (array, i) {
+        var value = array[i];
+        var size = array.length;
+
+        while (true) {
+            var r = (i + 1) << 1,
+                l = r - 1,
+                j = i;
+            var child = array[j];
+            if (l < size && defaultCompare(child, array[l]) > 0) child = array[j = l];
+            if (r < size && defaultCompare(child, array[r]) > 0) child = array[j = r];
+            if (j === i) break;
+            array[i] = child;
+            array[i = j] = value;
+        }
+    }
+    function up (array, i) {
+        var value = array[i];
+        while (i > 0) {
+            var j = (i + 1 >> 1) - 1,
+                parent = array[j];
+            if (defaultCompare(value, parent) >= 0) break;
+            array[i] = parent;
+            array[i = j] = value;
+        }
+    }
+
+    var Heap = function (compare) {
+        return new Heap.init(compare);
+    };
+    Heap.init = function (compare) {
+        defaultCompare = compare || defaultCompare;
+        this.length = 0;
+        return this;
+    };
+
+    Heap.prototype = {
+        push: function (value) {
+            var size = this.length;
+            this[size] = value;
+            up(this, size++);
+            return this.length = size;
+        },
+        pop: function () {
+            var size = this.length;
+            if (size <= 0)
+                return null;
+            var removed = this[0];
+            var end = this.splice(size - 1, 1)[0];
+            if ((this.length = --size) > 0) {
+                this[0] = end;//this[size];
+                down(this, 0);
+            }
+            return removed;
+        },
+        peek: function () {
+            return this[0];
+        },
+        splice: [].splice,
+        size: function () {
+            return this.length;
+        },
+        empty: function () {
+            return this.length <= 0;
+        }
+    };
+
+    Heap.init.prototype = Heap.prototype;
+
+    if (typeof module === "object" && module.exports) {
+        module.exports = Heap;
+    }
+    else if (typeof define === "function" && define.amd) {
+        define(function () {
+            return Heap;
+        });
+    }
+    return Heap;
+}).call(typeof window !== "undefined" ? window : this);;
 
     Dalaba.Math = (function () {
 
@@ -629,106 +993,7 @@
     }
     return exports;
 }).call(typeof global !== "undefined" ? global : this).deps(Dalaba);
-
-    Dalaba.Heap = (function () {
-    /**
-     * @param compare{Function}
-     * @example
-     * var heap = Heap(function(a, b){ return a - b; });
-     * heap.push(19);
-     * heap.push(29);
-     * heap.push(9);
-     * for(var i = 0; i < 6; i++){
-     *    heap.push(Math.random() * 20 | 0);
-     * }
-     * //var t = heap.pop();
-     * console.log(heap, heap.length);
-     * for(i = 0; i < 4; i++)
-     *    console.log(heap.pop(), heap.length);
-     */
-    var defaultCompare = function (a, b) {
-        return a - b;
-    };
-
-    function down (array, i) {
-        var value = array[i];
-        var size = array.length;
-
-        while (true) {
-            var r = (i + 1) << 1,
-                l = r - 1,
-                j = i;
-            var child = array[j];
-            if (l < size && defaultCompare(child, array[l]) > 0) child = array[j = l];
-            if (r < size && defaultCompare(child, array[r]) > 0) child = array[j = r];
-            if (j === i) break;
-            array[i] = child;
-            array[i = j] = value;
-        }
-    }
-    function up (array, i) {
-        var value = array[i];
-        while (i > 0) {
-            var j = (i + 1 >> 1) - 1,
-                parent = array[j];
-            if (defaultCompare(value, parent) >= 0) break;
-            array[i] = parent;
-            array[i = j] = value;
-        }
-    }
-
-    var Heap = function (compare) {
-        return new Heap.init(compare);
-    };
-    Heap.init = function (compare) {
-        defaultCompare = compare || defaultCompare;
-        this.length = 0;
-        return this;
-    };
-
-    Heap.prototype = {
-        push: function (value) {
-            var size = this.length;
-            this[size] = value;
-            up(this, size++);
-            return this.length = size;
-        },
-        pop: function () {
-            var size = this.length;
-            if (size <= 0)
-                return null;
-            var removed = this[0];
-            var end = this.splice(size - 1, 1)[0];
-            if ((this.length = --size) > 0) {
-                this[0] = end;//this[size];
-                down(this, 0);
-            }
-            return removed;
-        },
-        peek: function () {
-            return this[0];
-        },
-        splice: [].splice,
-        size: function () {
-            return this.length;
-        },
-        empty: function () {
-            return this.length <= 0;
-        }
-    };
-
-    Heap.init.prototype = Heap.prototype;
-
-    if (typeof module === "object" && module.exports) {
-        module.exports = Heap;
-    }
-    else if (typeof define === "function" && define.amd) {
-        define(function () {
-            return Heap;
-        });
-    }
-    return Heap;
-}).call(typeof window !== "undefined" ? window : this);;
+    
     Dalaba.KDTree = (function (global) {
     var descending = function (a, b) {
         return a - b;
@@ -3577,8 +3842,8 @@
             }
             if (globalClick || isSliced) {
                 globalClick && globalClick.call(points, extend({}, e, { points: points, shapes: points, moveX: x, moveY: y }));
-                chart.render(event);
-            }            
+            }
+            chart.render(event);
             chart.toolbar && chart.toolbar.onClick && chart.toolbar.onClick.call(chart.container, e);
         }
     };
@@ -3622,7 +3887,7 @@
         
         chart.globalEvent.isDragging = true;
         chart.series.forEach(function (series) {
-            if (series.type === "sankey" || series.type === "node") {
+            if (series.type === "sankey") {
                 chart.globalEvent.isDragging = false;
             }
         });
@@ -3659,7 +3924,9 @@
                 chart.globalEvent.isDragging = false;//chart.globalEvent.isDragging || chart.globalEvent.isDragging;
                 rangeSelector.from = parseFloat(start, 10);
                 rangeSelector.to = parseFloat(end, 10);
-                fetchData(e, chart, start, end);
+                if (chart.charts.length) {
+                    fetchData(e, chart, start, end);
+                }
             });
         });
         chart.charts.forEach(function (item) {
@@ -4226,7 +4493,7 @@
             }
             !undef(value.x) && (rv._x = value.x, reValue(rv, undefined), flag = true);
             !undef(value.y) && (rv._y = value.y, reValue(rv, undefined), flag = true);
-            isNumber(value.value, true) && (reValue(rv, value.value), flag = true);
+            isNumber(rv.value, true) && (/*reValue(rv, value.value), */flag = true);
             return flag ? rv : null;
         }
         else if (isString(value)) {
@@ -4362,6 +4629,9 @@
         },
         map: function (data) {
             return this.pie(data);
+        },
+        custom: function (data) {
+            return this.line(data);
         }
     };
 })();;
@@ -4402,11 +4672,16 @@
                     i = 0;
 
                 var newSeries = this;
-
-                var start = pack("number", parseFloat(newSeries.start, 10) / 100, 0),
+                var start, end;
+                if (newSeries.bindAxis) {
+                    start = pack("number", parseFloat(newSeries.start, 10) / 100, 0);
                     end = pack("number", parseFloat(newSeries.end, 10) / 100, 1);
-                start = Math.max(0, Math.min(~~(length * start), ~-length));
-                end = Math.min(length, Math.max(~~(length * end), -~start));
+                    start = Math.max(0, Math.min(~~(length * start), ~-length));
+                    end = Math.min(length, Math.max(~~(length * end), -~start));
+                }
+                else {
+                    start = 0, end = length;
+                }
                 newSeries.startIndex = start;
                 newSeries.endIndex = end;
 
@@ -4419,7 +4694,7 @@
                     shape = valuer;
                     shape.series = newSeries;
                     shape._source = item;
-                    //console.log(valuer)
+                    // console.log(valuer)
 
                     value = shape.value;
                     if (newSeries.animationEnabled !== false) {
@@ -5938,6 +6213,7 @@ var DataLabels = (function () {
                     end = mathMin(100, mathMax(0, pack("number", parseFloat(end, 10), 100)));
                     rs.start = start + "%";
                     rs.end = end + "%";//xAxis=0
+                    rs.bindAxis = isNumber(rangeSelector.xAxis, true) || isNumber(rangeSelector.yAxis, true) || isNumber(rangeSelector.polarAxis, true);
                 }
                 return rs;
             };
@@ -6436,7 +6712,7 @@ var DataLabels = (function () {
                     }
                 }, function (d, newData, i) {
                     if (defined(chart.series[i])) {
-                        newData.tooltip = d.tooltip;
+                        newData.tooltip = d.tooltip || new Tooltip(chart.addLayer(tooltipOptions.layer), tooltipOptions);
                     }
                 });
                 this.tooltip = panel[0].tooltip;
@@ -6495,7 +6771,7 @@ var DataLabels = (function () {
                 image: function() {
                     defined(chart.background) && addBackgroundImage(chart.background);
                 },
-                background: function(){
+                background: function () {
                     var backgroundColor = (options.chart || {}).backgroundColor,
                         gradient;
                     var width = chart.canvas.width,
@@ -6503,7 +6779,7 @@ var DataLabels = (function () {
                         size = Math.min(width, height);
                     size = Math.sqrt(width * width + height * height) / 2;
                     if (defined(backgroundColor)) {
-                        if(backgroundColor.linearGradient || backgroundColor.radialGradient){
+                        if (backgroundColor.linearGradient || backgroundColor.radialGradient) {
                             gradient = Color.parse(backgroundColor);
                             backgroundColor = backgroundColor.radialGradient
                                 ? gradient.radial((width - size) / 2, (height - size) / 2, size)
@@ -6828,6 +7104,7 @@ var DataLabels = (function () {
                             setState(item, false);
                         });
                     }
+
                     legend.draw();
                 }
             };
@@ -6896,7 +7173,9 @@ var DataLabels = (function () {
                 if (ani) {
                     ani();
                 }
-                drawLegend();
+                if (charts.length) {
+                    drawLegend();
+                }
 
                 !once && drawTooltip();
             }
@@ -6990,22 +7269,6 @@ var DataLabels = (function () {
                                 complete: function () {}
                             });
                         });
-                        /*if (event.type === "update") {
-                            globalAnimation.instance.stop(false, true);
-                            shapes.forEach(function (shape) {
-                                globalAnimation.instance.addAnimate(shape, {
-                                    duration: pack("number", shape.duration, globalAnimation.duration, 500),
-                                    delay: 0,
-                                    easing: "linear",
-                                    complete: function () {}
-                                });
-                            });
-                        }
-                        else if (event.type === "selected") {
-                            globalAnimation.instance.setOptions({
-                                duration: 300
-                            }).stop();
-                        }*/
 
                         globalAnimation.instance.fire(function () {
                             globalAnimation.isReady = false;
@@ -7036,6 +7299,7 @@ var DataLabels = (function () {
                     dataLabel.weight = shape.weight || dataLabel.height;
                     if (dataLabel.useHTML === true && domLabel) {
                         label = document.createElement("div");
+                        setStyle(label, {visibility: "hidden"});
                         domLabel.appendChild(label);
                         label.innerHTML = dataLabel.value;
                         dataLabel.domLabel = label;
@@ -7361,7 +7625,7 @@ var DataLabels = (function () {
                 (layer.parentNode && layer.parentNode === container) && container.removeChild(layer);
             }
 
-            if (this.tooltip !== null) {
+            if (defined(this.tooltip)) {
                 layer = this.tooltip.canvas;
                 this.tooltip.useHTML === true && ((layer.parentNode && layer.parentNode === container) && container.removeChild(layer));
             }
@@ -7769,7 +8033,7 @@ var DataLabels = (function () {
                     var xAxisIndex = rangeSelectorOptions.xAxis,
                         yAxisIndex = rangeSelectorOptions.yAxis,
                         polarAxisIndex = rangeSelectorOptions.polarAxis;
-                    if(chart.xAxis[xAxisIndex] || chart.yAxis[yAxisIndex] || chart.polarAxis[polarAxisIndex]){
+                    //if (chart.xAxis[xAxisIndex] || chart.yAxis[yAxisIndex] || chart.polarAxis[polarAxisIndex]) {
                         var width = rangeSelectorOptions.width ||
                                 Numeric.percentage(chart.width, rangeSelectorOptions.width) ||
                                 chart.width - spacing[1] - spacing[3],
@@ -7792,7 +8056,7 @@ var DataLabels = (function () {
                             start: rangeSelectorOptions.start,
                             end: rangeSelectorOptions.end
                         });
-                    }
+                    //}
                 });
             }
 
@@ -11642,7 +11906,7 @@ var DataLabels = (function () {
                 w = size,
                 h = 15;
             var linePixel = fixLinePixel(x, y, w, h);
-            return function(context){
+            return function (context) {
                 var bw = 1;
                 context.save();
                 context.fillStyle = color;
@@ -11723,6 +11987,7 @@ var DataLabels = (function () {
         },
         setWidth: function (width) {
             this.width = pack("number", width, 0);
+            console.log(width)
             this.from = Numeric.percentage(this.width, this.start) + this.x;
             this.to = Numeric.percentage(this.width, this.end) + this.x;
         },
@@ -11762,7 +12027,7 @@ var DataLabels = (function () {
                 case hasOwnProperty.call(options, "y"):
                     isNumber(options.min) && (this.minValue = options.min);
                     isNumber(options.max) && (this.maxValue = options.max);
-                    isNumber(options.x) && (this.x = pack("number", options.x, 0), this.setWidth(this.width - options.x));
+                    isNumber(options.x) && (this.x = pack("number", options.x, 0), this.setWidth(this.width - pack("number", options.x)));
                     isNumber(options.y) && (this.y = pack("number", options.y, 0));
                     defined(options.width) && this.setWidth(options.width);
                 break;
@@ -11817,20 +12082,15 @@ var DataLabels = (function () {
             var context = this.context;
             var startX = this.from,// interpolate(this.start, 0, 100, x, width),
                 endX = this.to;// interpolate(this.end, 0, 100, x, width);
-            //console.log(startX, endX, this.start, this.end);
             var z0 = {x: startX, y: y},
                 z1 = {x: endX, y: y};
-            if(startX > endX){
+            if (startX > endX) {
                 z0 = {x: endX, y: y};
                 z1 = {x: startX, y: y};
             }
             context.save();
             context.fillStyle = "rgba(51,92,173,0.2)";
             context.fillRect(z0.x, y, z1.x - z0.x, height);
-            /*context.fillStyle = zoomColor;
-            context.fillRect(startX, y, Math.abs(startX - endX), 1);
-            context.fillRect(startX, y + height, Math.abs(startX - endX), 1);*/
-            //context.translate(x, 0);
             handle = handles[0] || {};
             z0.viewport = handle.enabled !== false ? Symbol.rect(z0.x, z0.y, 8, height, handle)(context) : {};
             handle = handles[1] || handle;
@@ -11845,6 +12105,7 @@ var DataLabels = (function () {
                 ty = this.y,
                 width,
                 height = this.height;
+            var selector = this;
             var getDataValue = function (item) {
                 var value = item;
                 if (isArray(item)) {
@@ -11858,10 +12119,10 @@ var DataLabels = (function () {
             var plotX = MIN_VALUE,
                 plotWidth = plotX;
 
-            if (hasOwnProperty.call(options, "series")) {
+            if (hasOwnProperty.call(options, "series") && options.series.length) {
                 options.series.forEach(function (series) {
                     plotX = Math.max(plotX, series.plotX);
-                    plotWidth = mathMax(plotWidth, series.plotWidth);
+                    plotWidth = mathMax(plotWidth, pack("number", series.plotWidth, selector.width));
                 });
                 this.x = plotX;
                 this.setWidth(plotWidth);
@@ -11967,7 +12228,7 @@ var DataLabels = (function () {
             this.hasRange = target > -1 && target < 3;
             return cursor;
         },
-        getRangeValue: function(){
+        getRangeValue: function () {
             var options = this.options,
                 style = options.style || {},
                 fontStyle = {
@@ -12006,7 +12267,7 @@ var DataLabels = (function () {
             var context = this.context;
 
             this.setValue();
-            if(this.hasRange || this.dragging){
+            if (this.hasRange || this.dragging) {
                 context.save();
                 context.fillStyle = fontStyle.color;
                 context.font = [fontStyle.fontStyle, fontStyle.fontWeight,
@@ -14692,7 +14953,7 @@ var DataLabels = (function () {
                 connectorPoints = shape.connectorPoints,
                 formatText;
             var fillText = function (item, x, y, reversed) {
-                var value = item._value,
+                var value = item.value,
                     formatter = dataLabels.formatter;
                 function setVertical(y, h){
                     return {
@@ -14708,7 +14969,13 @@ var DataLabels = (function () {
                         center: x - w / 2 * !reversed,
                     };
                 }
-                if(isFunction(formatter)){
+                if (isString(item)) {
+                    value = item;
+                }
+                if (isObject(item._source) && isString(item._source.value)) {
+                    value = item._source.value;
+                }
+                if (isFunction(formatter)) {
                     value = formatter.call({
                         name: item.name,
                         value: value,
@@ -14719,16 +14986,16 @@ var DataLabels = (function () {
                         color: item.color
                     }, item);
                 }
-                if(defined(value)){
+                if (defined(value)) {
                     var tag = Text.HTML(Text.parseHTML(value), context, fontStyle);
                     var bbox = tag.getBBox();
                     var w = bbox.width,
                         h = bbox.height;
-                    if(isInside){
+                    if (isInside) {
                         x = x - w * reversed;
                         y += h / 2;
                     }
-                    else{
+                    else {
                         x = pack("number",
                             setAlign(x, w)[pack("string", dataLabels.align, "right")],
                             x
@@ -14902,6 +15169,7 @@ var DataLabels = (function () {
                     var minValue, maxValue, logBase;
                     var reversed;
                     var inverted = series.inverted;
+                    var marker = series.marker;
 
                     xAxisOptions = series._xAxis || {};
                     yAxisOptions = series._yAxis || {};
@@ -14930,6 +15198,8 @@ var DataLabels = (function () {
                             isFunction(series.radius) && series.radius.call(shape, shape._source, value, series.minValue, series.maxValue, series),
                             5
                         );
+                        if (isObject(shape.marker))
+                            marker = shape.marker;
 
                         if (isFunction(projection)) {
                             //投影数据需要x，y和value
@@ -15003,6 +15273,8 @@ var DataLabels = (function () {
                         }, shape._source);
                         shape.x = x;
                         shape.y = y;
+                        shape.width = pack("number", marker.width, radius);
+                        shape.height = pack("number", marker.height, radius);
                         shape.radius = radius;
                     }
                 });
@@ -15078,16 +15350,13 @@ var DataLabels = (function () {
                 shadowColor = shape.shadowColor || series.shadowColor,
                 marker = shape.marker || series.marker || {},
                 states = (series.states || {}).hover;
-            var radius = shape.radius,
-                cx = shape.x,
+            var cx = shape.x,
                 cy = shape.y,
-                width, height;
+                width = shape.width,
+                height = shape.height;
             var symbol = pack("string", marker && marker.symbol, "circle");
 
             var color = fillColor;
-            //cy += radius
-            width = radius;
-            height = radius;
             if (shape.isNULL) {
                 return this;
             }
@@ -15112,6 +15381,7 @@ var DataLabels = (function () {
                 context.fill();
                 context.restore();
             }
+            // symbol 按中心点偏移
             
             context.save();
             context.fillStyle = fillColor;
@@ -15129,11 +15399,11 @@ var DataLabels = (function () {
             context.restore();
         },
         dataLabels: function (context, shape, series) {
-            var radius = shape.radius;
             if (defined(shape.dataLabel.value)) {
                 DataLabels.value(shape.dataLabel.value);
             }
             DataLabels.align(function (type, bbox, options) {
+                var radius = shape.width;
                 var x = shape.x;
                 var t = pack("string", type, "center");
                 var margin = 5;
@@ -15143,6 +15413,7 @@ var DataLabels = (function () {
                     right: x + radius + margin
                 }[t];
             }).vertical(function (type, bbox) {
+                var radius = shape.height;
                 var y = shape.y;
                 var t = pack("string", type, "middle");
                 var margin = 5;
@@ -16489,7 +16760,7 @@ var DataLabels = (function () {
                     ? gradient.radial(shapeArgs.x, shapeArgs.y, Math.sqrt(s0 * s0 + s1 * s1) / 4)
                     : gradient.linear(0, 0, s0, s1);
             }
-            if (tooltip.enabled !== false && isNumber(shape.current) && shape.current !== -1) {
+            if (tooltip.enabled !== false && fillColor !== "none" && isNumber(shape.current) && shape.current !== -1) {
                 if (!shape.isNULL) {
                     fillColor = Color.parse(fillColor).alpha(0.75).rgba();
                 }
@@ -16511,8 +16782,10 @@ var DataLabels = (function () {
 
             context.save();
             render();
-            context.fillStyle = fillColor;
-            context.fill();
+            if (fillColor !== "none") {
+                context.fillStyle = fillColor;
+                context.fill();
+            }
             if (borderWidth > 0) {
                 context.lineWidth = borderWidth;
                 context.strokeStyle = borderColor;

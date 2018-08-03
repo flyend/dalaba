@@ -251,8 +251,8 @@
             }
             if (globalClick || isSliced) {
                 globalClick && globalClick.call(points, extend({}, e, { points: points, shapes: points, moveX: x, moveY: y }));
-                chart.render(event);
-            }            
+            }
+            chart.render(event);
             chart.toolbar && chart.toolbar.onClick && chart.toolbar.onClick.call(chart.container, e);
         }
     };
@@ -296,7 +296,7 @@
         
         chart.globalEvent.isDragging = true;
         chart.series.forEach(function (series) {
-            if (series.type === "sankey" || series.type === "node") {
+            if (series.type === "sankey") {
                 chart.globalEvent.isDragging = false;
             }
         });
@@ -333,7 +333,9 @@
                 chart.globalEvent.isDragging = false;//chart.globalEvent.isDragging || chart.globalEvent.isDragging;
                 rangeSelector.from = parseFloat(start, 10);
                 rangeSelector.to = parseFloat(end, 10);
-                fetchData(e, chart, start, end);
+                if (chart.charts.length) {
+                    fetchData(e, chart, start, end);
+                }
             });
         });
         chart.charts.forEach(function (item) {
