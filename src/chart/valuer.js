@@ -77,7 +77,7 @@
             }
             !undef(value.x) && (rv._x = value.x, reValue(rv, undefined), flag = true);
             !undef(value.y) && (rv._y = value.y, reValue(rv, undefined), flag = true);
-            isNumber(value.value, true) && (reValue(rv, value.value), flag = true);
+            isNumber(rv.value, true) && (flag = true);
             return flag ? rv : null;
         }
         else if (isString(value)) {

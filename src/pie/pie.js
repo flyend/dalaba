@@ -195,23 +195,29 @@
                 connectorPoints = shape.connectorPoints,
                 formatText;
             var fillText = function (item, x, y, reversed) {
-                var value = item._value,
+                var value = item.value,
                     formatter = dataLabels.formatter;
-                function setVertical(y, h){
+                function setVertical (y, h) {
                     return {
                         top: y - h,
                         bottom: y + h,
                         middle: y + h / 2
                     };
                 }
-                function setAlign(x, w){
+                function setAlign (x, w) {
                     return {
                         left: x - w * !reversed,
                         right: x - w * reversed,
                         center: x - w / 2 * !reversed,
                     };
                 }
-                if(isFunction(formatter)){
+                if (isString(shape._source)) {
+                    value = shape._source;
+                }
+                else if (isObject(shape._source) && isString(shape._source.value)) {
+                    value = shape._source.value;
+                }
+                if (isFunction(formatter)) {
                     value = formatter.call({
                         name: item.name,
                         value: value,
@@ -222,7 +228,7 @@
                         color: item.color
                     }, item);
                 }
-                if(defined(value)){
+                if (defined(value)) {
                     var tag = Text.HTML(Text.parseHTML(value), context, fontStyle);
                     var bbox = tag.getBBox();
                     var w = bbox.width,

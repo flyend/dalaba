@@ -1,6 +1,6 @@
 /**
  * dalaba - A JavaScript chart library for Canvas.
- * @date 2018/07/13
+ * @date 2018/08/01
  * @version v0.3.1
  * @license ISC
  */
@@ -4226,7 +4226,7 @@
             }
             !undef(value.x) && (rv._x = value.x, reValue(rv, undefined), flag = true);
             !undef(value.y) && (rv._y = value.y, reValue(rv, undefined), flag = true);
-            isNumber(value.value, true) && (reValue(rv, value.value), flag = true);
+            isNumber(rv.value, true) && (flag = true);
             return flag ? rv : null;
         }
         else if (isString(value)) {
@@ -6436,7 +6436,7 @@ var DataLabels = (function () {
                     }
                 }, function (d, newData, i) {
                     if (defined(chart.series[i])) {
-                        newData.tooltip = d.tooltip;
+                        newData.tooltip = d.tooltip || new Tooltip(chart.addLayer(tooltipOptions.layer), tooltipOptions);;
                     }
                 });
                 this.tooltip = panel[0].tooltip;
@@ -14692,23 +14692,29 @@ var DataLabels = (function () {
                 connectorPoints = shape.connectorPoints,
                 formatText;
             var fillText = function (item, x, y, reversed) {
-                var value = item._value,
+                var value = item.value,
                     formatter = dataLabels.formatter;
-                function setVertical(y, h){
+                function setVertical (y, h) {
                     return {
                         top: y - h,
                         bottom: y + h,
                         middle: y + h / 2
                     };
                 }
-                function setAlign(x, w){
+                function setAlign (x, w) {
                     return {
                         left: x - w * !reversed,
                         right: x - w * reversed,
                         center: x - w / 2 * !reversed,
                     };
                 }
-                if(isFunction(formatter)){
+                if (isString(shape._source)) {
+                    value = shape._source;
+                }
+                else if (isObject(shape._source) && isString(shape._source.value)) {
+                    value = shape._source.value;
+                }
+                if (isFunction(formatter)) {
                     value = formatter.call({
                         name: item.name,
                         value: value,
@@ -14719,7 +14725,7 @@ var DataLabels = (function () {
                         color: item.color
                     }, item);
                 }
-                if(defined(value)){
+                if (defined(value)) {
                     var tag = Text.HTML(Text.parseHTML(value), context, fontStyle);
                     var bbox = tag.getBBox();
                     var w = bbox.width,
@@ -16542,6 +16548,7 @@ var DataLabels = (function () {
                     delete item.current;
                 });
             }
+            //x=543;
 
             for (var i = 0, n = this.series.length; i < n; i++) {
                 reset(shapes = (series = this.series[i]).shapes);

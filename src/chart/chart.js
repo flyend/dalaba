@@ -908,7 +908,7 @@ require("./define");
                     }
                 }, function (d, newData, i) {
                     if (defined(chart.series[i])) {
-                        newData.tooltip = d.tooltip;
+                        newData.tooltip = d.tooltip || new Tooltip(chart.addLayer(tooltipOptions.layer), tooltipOptions);;
                     }
                 });
                 this.tooltip = panel[0].tooltip;
