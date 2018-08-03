@@ -78,11 +78,13 @@
             !undef(value.x) && (rv._x = value.x, reValue(rv, undefined), flag = true);
             !undef(value.y) && (rv._y = value.y, reValue(rv, undefined), flag = true);
             isNumber(rv.value, true) && (flag = true);
+            rv.sourceValue = value;
             return flag ? rv : null;
         }
         else if (isString(value)) {
             rv._x = rv._y = undefined;
             reValue(rv, valueOf(value, vari.length ? vari.length > 2 ? prediction(vari.slice(-10)) : vari[0] : 0));
+            rv.sourceValue = value;
             return rv;
         }
         else if (isArray(value)) {
@@ -91,6 +93,7 @@
             rv.value = rv.sumValue = rv.minValue = rv.maxValue = pack(function (d) {
                 return isNumber(d, true);
             }, value[2], value[1], undefined);// value.length > 2 ? value[2] : undefined;
+            rv.sourceValue = value;
             return extend(rv, copyAt(rules, nocopy === true ? value : value.slice(3)));
         }
         return null;

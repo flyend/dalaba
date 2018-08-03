@@ -85,7 +85,7 @@
                     shape = valuer;
                     shape.series = newSeries;
                     shape._source = item;
-                    //console.log(valuer)
+                    // console.log(valuer)
 
                     value = shape.value;
                     if (newSeries.animationEnabled !== false) {
@@ -106,7 +106,7 @@
                     //shape.$value = $value;//tooltip value
                     shape.dataLabel = {
                         visibled: true, // show or hide
-                        value: shape.name // data name
+                        value: isString(valuer.sourceValue) ? valuer.sourceValue : shape.name // data name
                     };
                     shape.__proto__ = new Animate();
                     

@@ -165,7 +165,7 @@
                                 positiveTotal = mathLog(negativeTotal, logBase);
                             }
                             if (projection === "2d" || coordinate === "xy") {//projection 2d
-                                x = interpolate.apply(null, [shape._x, xAxisOptions.minX, xAxisOptions.maxX, 0, plotWidth]);
+                                x = interpolate.apply(null, [shape._x, xAxisOptions.minValue, xAxisOptions.maxValue, 0, plotWidth]);
                                 x += plotX + center;
                                 y = interpolate.apply(null, [shape._y, minValue, maxValue].concat(reversed === true ? [0, plotHeight] : [plotHeight, 0]));
                                 y += plotY;
