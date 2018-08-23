@@ -1,6 +1,6 @@
 /**
  * dalaba - A JavaScript chart library for Canvas.
- * @date 2018/08/01
+ * @date 2018/08/18
  * @version v0.3.1
  * @license ISC
  */
@@ -395,30 +395,31 @@
         return a - b;
     };
 
-    function down (array, i) {
-        var value = array[i];
-        var size = array.length;
+    function down (data, i) {
+        var value = data[i];
+        var size = data.length;
 
         while (true) {
             var r = (i + 1) << 1,
                 l = r - 1,
                 j = i;
-            var child = array[j];
-            if (l < size && defaultCompare(child, array[l]) > 0) child = array[j = l];
-            if (r < size && defaultCompare(child, array[r]) > 0) child = array[j = r];
+            var child = data[j];
+            if (l < size && defaultCompare(child.value, data[l].value) > 0) child = data[j = l];
+            if (r < size && defaultCompare(child.value, data[r].value) > 0) child = data[j = r];
             if (j === i) break;
-            array[i] = child;
-            array[i = j] = value;
+            data[i] = child, child.index = i;
+            data[i = j] = value, value.index = i;
         }
     }
-    function up (array, i) {
-        var value = array[i];
+
+    function up (data, i) {
+        var value = data[i];
         while (i > 0) {
             var j = (i + 1 >> 1) - 1,
-                parent = array[j];
-            if (defaultCompare(value, parent) >= 0) break;
-            array[i] = parent;
-            array[i = j] = value;
+                parent = data[j];
+            if (defaultCompare(value.value, parent.value) >= 0) break;
+            data[i] = parent, parent.index = i;
+            data[i = j] = value, value.index = i;
         }
     }
 
@@ -426,15 +427,35 @@
         return new Heap.init(compare);
     };
     Heap.init = function (compare) {
-        defaultCompare = compare || defaultCompare;
+        defaultCompare = compare || function (a, b) {
+            return a - b;
+        };
         this.length = 0;
         return this;
     };
+    
+    function search (data, index, value) {
+        var left, right;
+        var i;
+        if (data[index].value === value)
+            return index;
+        else if (defaultCompare(data[index].value, value) >= 0)
+            return -1;
+        left = index * 2 + 1;
+        right = left + 1;
+
+        i = search(data, left, value);
+
+        if (i !== -1)
+            return i;
+
+        return search(data, right, value);
+    }
 
     Heap.prototype = {
         push: function (value) {
             var size = this.length;
-            this[size] = value;
+            this[size] = {value: value, index: size};
             up(this, size++);
             return this.length = size;
         },
@@ -442,16 +463,35 @@
             var size = this.length;
             if (size <= 0)
                 return null;
-            var removed = this[0];
-            var end = this.splice(size - 1, 1)[0];
-            if ((this.length = --size) > 0) {
-                this[0] = end;//this[size];
+            var removed = this[0],
+                last = this.splice(size - 1, 1)[0];
+            if ((this.length) > 0) {
+                //last.index = 0;
+                this[0] = last;//this[size];
                 down(this, 0);
             }
-            return removed;
+            return removed.value;
+        },
+        remove: function (removed) {
+            var index = this.indexOf(removed),
+                
+                last = this.splice(this.length - 1, 1)[0];
+            if (index !== this.length) {
+                this[index] = last;
+                (defaultCompare(last.value, removed) < 0 ? up : down)(this, index);
+            }
+            return index;
         },
         peek: function () {
             return this[0];
+        },
+        indexOf: function (value) {
+            var i = -1,
+                length = this.length;
+
+            while (++i < length && this[i].value !== value);
+            //b = search(this, 0, removed)
+            return i < length ? i : -1;
         },
         splice: [].splice,
         size: function () {
@@ -3765,8 +3805,7 @@
 
         return {
             show: function (e, chart) {
-                var tooltip = chart.tooltip,
-                    tooltipOptions = chart.options.tooltip,
+                var tooltipOptions = chart.options.tooltip,
                     layoutLinked = (chart.options.layout || {}).linked;
                 var pos = Event.normalize(e, chart.container);
 
@@ -3902,7 +3941,6 @@
                 var v = dir.x > 0 || -1;
                 var start = rangeSelector._start - dm * v,
                     end = rangeSelector._end - dm * v;
-                //console.log(dm)
                 var t = end - start;
                 if (dir.x > 0) {
                     start = mathMax(0, start);
@@ -3918,7 +3956,9 @@
                 slider && slider.startToEnd(start + "%", end + "%");
                 
                 chart.globalEvent.isDragging = false;// chart.globalEvent.isDragging || !chart.globalEvent.isDragging;
-                fetchData(e, chart, start, end);
+                if (chart.charts.length) {
+                    fetchData(e, chart, start, end);
+                }
             }
             slider && slider.onDrag(p.x, p.y, function (sv, ev, start, end) {
                 chart.globalEvent.isDragging = false;//chart.globalEvent.isDragging || chart.globalEvent.isDragging;
@@ -3958,6 +3998,8 @@
     };
 
     var onZoom = function (chart) {
+        var options = chart.options,
+            chartOptions = options.chart || {};
         var getZoom = function (e) {
             var deltaX, deltaY, delta;
             var vector;
@@ -3974,8 +4016,8 @@
                 delta = deltaY === 0 ? deltaX : deltaY;
                 delta = deltaY = pack("number", -e.deltaY, deltaY);
                 deltaX = pack("number", e.deltaX, deltaX);
-                deltaY === 0 && (delta === -deltaX);
-                if(deltaY === 0 && deltaX === 0){
+                deltaY === 0 && (delta = -deltaX);
+                if (deltaY === 0 && deltaX === 0) {
                     scale.disabled = true;
                     return scale;
                 }
@@ -3990,34 +4032,50 @@
                 x = Event.normalize(e, this),
                 y = x.y;
             x = x.x;
-            if(Intersection.rect(
+            e.preventDefault && e.preventDefault();
+            if (Intersection.rect(
                 {x: x, y: y},
                 {x: viewport.left, y: viewport.top, width: viewport.left + viewport.width, height: viewport.top + viewport.height}
-            )){
+            )) {
                 var scale = getZoom(e);
                 if (scale.disabled)
                     return;
                 chart.rangeSlider.forEach(function (slider, i) {
+                    var options = slider.options,
+                        zoomRatio = options.zoomRatio,
+                        events = options.events;
                     var rangeSelector = chart.rangeSelector[i];
                     var from = rangeSelector.from,
                         to = rangeSelector.to;
-                    var r = Math.max(1 - from / to || 0, 0.1);
-                    var v = (scale.length > 0 ? from < to | 0 : -1) * scale.scale * r;
-                        v || (from = to);
-                    
-                    from = Math.max(0, from += v);
-                    to = Math.min(100, to -= v);
-                    rangeSelector.from = rangeSelector._start = from;
-                    rangeSelector.to = rangeSelector._end = to;
-                    
+                    if (!defined(events) || (defined(events) && isFunction(events.zoom))) {
+                        var ratio = pack("number",
+                            zoomRatio,
+                            isFunction(zoomRatio) && zoomRatio.call(slider, e, scale.length),
+                            Math.max(1 - from / to || 0, 0.1)
+                        );
+                        var v = (scale.length > 0 ? from < to | 0 : -1) * scale.scale * ratio;
+                            v || (from = to);
                         
-                    slider && slider.startToEnd(from + "%", to + "%");
+                        from = Math.max(0, from += v);
+                        to = Math.min(100, to -= v);
+                        rangeSelector.from = rangeSelector._start = from;
+                        rangeSelector.to = rangeSelector._end = to;
+
+                        slider && slider.startToEnd(from + "%", to + "%");
+                    }
+                    events && isFunction(events.zoom) && events.zoom.call(slider, e);
                 });
                 var rangeSelector = chart.rangeSelector;
                 if (rangeSelector.length && rangeSelector[0].from !== rangeSelector[0].to) {
-                    fetchData(e, chart, rangeSelector[0].from, rangeSelector[0].to);
-                    e.preventDefault && e.preventDefault();
+                    if (chart.charts.length) {
+                        fetchData(e, chart, rangeSelector[0].from, rangeSelector[0].to);
+                    }
                 }
+                if (chartOptions.events && isFunction(chartOptions.events.zoom)) {
+                    e.delta = scale.length;
+                    chartOptions.events.zoom.call(null, e);
+                }
+                !chart.charts.length && chart.render(e);
             }
         };
     };
@@ -4025,7 +4083,7 @@
     var onResize = function (e, chart) {
         var timer;
         var width, height;
-        if (chart.globalAnimation.isReady === true) {
+        if (chart.renderer && chart.globalAnimation.isReady === true) {
             timer && clearTimeout(timer);
             timer = setTimeout(function () {
                 height = (width = chart.getSize(chart.renderer)).height;
@@ -4060,8 +4118,9 @@
                 visibilitychange: {el: document, listener: globalEvent.visible},
                 webkitvisibilitychange: {el: document, listener: globalEvent.visible}
             }, event;
-            for (var p in events) if (event = events[p], events.hasOwnProperty(p))
+            for (var p in events) if (event = events[p], events.hasOwnProperty(p)) {
                 (event.el || container)[type](p, event.listener || event, useCapture);
+            }
 
             //container[type]("mousemove", globalEvent.drag, useCapture);
         }
@@ -5934,6 +5993,11 @@ var DataLabels = (function () {
             return null;
         }
 
+        if (element && (element.nodeType !== 1 && !isFunction(element.getContext))) {
+            options = element;
+            element = {};
+        }
+
         this.options = extend({}, defaultOptions);
         extend(this.options, options);
         globalStyle(this.options);
@@ -5972,7 +6036,7 @@ var DataLabels = (function () {
                 "user-select": "none",
                 cursor: "default"
             });
-            (this.renderer = element).appendChild(this.container);
+            element.nodeType === 1 && (this.renderer = element).appendChild(this.container);
             this.canvas = new Layer(this.container, this.width, this.height).canvas;
         }
         
@@ -6597,7 +6661,8 @@ var DataLabels = (function () {
                             rangeSelectorOptions.y,
                             Numeric.percentage(slider.height, rangeSelectorOptions.y),
                             chart.height - slider.height - legendHeight - spacing[2]
-                        )
+                        ),
+                        range: [chart.width, chart.height]
                     });
                 }
             });
@@ -7173,16 +7238,16 @@ var DataLabels = (function () {
                 if (ani) {
                     ani();
                 }
-                if (charts.length) {
+                //if (charts.length) {
                     drawLegend();
-                }
+                //}
 
                 !once && drawTooltip();
             }
 
             var isEventing = function (event) {
                 var type = event.type;
-                return type === "mousemove" || type === "resize" || type === "click";
+                return type === "mousemove" || type === "resize" || type === "click" || type === "mousewheel";
             };
             var isAnimationReady = function (chart) {
                 return chart.globalAnimation.isReady === true;
@@ -7246,7 +7311,7 @@ var DataLabels = (function () {
                         chart.renderChart(animationCharts, true);
                     }, true);
                 }, function () {
-                    onLoad(), onReady();
+                    onLoad();//, onReady();
                 });
             }
             else {
@@ -7280,7 +7345,10 @@ var DataLabels = (function () {
                             onRedraw(), onReady();
                         });
                     }
-                    event.type === "update" && (noAnimationCharts.length & !animationCharts.length) && (onRedraw());
+                    if (event.type === "update") {
+                        (noAnimationCharts.length & !animationCharts.length) && (onRedraw());
+                        (noAnimationCharts.length | animationCharts.length) || (paintComponent([]), onReady());
+                    }
                 }
                 else if (isAnimationReady(chart) && isDragging(chart) && isEventing(event)) {
                     paintComponent(charts);
@@ -7509,7 +7577,7 @@ var DataLabels = (function () {
                 }).each();
                 seriesOptions.forEach(function (item, i) {
                     var newSeries;
-                    if(!item.used){
+                    if (!item.used) {
                         newSeries = chart.addSeries(item, i);
                         series.push(newSeries);
                         delete item.used;
@@ -7531,6 +7599,24 @@ var DataLabels = (function () {
                     null
                 );
             }
+            //setting exists slider
+            if (defined(chartOptions = options.rangeSelector) && this.rangeSlider && this.rangeSlider.length) {
+                this.rangeSlider.forEach(function (slider, i) {
+                    var rsp = isArray(chartOptions) ? chartOptions[i] : chartOptions;
+                    var rangeSelector = chart.rangeSelector[i];
+                    var from, to;
+
+                    slider.setOptions(rsp);
+
+                    if (rangeSelector && rsp && (defined(rsp.start) || defined(rsp.end))) {
+                        from = pack("number", parseFloat(chartOptions.start, 10), parseFloat(slider.start, 10));
+                        to = pack("number", parseFloat(chartOptions.end, 10), parseFloat(slider.end, 10));
+                        rangeSelector.from = rangeSelector._start = from;
+                        rangeSelector.to = rangeSelector._end = to;
+                    }
+                });
+            }
+
             redraw !== false && this.draw({ target: this, type: "update"});
             return this;
         },
@@ -7576,6 +7662,11 @@ var DataLabels = (function () {
                 pane.plotX = pane.x *= ratioWidth;
                 pane.plotWidth = pane.width *= ratioWidth;
                 //pane.width += ratioWidth;
+            });
+            this.rangeSlider.forEach(function (slider) {
+                slider.setOptions({
+                    width: slider.width * ratioWidth
+                });
             });
             this.translateAxis();
             this.addPlotSeries();
@@ -8054,7 +8145,9 @@ var DataLabels = (function () {
                         }
                         chart.rangeSelector.push({
                             start: rangeSelectorOptions.start,
-                            end: rangeSelectorOptions.end
+                            end: rangeSelectorOptions.end,
+                            from: parseFloat(rangeSelectorOptions.start, 10),
+                            to: parseFloat(rangeSelectorOptions.end, 10)
                         });
                     //}
                 });
@@ -11871,7 +11964,7 @@ var DataLabels = (function () {
         height: 30,
         margin: 0,
         layout: "horizontal",//horizontal or vertical,
-        verticalAlign: "bottom",//top, bottom, middle
+        //verticalAlign: "bottom",//top, bottom, middle
         align: "center",//left, right or center
         floating: false,
         borderWidth: 1,
@@ -11916,7 +12009,7 @@ var DataLabels = (function () {
                 w = linePixel.width, h = linePixel.height;
                 
                 context.translate(-w / 2 + bw, (height - h) / 2 - 1);
-                context.lineWidth = 1;
+                
                 context.strokeStyle = color;
                 context.fillStyle = options.backgroundColor;
                 context.beginPath();
@@ -11925,6 +12018,7 @@ var DataLabels = (function () {
                 context.lineTo(x + w, y + h);//right bottom
                 context.lineTo(x, y + h);//left bottom
                 context.lineTo(x, y);//close path
+                context.lineWidth = 1;
                 setShadow(context, options);
                 context.fill();
                 context.stroke();
@@ -11978,7 +12072,7 @@ var DataLabels = (function () {
             this.minValue = pack("number", options.min, 0);
             this.maxValue = pack("number", options.max, 0);
 
-            this.range = [];
+            this.range = [{width: 8}, {width: 8}];
             this.target = -1;
 
             this.dragging = false;
@@ -11987,7 +12081,6 @@ var DataLabels = (function () {
         },
         setWidth: function (width) {
             this.width = pack("number", width, 0);
-            console.log(width)
             this.from = Numeric.percentage(this.width, this.start) + this.x;
             this.to = Numeric.percentage(this.width, this.end) + this.x;
         },
@@ -12002,7 +12095,7 @@ var DataLabels = (function () {
             //sync start & end
             startValue = minValue + (maxValue - minValue) * parseFloat(this.start, 10) / 100;// (this.from - x) * percent;
             endValue = minValue + (maxValue - minValue) * parseFloat(this.end, 10) / 100;// (this.to - x) * percent;
-            if(startValue > endValue){
+            if (startValue > endValue) {
                 x = startValue;
                 startValue = endValue;
                 endValue = x;
@@ -12017,7 +12110,24 @@ var DataLabels = (function () {
             this.draw();
         },
         setOptions: function (options) {
+            var verticalAlign,
+                borderWidth;
+            var slider = this;
+            var setVAlign = function (type, options) {
+                var range = options.range;
+                var valign = {
+                    top: function () {
+                        return borderWidth;
+                    },
+                    bottom: function () {
+                        return range[1] - slider.height - borderWidth;
+                    }
+                };
+                valign[type] && (slider.y = valign[type]());
+            };
             extend(this.options, options);
+            verticalAlign = this.options.verticalAlign;
+            borderWidth = pack("number", this.options.borderWidth, 1);
 
             switch (true) {
                 case hasOwnProperty.call(options, "min"):
@@ -12038,6 +12148,9 @@ var DataLabels = (function () {
             if (hasOwnProperty.call(options, "start") && hasOwnProperty.call(options, "end")) {
                 this.startToEnd(options.start, options.end);
             }
+            if (verticalAlign) {
+                setVAlign(verticalAlign, this.options);
+            }
             return this;
         },
         drawPlot: function () {
@@ -12046,10 +12159,12 @@ var DataLabels = (function () {
                 borderColor = options.borderColor;
             var width = this.width,
                 height = this.height,
-                x = this.x,
-                y = this.y - borderWidth;
+                x = this.x + borderWidth,
+                y = this.y;
             var context = this.context;
             var linePixel = fixLinePixel(x, y, width, height, borderWidth);
+            linePixel.width -= 10;
+            linePixel.x += 4;
 
             context.save();
             context.fillStyle = options.backgroundColor;
@@ -12059,14 +12174,14 @@ var DataLabels = (function () {
             context.lineTo(linePixel.x + linePixel.width, linePixel.y + linePixel.height);
             context.lineTo(linePixel.x, linePixel.y + linePixel.height);
             context.closePath();
-                
+            
+            if (defined(options.backgroundColor)) {
+                context.fill();
+            }
             if (borderWidth > 0) {
                 context.strokeStyle = borderColor;
                 context.lineWidth = borderWidth;
                 context.stroke();
-            }
-            if (defined(options.backgroundColor)) {
-                context.fill();
             }
             context.fillRect(linePixel.x, linePixel.y, 0, height);
             context.clip();
@@ -12080,25 +12195,26 @@ var DataLabels = (function () {
             var height = this.height,
                 y = this.y;
             var context = this.context;
-            var startX = this.from,// interpolate(this.start, 0, 100, x, width),
-                endX = this.to;// interpolate(this.end, 0, 100, x, width);
-            var z0 = {x: startX, y: y},
-                z1 = {x: endX, y: y};
+            var startX = this.from,
+                endX = this.to;
+            var z0 = this.range[0],
+                z1 = this.range[1];
+            z0.x = startX, z1.x = endX;
+            z0.y = y, z1.y = y;
             if (startX > endX) {
-                z0 = {x: endX, y: y};
-                z1 = {x: startX, y: y};
+                z0.x = endX;
+                z1.x = startX;
             }
             context.save();
             context.fillStyle = "rgba(51,92,173,0.2)";
-            context.fillRect(z0.x, y, z1.x - z0.x, height);
+            context.fillRect(z0.x + z0.width / 2, y, z1.x - z0.x - z1.width, height);
             handle = handles[0] || {};
-            z0.viewport = handle.enabled !== false ? Symbol.rect(z0.x, z0.y, 8, height, handle)(context) : {};
+            z0.viewport = handle.enabled !== false ? Symbol.rect(z0.x + z0.width / 2, z0.y, z0.width, height, handle)(context) : {};
             handle = handles[1] || handle;
-            z1.viewport = handle.enabled !== false ? Symbol.rect(z1.x, z1.y, 8, height, handle)(context) : {};
+            z1.viewport = handle.enabled !== false ? Symbol.rect(z1.x - z1.width / 2 - 2, z1.y, z1.width, height, handle)(context) : {};
             context.restore();
-            this.range = [z0, z1];
         },
-        drawSeries: function() {
+        drawSeries: function () {
             var options = this.options;
             var context = this.context;
             var tx,
@@ -12157,7 +12273,7 @@ var DataLabels = (function () {
                     startX = tx + dx + i * size,
                     startY = ty + interpolate(getDataValue(data[i]), minValue, maxValue, height, 0)
                 );
-                for(; i < length; i++){
+                for (; i < length; i++) {
                     value = getDataValue(data[i]);
                     x = i * size + dx + tx;
                     if (!isNumber(value)) {
@@ -12192,28 +12308,28 @@ var DataLabels = (function () {
                 endZoom,
                 size;
             var target = -1;
-            if(!this.range.length){
+            if (!this.range.length) {
                 return target;
             }
             startZoom = range[0].viewport;
             endZoom = range[1].viewport;
             size = range[1].x - range[0].x;
-            if(Intersection.rect(
+            if (Intersection.rect(
                 {x: x, y: y},
                 {x: range[0].x, y: this.y, width: range[0].x + size, height: this.y + height}
-            )){
+            )) {
                 target = 0;
             }
-            if(Intersection.rect(
+            if (Intersection.rect(
                 {x: x, y: y},
                 {x: startZoom.left, y: startZoom.top, width: startZoom.left + startZoom.width, height: startZoom.top + this.height}
-            )){
+            )) {
                 target = 1;
             }
-            else if(Intersection.rect(
+            else if (Intersection.rect(
                 {x: x, y: y},
                 {x: endZoom.left, y: endZoom.top, width: endZoom.left + endZoom.width, height: endZoom.top + height}
-            )){
+            )) {
                 target = 2;
             }
             return target;
@@ -12221,9 +12337,9 @@ var DataLabels = (function () {
         getCursor: function (x, y) {
             var cursor = null;
             var target = this.getTarget(x, y);
-            if(target === 0)
+            if (target === 0)
                 cursor = "move";
-            if(target === 1 || target === 2)
+            if (target === 1 || target === 2)
                 cursor = "ew-resize";
             this.hasRange = target > -1 && target < 3;
             return cursor;
@@ -12241,13 +12357,16 @@ var DataLabels = (function () {
                 };
             var height = this.height,
                 y = this.y,
+                x,
+                tw,
                 fontSize = pack("number", parseFloat(fontStyle.fontSize, 10) * 0.8);
+            var align;
             var range = this.range,
                 z0 = range[0].viewport,
                 z1 = range[1].viewport;
             var startValue = parseFloat(this.start, 10),
                 endValue = parseFloat(this.end, 10);
-            if(startValue > endValue){
+            if (startValue > endValue) {
                 var t = startValue;
                 startValue = endValue;
                 endValue = t;
@@ -12272,11 +12391,27 @@ var DataLabels = (function () {
                 context.fillStyle = fontStyle.color;
                 context.font = [fontStyle.fontStyle, fontStyle.fontWeight,
                     fontStyle.fontSize + "/" + fontStyle.lineHeight, fontStyle.fontFamily].join(" ");
+                tw = context.measureText(startValue).width;
+                align = "right";
+                x = range[0].x;
+                if (x - tw - z0.width <= this.x) {
+                    align = "left";
+                    x += z0.width * 2;
+                }
+                else x -= z0.width / 2;
+                context.textAlign = align;
+                context.fillText(startValue, x, y + fontSize + (height - fontSize) / 2);
+                tw = context.measureText(endValue).width;
+                x = range[1].x;
+                align = "left";
+                if (x + tw >= this.width) {
+                    align = "right";
+                    x -= z1.width + z1.width;
+                }
+                else x += z1.width / 2;
                 //context.textBaseline = "top";
-                context.textAlign = "right";
-                context.fillText(startValue, range[0].x - z0.width / 2, y + fontSize + (height - fontSize) / 2);
-                context.textAlign = "left";
-                context.fillText(endValue, range[1].x + z1.width / 2, y + fontSize + (height - fontSize) / 2);
+                context.textAlign = align;
+                context.fillText(endValue, x, y + fontSize + (height - fontSize) / 2);
                 context.restore();
             }
         },
@@ -12286,7 +12421,7 @@ var DataLabels = (function () {
             this.drawNavigator();
             this.getRangeValue();
         },
-        onStart: function(x, y, e){
+        onStart: function (x, y, e) {
             var target;
             var start = parseFloat(this.start, 10),
                 end = parseFloat(this.end, 10),
@@ -12296,18 +12431,18 @@ var DataLabels = (function () {
             x = x.x;
             this.dragging = (target = this.target = this.getTarget(x, y)) > -1 && target < 3;
             this.dx = x - this.range[0].x;
-            if(this.from > this.to){
+            if (this.from > this.to) {
                 t = this.from;
                 this.from = this.to;
                 this.to = t;
             }
-            if(start > end){
+            if (start > end) {
                 t = this.start;
                 this.start = this.end;
                 this.end = t;
             }
         },
-        onDrag: function(x, y, callback){
+        onDrag: function (x, y, callback) {
             var width = this.width;
             var range = this.range,
                 z0 = range[0],
@@ -16582,6 +16717,8 @@ var DataLabels = (function () {
                                 points: points
                             };
                             var cp = properties.cp;
+                            //console.log(groups, feature)
+                            //groups = groups.slice(0, 13)
                             groups.forEach(function (polygon, i) {
                                 var x, y;
                                 var length = polygon.length,
@@ -16721,6 +16858,7 @@ var DataLabels = (function () {
                 var shapes = series.shapes;
                 if (defined(series.mapData)) {
                     shapes.forEach(function (shape) {
+                        console.log(shape.points)
                         chart.drawShape(context, shape, series);
                     });
                     shapes.forEach(function (shape) {

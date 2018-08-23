@@ -40,6 +40,7 @@
                 var shapes = series.shapes;
                 if (defined(series.mapData)) {
                     shapes.forEach(function (shape) {
+                        console.log(shape.points)
                         chart.drawShape(context, shape, series);
                     });
                     shapes.forEach(function (shape) {

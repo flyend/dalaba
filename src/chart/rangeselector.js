@@ -20,7 +20,7 @@
         height: 30,
         margin: 0,
         layout: "horizontal",//horizontal or vertical,
-        verticalAlign: "bottom",//top, bottom, middle
+        //verticalAlign: "bottom",//top, bottom, middle
         align: "center",//left, right or center
         floating: false,
         borderWidth: 1,
@@ -65,7 +65,7 @@
                 w = linePixel.width, h = linePixel.height;
                 
                 context.translate(-w / 2 + bw, (height - h) / 2 - 1);
-                context.lineWidth = 1;
+                
                 context.strokeStyle = color;
                 context.fillStyle = options.backgroundColor;
                 context.beginPath();
@@ -74,6 +74,7 @@
                 context.lineTo(x + w, y + h);//right bottom
                 context.lineTo(x, y + h);//left bottom
                 context.lineTo(x, y);//close path
+                context.lineWidth = 1;
                 setShadow(context, options);
                 context.fill();
                 context.stroke();
@@ -127,7 +128,7 @@
             this.minValue = pack("number", options.min, 0);
             this.maxValue = pack("number", options.max, 0);
 
-            this.range = [];
+            this.range = [{width: 8}, {width: 8}];
             this.target = -1;
 
             this.dragging = false;
@@ -136,7 +137,6 @@
         },
         setWidth: function (width) {
             this.width = pack("number", width, 0);
-            console.log(width)
             this.from = Numeric.percentage(this.width, this.start) + this.x;
             this.to = Numeric.percentage(this.width, this.end) + this.x;
         },
@@ -151,7 +151,7 @@
             //sync start & end
             startValue = minValue + (maxValue - minValue) * parseFloat(this.start, 10) / 100;// (this.from - x) * percent;
             endValue = minValue + (maxValue - minValue) * parseFloat(this.end, 10) / 100;// (this.to - x) * percent;
-            if(startValue > endValue){
+            if (startValue > endValue) {
                 x = startValue;
                 startValue = endValue;
                 endValue = x;
@@ -166,7 +166,24 @@
             this.draw();
         },
         setOptions: function (options) {
+            var verticalAlign,
+                borderWidth;
+            var slider = this;
+            var setVAlign = function (type, options) {
+                var range = options.range;
+                var valign = {
+                    top: function () {
+                        return borderWidth;
+                    },
+                    bottom: function () {
+                        return range[1] - slider.height - borderWidth;
+                    }
+                };
+                valign[type] && (slider.y = valign[type]());
+            };
             extend(this.options, options);
+            verticalAlign = this.options.verticalAlign;
+            borderWidth = pack("number", this.options.borderWidth, 1);
 
             switch (true) {
                 case hasOwnProperty.call(options, "min"):
@@ -187,6 +204,9 @@
             if (hasOwnProperty.call(options, "start") && hasOwnProperty.call(options, "end")) {
                 this.startToEnd(options.start, options.end);
             }
+            if (verticalAlign) {
+                setVAlign(verticalAlign, this.options);
+            }
             return this;
         },
         drawPlot: function () {
@@ -195,10 +215,12 @@
                 borderColor = options.borderColor;
             var width = this.width,
                 height = this.height,
-                x = this.x,
-                y = this.y - borderWidth;
+                x = this.x + borderWidth,
+                y = this.y;
             var context = this.context;
             var linePixel = fixLinePixel(x, y, width, height, borderWidth);
+            linePixel.width -= 10;
+            linePixel.x += 4;
 
             context.save();
             context.fillStyle = options.backgroundColor;
@@ -208,14 +230,14 @@
             context.lineTo(linePixel.x + linePixel.width, linePixel.y + linePixel.height);
             context.lineTo(linePixel.x, linePixel.y + linePixel.height);
             context.closePath();
-                
+            
+            if (defined(options.backgroundColor)) {
+                context.fill();
+            }
             if (borderWidth > 0) {
                 context.strokeStyle = borderColor;
                 context.lineWidth = borderWidth;
                 context.stroke();
-            }
-            if (defined(options.backgroundColor)) {
-                context.fill();
             }
             context.fillRect(linePixel.x, linePixel.y, 0, height);
             context.clip();
@@ -229,25 +251,26 @@
             var height = this.height,
                 y = this.y;
             var context = this.context;
-            var startX = this.from,// interpolate(this.start, 0, 100, x, width),
-                endX = this.to;// interpolate(this.end, 0, 100, x, width);
-            var z0 = {x: startX, y: y},
-                z1 = {x: endX, y: y};
+            var startX = this.from,
+                endX = this.to;
+            var z0 = this.range[0],
+                z1 = this.range[1];
+            z0.x = startX, z1.x = endX;
+            z0.y = y, z1.y = y;
             if (startX > endX) {
-                z0 = {x: endX, y: y};
-                z1 = {x: startX, y: y};
+                z0.x = endX;
+                z1.x = startX;
             }
             context.save();
             context.fillStyle = "rgba(51,92,173,0.2)";
-            context.fillRect(z0.x, y, z1.x - z0.x, height);
+            context.fillRect(z0.x + z0.width / 2, y, z1.x - z0.x - z1.width, height);
             handle = handles[0] || {};
-            z0.viewport = handle.enabled !== false ? Symbol.rect(z0.x, z0.y, 8, height, handle)(context) : {};
+            z0.viewport = handle.enabled !== false ? Symbol.rect(z0.x + z0.width / 2, z0.y, z0.width, height, handle)(context) : {};
             handle = handles[1] || handle;
-            z1.viewport = handle.enabled !== false ? Symbol.rect(z1.x, z1.y, 8, height, handle)(context) : {};
+            z1.viewport = handle.enabled !== false ? Symbol.rect(z1.x - z1.width / 2 - 2, z1.y, z1.width, height, handle)(context) : {};
             context.restore();
-            this.range = [z0, z1];
         },
-        drawSeries: function() {
+        drawSeries: function () {
             var options = this.options;
             var context = this.context;
             var tx,
@@ -306,7 +329,7 @@
                     startX = tx + dx + i * size,
                     startY = ty + interpolate(getDataValue(data[i]), minValue, maxValue, height, 0)
                 );
-                for(; i < length; i++){
+                for (; i < length; i++) {
                     value = getDataValue(data[i]);
                     x = i * size + dx + tx;
                     if (!isNumber(value)) {
@@ -341,28 +364,28 @@
                 endZoom,
                 size;
             var target = -1;
-            if(!this.range.length){
+            if (!this.range.length) {
                 return target;
             }
             startZoom = range[0].viewport;
             endZoom = range[1].viewport;
             size = range[1].x - range[0].x;
-            if(Intersection.rect(
+            if (Intersection.rect(
                 {x: x, y: y},
                 {x: range[0].x, y: this.y, width: range[0].x + size, height: this.y + height}
-            )){
+            )) {
                 target = 0;
             }
-            if(Intersection.rect(
+            if (Intersection.rect(
                 {x: x, y: y},
                 {x: startZoom.left, y: startZoom.top, width: startZoom.left + startZoom.width, height: startZoom.top + this.height}
-            )){
+            )) {
                 target = 1;
             }
-            else if(Intersection.rect(
+            else if (Intersection.rect(
                 {x: x, y: y},
                 {x: endZoom.left, y: endZoom.top, width: endZoom.left + endZoom.width, height: endZoom.top + height}
-            )){
+            )) {
                 target = 2;
             }
             return target;
@@ -370,9 +393,9 @@
         getCursor: function (x, y) {
             var cursor = null;
             var target = this.getTarget(x, y);
-            if(target === 0)
+            if (target === 0)
                 cursor = "move";
-            if(target === 1 || target === 2)
+            if (target === 1 || target === 2)
                 cursor = "ew-resize";
             this.hasRange = target > -1 && target < 3;
             return cursor;
@@ -390,13 +413,16 @@
                 };
             var height = this.height,
                 y = this.y,
+                x,
+                tw,
                 fontSize = pack("number", parseFloat(fontStyle.fontSize, 10) * 0.8);
+            var align;
             var range = this.range,
                 z0 = range[0].viewport,
                 z1 = range[1].viewport;
             var startValue = parseFloat(this.start, 10),
                 endValue = parseFloat(this.end, 10);
-            if(startValue > endValue){
+            if (startValue > endValue) {
                 var t = startValue;
                 startValue = endValue;
                 endValue = t;
@@ -421,11 +447,27 @@
                 context.fillStyle = fontStyle.color;
                 context.font = [fontStyle.fontStyle, fontStyle.fontWeight,
                     fontStyle.fontSize + "/" + fontStyle.lineHeight, fontStyle.fontFamily].join(" ");
+                tw = context.measureText(startValue).width;
+                align = "right";
+                x = range[0].x;
+                if (x - tw - z0.width <= this.x) {
+                    align = "left";
+                    x += z0.width * 2;
+                }
+                else x -= z0.width / 2;
+                context.textAlign = align;
+                context.fillText(startValue, x, y + fontSize + (height - fontSize) / 2);
+                tw = context.measureText(endValue).width;
+                x = range[1].x;
+                align = "left";
+                if (x + tw >= this.width) {
+                    align = "right";
+                    x -= z1.width + z1.width;
+                }
+                else x += z1.width / 2;
                 //context.textBaseline = "top";
-                context.textAlign = "right";
-                context.fillText(startValue, range[0].x - z0.width / 2, y + fontSize + (height - fontSize) / 2);
-                context.textAlign = "left";
-                context.fillText(endValue, range[1].x + z1.width / 2, y + fontSize + (height - fontSize) / 2);
+                context.textAlign = align;
+                context.fillText(endValue, x, y + fontSize + (height - fontSize) / 2);
                 context.restore();
             }
         },
@@ -435,7 +477,7 @@
             this.drawNavigator();
             this.getRangeValue();
         },
-        onStart: function(x, y, e){
+        onStart: function (x, y, e) {
             var target;
             var start = parseFloat(this.start, 10),
                 end = parseFloat(this.end, 10),
@@ -445,18 +487,18 @@
             x = x.x;
             this.dragging = (target = this.target = this.getTarget(x, y)) > -1 && target < 3;
             this.dx = x - this.range[0].x;
-            if(this.from > this.to){
+            if (this.from > this.to) {
                 t = this.from;
                 this.from = this.to;
                 this.to = t;
             }
-            if(start > end){
+            if (start > end) {
                 t = this.start;
                 this.start = this.end;
                 this.end = t;
             }
         },
-        onDrag: function(x, y, callback){
+        onDrag: function (x, y, callback) {
             var width = this.width;
             var range = this.range,
                 z0 = range[0],

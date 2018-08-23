@@ -174,8 +174,7 @@
 
         return {
             show: function (e, chart) {
-                var tooltip = chart.tooltip,
-                    tooltipOptions = chart.options.tooltip,
+                var tooltipOptions = chart.options.tooltip,
                     layoutLinked = (chart.options.layout || {}).linked;
                 var pos = Event.normalize(e, chart.container);
 
@@ -311,7 +310,6 @@
                 var v = dir.x > 0 || -1;
                 var start = rangeSelector._start - dm * v,
                     end = rangeSelector._end - dm * v;
-                //console.log(dm)
                 var t = end - start;
                 if (dir.x > 0) {
                     start = mathMax(0, start);
@@ -327,7 +325,9 @@
                 slider && slider.startToEnd(start + "%", end + "%");
                 
                 chart.globalEvent.isDragging = false;// chart.globalEvent.isDragging || !chart.globalEvent.isDragging;
-                fetchData(e, chart, start, end);
+                if (chart.charts.length) {
+                    fetchData(e, chart, start, end);
+                }
             }
             slider && slider.onDrag(p.x, p.y, function (sv, ev, start, end) {
                 chart.globalEvent.isDragging = false;//chart.globalEvent.isDragging || chart.globalEvent.isDragging;
@@ -367,6 +367,8 @@
     };
 
     var onZoom = function (chart) {
+        var options = chart.options,
+            chartOptions = options.chart || {};
         var getZoom = function (e) {
             var deltaX, deltaY, delta;
             var vector;
@@ -383,8 +385,8 @@
                 delta = deltaY === 0 ? deltaX : deltaY;
                 delta = deltaY = pack("number", -e.deltaY, deltaY);
                 deltaX = pack("number", e.deltaX, deltaX);
-                deltaY === 0 && (delta === -deltaX);
-                if(deltaY === 0 && deltaX === 0){
+                deltaY === 0 && (delta = -deltaX);
+                if (deltaY === 0 && deltaX === 0) {
                     scale.disabled = true;
                     return scale;
                 }
@@ -399,34 +401,50 @@
                 x = Event.normalize(e, this),
                 y = x.y;
             x = x.x;
-            if(Intersection.rect(
+            e.preventDefault && e.preventDefault();
+            if (Intersection.rect(
                 {x: x, y: y},
                 {x: viewport.left, y: viewport.top, width: viewport.left + viewport.width, height: viewport.top + viewport.height}
-            )){
+            )) {
                 var scale = getZoom(e);
                 if (scale.disabled)
                     return;
                 chart.rangeSlider.forEach(function (slider, i) {
+                    var options = slider.options,
+                        zoomRatio = options.zoomRatio,
+                        events = options.events;
                     var rangeSelector = chart.rangeSelector[i];
                     var from = rangeSelector.from,
                         to = rangeSelector.to;
-                    var r = Math.max(1 - from / to || 0, 0.1);
-                    var v = (scale.length > 0 ? from < to | 0 : -1) * scale.scale * r;
-                        v || (from = to);
-                    
-                    from = Math.max(0, from += v);
-                    to = Math.min(100, to -= v);
-                    rangeSelector.from = rangeSelector._start = from;
-                    rangeSelector.to = rangeSelector._end = to;
-                    
+                    if (!defined(events) || (defined(events) && isFunction(events.zoom))) {
+                        var ratio = pack("number",
+                            zoomRatio,
+                            isFunction(zoomRatio) && zoomRatio.call(slider, e, scale.length),
+                            Math.max(1 - from / to || 0, 0.1)
+                        );
+                        var v = (scale.length > 0 ? from < to | 0 : -1) * scale.scale * ratio;
+                            v || (from = to);
                         
-                    slider && slider.startToEnd(from + "%", to + "%");
+                        from = Math.max(0, from += v);
+                        to = Math.min(100, to -= v);
+                        rangeSelector.from = rangeSelector._start = from;
+                        rangeSelector.to = rangeSelector._end = to;
+
+                        slider && slider.startToEnd(from + "%", to + "%");
+                    }
+                    events && isFunction(events.zoom) && events.zoom.call(slider, e);
                 });
                 var rangeSelector = chart.rangeSelector;
                 if (rangeSelector.length && rangeSelector[0].from !== rangeSelector[0].to) {
-                    fetchData(e, chart, rangeSelector[0].from, rangeSelector[0].to);
-                    e.preventDefault && e.preventDefault();
+                    if (chart.charts.length) {
+                        fetchData(e, chart, rangeSelector[0].from, rangeSelector[0].to);
+                    }
                 }
+                if (chartOptions.events && isFunction(chartOptions.events.zoom)) {
+                    e.delta = scale.length;
+                    chartOptions.events.zoom.call(null, e);
+                }
+                !chart.charts.length && chart.render(e);
             }
         };
     };
@@ -434,7 +452,7 @@
     var onResize = function (e, chart) {
         var timer;
         var width, height;
-        if (chart.globalAnimation.isReady === true) {
+        if (chart.renderer && chart.globalAnimation.isReady === true) {
             timer && clearTimeout(timer);
             timer = setTimeout(function () {
                 height = (width = chart.getSize(chart.renderer)).height;
@@ -469,8 +487,9 @@
                 visibilitychange: {el: document, listener: globalEvent.visible},
                 webkitvisibilitychange: {el: document, listener: globalEvent.visible}
             }, event;
-            for (var p in events) if (event = events[p], events.hasOwnProperty(p))
+            for (var p in events) if (event = events[p], events.hasOwnProperty(p)) {
                 (event.el || container)[type](p, event.listener || event, useCapture);
+            }
 
             //container[type]("mousemove", globalEvent.drag, useCapture);
         }

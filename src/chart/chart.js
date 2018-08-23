@@ -131,6 +131,11 @@ require("./define");
             return null;
         }
 
+        if (element && (element.nodeType !== 1 && !isFunction(element.getContext))) {
+            options = element;
+            element = {};
+        }
+
         this.options = extend({}, defaultOptions);
         extend(this.options, options);
         globalStyle(this.options);
@@ -169,7 +174,7 @@ require("./define");
                 "user-select": "none",
                 cursor: "default"
             });
-            (this.renderer = element).appendChild(this.container);
+            element.nodeType === 1 && (this.renderer = element).appendChild(this.container);
             this.canvas = new Layer(this.container, this.width, this.height).canvas;
         }
         
@@ -794,7 +799,8 @@ require("./define");
                             rangeSelectorOptions.y,
                             Numeric.percentage(slider.height, rangeSelectorOptions.y),
                             chart.height - slider.height - legendHeight - spacing[2]
-                        )
+                        ),
+                        range: [chart.width, chart.height]
                     });
                 }
             });
@@ -1370,16 +1376,16 @@ require("./define");
                 if (ani) {
                     ani();
                 }
-                if (charts.length) {
+                //if (charts.length) {
                     drawLegend();
-                }
+                //}
 
                 !once && drawTooltip();
             }
 
             var isEventing = function (event) {
                 var type = event.type;
-                return type === "mousemove" || type === "resize" || type === "click";
+                return type === "mousemove" || type === "resize" || type === "click" || type === "mousewheel";
             };
             var isAnimationReady = function (chart) {
                 return chart.globalAnimation.isReady === true;
@@ -1443,7 +1449,7 @@ require("./define");
                         chart.renderChart(animationCharts, true);
                     }, true);
                 }, function () {
-                    onLoad(), onReady();
+                    onLoad();//, onReady();
                 });
             }
             else {
@@ -1477,7 +1483,10 @@ require("./define");
                             onRedraw(), onReady();
                         });
                     }
-                    event.type === "update" && (noAnimationCharts.length & !animationCharts.length) && (onRedraw());
+                    if (event.type === "update") {
+                        (noAnimationCharts.length & !animationCharts.length) && (onRedraw());
+                        (noAnimationCharts.length | animationCharts.length) || (paintComponent([]), onReady());
+                    }
                 }
                 else if (isAnimationReady(chart) && isDragging(chart) && isEventing(event)) {
                     paintComponent(charts);
@@ -1706,7 +1715,7 @@ require("./define");
                 }).each();
                 seriesOptions.forEach(function (item, i) {
                     var newSeries;
-                    if(!item.used){
+                    if (!item.used) {
                         newSeries = chart.addSeries(item, i);
                         series.push(newSeries);
                         delete item.used;
@@ -1728,6 +1737,24 @@ require("./define");
                     null
                 );
             }
+            //setting exists slider
+            if (defined(chartOptions = options.rangeSelector) && this.rangeSlider && this.rangeSlider.length) {
+                this.rangeSlider.forEach(function (slider, i) {
+                    var rsp = isArray(chartOptions) ? chartOptions[i] : chartOptions;
+                    var rangeSelector = chart.rangeSelector[i];
+                    var from, to;
+
+                    slider.setOptions(rsp);
+
+                    if (rangeSelector && rsp && (defined(rsp.start) || defined(rsp.end))) {
+                        from = pack("number", parseFloat(chartOptions.start, 10), parseFloat(slider.start, 10));
+                        to = pack("number", parseFloat(chartOptions.end, 10), parseFloat(slider.end, 10));
+                        rangeSelector.from = rangeSelector._start = from;
+                        rangeSelector.to = rangeSelector._end = to;
+                    }
+                });
+            }
+
             redraw !== false && this.draw({ target: this, type: "update"});
             return this;
         },
@@ -1773,6 +1800,11 @@ require("./define");
                 pane.plotX = pane.x *= ratioWidth;
                 pane.plotWidth = pane.width *= ratioWidth;
                 //pane.width += ratioWidth;
+            });
+            this.rangeSlider.forEach(function (slider) {
+                slider.setOptions({
+                    width: slider.width * ratioWidth
+                });
             });
             this.translateAxis();
             this.addPlotSeries();
@@ -2251,7 +2283,9 @@ require("./define");
                         }
                         chart.rangeSelector.push({
                             start: rangeSelectorOptions.start,
-                            end: rangeSelectorOptions.end
+                            end: rangeSelectorOptions.end,
+                            from: parseFloat(rangeSelectorOptions.start, 10),
+                            to: parseFloat(rangeSelectorOptions.end, 10)
                         });
                     //}
                 });

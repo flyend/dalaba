@@ -76,6 +76,8 @@
                                 points: points
                             };
                             var cp = properties.cp;
+                            //console.log(groups, feature)
+                            //groups = groups.slice(0, 13)
                             groups.forEach(function (polygon, i) {
                                 var x, y;
                                 var length = polygon.length,
