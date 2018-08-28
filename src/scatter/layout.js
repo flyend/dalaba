@@ -138,6 +138,7 @@
                                         y = plotY + (~-length - j) * pointHeight;
                                     }
                                 }
+                                shape.dataLabel.value = shape._y;
                             }
                             else {
                                 //is number

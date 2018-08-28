@@ -1,6 +1,10 @@
 /**
  * dalaba - A JavaScript chart library for Canvas.
+<<<<<<< HEAD
  * @date 2018/08/18
+=======
+ * @date 2018/08/28
+>>>>>>> master
  * @version v0.3.1
  * @license ISC
  */
@@ -4552,12 +4556,18 @@
             }
             !undef(value.x) && (rv._x = value.x, reValue(rv, undefined), flag = true);
             !undef(value.y) && (rv._y = value.y, reValue(rv, undefined), flag = true);
+<<<<<<< HEAD
             isNumber(rv.value, true) && (/*reValue(rv, value.value), */flag = true);
+=======
+            isNumber(rv.value, true) && (flag = true);
+            rv.sourceValue = value;
+>>>>>>> master
             return flag ? rv : null;
         }
         else if (isString(value)) {
             rv._x = rv._y = undefined;
             reValue(rv, valueOf(value, vari.length ? vari.length > 2 ? prediction(vari.slice(-10)) : vari[0] : 0));
+            rv.sourceValue = value;
             return rv;
         }
         else if (isArray(value)) {
@@ -4566,6 +4576,7 @@
             rv.value = rv.sumValue = rv.minValue = rv.maxValue = pack(function (d) {
                 return isNumber(d, true);
             }, value[2], value[1], undefined);// value.length > 2 ? value[2] : undefined;
+            rv.sourceValue = value;
             return extend(rv, copyAt(rules, nocopy === true ? value : value.slice(3)));
         }
         return null;
@@ -4774,7 +4785,7 @@
                     //shape.$value = $value;//tooltip value
                     shape.dataLabel = {
                         visibled: true, // show or hide
-                        value: shape.name // data name
+                        value: isString(valuer.sourceValue) ? valuer.sourceValue : shape.name // data name
                     };
                     shape.__proto__ = new Animate();
                     
@@ -5429,7 +5440,9 @@ var DataLabels = (function () {
             var value = shape.value,
                 labelValue = shape._value;
             var v = labelValue;
-
+            if (shape.dataLabel && defined(shape.dataLabel.value)) {
+                value = v = shape.dataLabel.value;
+            }
             if (defined(newValue)) {
                 value = v = newValue;
             }
@@ -6777,7 +6790,11 @@ var DataLabels = (function () {
                     }
                 }, function (d, newData, i) {
                     if (defined(chart.series[i])) {
+<<<<<<< HEAD
                         newData.tooltip = d.tooltip || new Tooltip(chart.addLayer(tooltipOptions.layer), tooltipOptions);
+=======
+                        newData.tooltip = d.tooltip || new Tooltip(chart.addLayer(tooltipOptions.layer), tooltipOptions);;
+>>>>>>> master
                     }
                 });
                 this.tooltip = panel[0].tooltip;
@@ -12674,7 +12691,7 @@ var DataLabels = (function () {
                                 positiveTotal = mathLog(negativeTotal, logBase);
                             }
                             if (projection === "2d" || coordinate === "xy") {//projection 2d
-                                x = interpolate.apply(null, [shape._x, xAxisOptions.minX, xAxisOptions.maxX, 0, plotWidth]);
+                                x = interpolate.apply(null, [shape._x, xAxisOptions.minValue, xAxisOptions.maxValue, 0, plotWidth]);
                                 x += plotX + center;
                                 y = interpolate.apply(null, [shape._y, minValue, maxValue].concat(reversed === true ? [0, plotHeight] : [plotHeight, 0]));
                                 y += plotY;
@@ -15089,25 +15106,33 @@ var DataLabels = (function () {
             var fillText = function (item, x, y, reversed) {
                 var value = item.value,
                     formatter = dataLabels.formatter;
-                function setVertical(y, h){
+                function setVertical (y, h) {
                     return {
                         top: y - h,
                         bottom: y + h,
                         middle: y + h / 2
                     };
                 }
-                function setAlign(x, w){
+                function setAlign (x, w) {
                     return {
                         left: x - w * !reversed,
                         right: x - w * reversed,
                         center: x - w / 2 * !reversed,
                     };
                 }
+<<<<<<< HEAD
                 if (isString(item)) {
                     value = item;
                 }
                 if (isObject(item._source) && isString(item._source.value)) {
                     value = item._source.value;
+=======
+                if (isString(shape._source)) {
+                    value = shape._source;
+                }
+                else if (isObject(shape._source) && isString(shape._source.value)) {
+                    value = shape._source.value;
+>>>>>>> master
                 }
                 if (isFunction(formatter)) {
                     value = formatter.call({
@@ -15384,6 +15409,7 @@ var DataLabels = (function () {
                                         y = plotY + (~-length - j) * pointHeight;
                                     }
                                 }
+                                shape.dataLabel.value = shape._y;
                             }
                             else {
                                 //is number
@@ -16692,7 +16718,7 @@ var DataLabels = (function () {
                         lerp = Color.lerp(domain, range, Color.interpolate);
                     }
 
-                    (series.data || []).forEach(function (d) {
+                    (series.shapes || []).forEach(function (d) {
                         if (defined(d.name)) {
                             mapKey[d.name] = d;
                         }
@@ -16710,11 +16736,23 @@ var DataLabels = (function () {
                             var cx = 0,
                                 cy = 0;
                             var properties = feature.properties || {};
-                            var shape = {
-                                name: properties.name,
-                                code: properties.code || properties.id,
-                                points: points
-                            };
+
+                            var shape = mapKey[properties.name] || mapKey[properties.code];
+
+                            var value, color;
+
+                            if (isObject(shape)) {
+                                shape.index = index++;
+                                shape.key = properties.name;
+                            }
+                            else {
+                                shape = { value: null };
+                            }
+                            if (!defined(shape.name))
+                                shape.name = properties.name;
+                            shape.code = properties.code || properties.id;
+                            shape.points = points;
+                            
                             var cp = properties.cp;
                             //console.log(groups, feature)
                             //groups = groups.slice(0, 13)
@@ -16750,24 +16788,9 @@ var DataLabels = (function () {
                                 maxX: bounds[1][0],
                                 maxY: bounds[1][1]
                             };
-
-                            var data = series.selected !== false && (mapKey[properties.name] || mapKey[properties.code]),
-                                value,
-                                color;
-                            if (defined(data)) {
-                                shape.index = index++;
-                            }
-                            if (!isObject(data)) {
-                                data = {value: null};
-                            }
-                            if (!defined(data.color) && isNumber(value = data.value, true)) {
+                            if (series.selected !== false && isNumber(value = shape.value, true)) {
                                 color = lerp && lerp(interpolate(value, minValue, maxValue, 0, 1));
                                 shape.color = color || shape.color || series.color;
-                            }
-                            extend(shape, data);
-                            shape.name = properties.name;
-                            if (data.value !== null) {
-                                shape.key = properties.name;
                             }
                             shape.series = series;
                             shapes.push(shape);
@@ -16951,6 +16974,7 @@ var DataLabels = (function () {
                     delete item.current;
                 });
             }
+            //x=543;
 
             for (var i = 0, n = this.series.length; i < n; i++) {
                 reset(shapes = (series = this.series[i]).shapes);

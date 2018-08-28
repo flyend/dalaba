@@ -197,25 +197,25 @@
             var fillText = function (item, x, y, reversed) {
                 var value = item.value,
                     formatter = dataLabels.formatter;
-                function setVertical(y, h){
+                function setVertical (y, h) {
                     return {
                         top: y - h,
                         bottom: y + h,
                         middle: y + h / 2
                     };
                 }
-                function setAlign(x, w){
+                function setAlign (x, w) {
                     return {
                         left: x - w * !reversed,
                         right: x - w * reversed,
                         center: x - w / 2 * !reversed,
                     };
                 }
-                if (isString(item)) {
-                    value = item;
+                if (isString(shape._source)) {
+                    value = shape._source;
                 }
-                if (isObject(item._source) && isString(item._source.value)) {
-                    value = item._source.value;
+                else if (isObject(shape._source) && isString(shape._source.value)) {
+                    value = shape._source.value;
                 }
                 if (isFunction(formatter)) {
                     value = formatter.call({
