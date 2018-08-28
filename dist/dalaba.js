@@ -7161,7 +7161,7 @@ var DataLabels = (function () {
                         isSeted !== false && (shape.state = !0);
                     }
                 };
-                if (legend !== null) {
+                if (legend !== null && charts.length) {
                     if (event.type === "mousemove" && globalAnimation.isReady) {
                         legend.onState(event, function (item) {
                             setState(item);
@@ -7169,7 +7169,6 @@ var DataLabels = (function () {
                             setState(item, false);
                         });
                     }
-
                     legend.draw();
                 }
             };
@@ -16858,7 +16857,6 @@ var DataLabels = (function () {
                 var shapes = series.shapes;
                 if (defined(series.mapData)) {
                     shapes.forEach(function (shape) {
-                        console.log(shape.points)
                         chart.drawShape(context, shape, series);
                     });
                     shapes.forEach(function (shape) {

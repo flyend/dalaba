@@ -1299,7 +1299,7 @@ require("./define");
                         isSeted !== false && (shape.state = !0);
                     }
                 };
-                if (legend !== null) {
+                if (legend !== null && charts.length) {
                     if (event.type === "mousemove" && globalAnimation.isReady) {
                         legend.onState(event, function (item) {
                             setState(item);
@@ -1307,7 +1307,6 @@ require("./define");
                             setState(item, false);
                         });
                     }
-
                     legend.draw();
                 }
             };
