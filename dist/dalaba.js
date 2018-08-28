@@ -1,6 +1,6 @@
 /**
  * dalaba - A JavaScript chart library for Canvas.
- * @date 2018/08/01
+ * @date 2018/08/28
  * @version v0.3.1
  * @license ISC
  */
@@ -5098,7 +5098,7 @@ var DataLabels = (function () {
             var value = shape.value,
                 labelValue = shape._value;
             var v = labelValue;
-            if (defined(shape.dataLabel.value)) {
+            if (shape.dataLabel && defined(shape.dataLabel.value)) {
                 value = v = shape.dataLabel.value;
             }
             if (defined(newValue)) {
@@ -16299,7 +16299,7 @@ var DataLabels = (function () {
                         lerp = Color.lerp(domain, range, Color.interpolate);
                     }
 
-                    (series.data || []).forEach(function (d) {
+                    (series.shapes || []).forEach(function (d) {
                         if (defined(d.name)) {
                             mapKey[d.name] = d;
                         }
@@ -16317,11 +16317,23 @@ var DataLabels = (function () {
                             var cx = 0,
                                 cy = 0;
                             var properties = feature.properties || {};
-                            var shape = {
-                                name: properties.name,
-                                code: properties.code || properties.id,
-                                points: points
-                            };
+
+                            var shape = mapKey[properties.name] || mapKey[properties.code];
+
+                            var value, color;
+
+                            if (isObject(shape)) {
+                                shape.index = index++;
+                                shape.key = properties.name;
+                            }
+                            else {
+                                shape = { value: null };
+                            }
+                            if (!defined(shape.name))
+                                shape.name = properties.name;
+                            shape.code = properties.code || properties.id;
+                            shape.points = points;
+                            
                             var cp = properties.cp;
                             groups.forEach(function (polygon, i) {
                                 var x, y;
@@ -16355,24 +16367,9 @@ var DataLabels = (function () {
                                 maxX: bounds[1][0],
                                 maxY: bounds[1][1]
                             };
-
-                            var data = series.selected !== false && (mapKey[properties.name] || mapKey[properties.code]),
-                                value,
-                                color;
-                            if (defined(data)) {
-                                shape.index = index++;
-                            }
-                            if (!isObject(data)) {
-                                data = {value: null};
-                            }
-                            if (!defined(data.color) && isNumber(value = data.value, true)) {
+                            if (series.selected !== false && isNumber(value = shape.value, true)) {
                                 color = lerp && lerp(interpolate(value, minValue, maxValue, 0, 1));
                                 shape.color = color || shape.color || series.color;
-                            }
-                            extend(shape, data);
-                            shape.name = properties.name;
-                            if (data.value !== null) {
-                                shape.key = properties.name;
                             }
                             shape.series = series;
                             shapes.push(shape);

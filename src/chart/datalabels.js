@@ -211,7 +211,7 @@
             var value = shape.value,
                 labelValue = shape._value;
             var v = labelValue;
-            if (defined(shape.dataLabel.value)) {
+            if (shape.dataLabel && defined(shape.dataLabel.value)) {
                 value = v = shape.dataLabel.value;
             }
             if (defined(newValue)) {
