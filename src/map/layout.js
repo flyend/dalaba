@@ -86,10 +86,7 @@
                                 shape.name = properties.name;
                             shape.code = properties.code || properties.id;
                             shape.points = points;
-                            
                             var cp = properties.cp;
-                            //console.log(groups, feature)
-                            //groups = groups.slice(0, 13)
                             groups.forEach(function (polygon, i) {
                                 var x, y;
                                 var length = polygon.length,
@@ -98,18 +95,15 @@
                                 x = setTransform(0, polygon[j = 0][0], scaleRadio);
                                 y = setTransform(0, polygon[j][1], scaleRadio);
                                 bounds = setBounds(bounds, x, y);
-                                i && points.push({x: x, y: y, isNext: true});
-                                for (j = 1; j < length; j++) {
+                                //i && points.push({x: x, y: y, isNext: true});
+                                for (j = 0; j < length; j++) {
                                     point = polygon[j];
                                     x = setTransform(0, point[0], scaleRadio);
                                     y = setTransform(0, point[1], scaleRadio);
                                     cx += (x - cx) / ++count;
                                     cy += (y - cy) / count;
-                                    points.push({x: x, y: y});
+                                    points.push({x: x, y: y, isNext: point.moved});
                                     bounds = setBounds(bounds, x, y);
-                                }
-                                if (!i && feature.geometry.type === "Polygon") {
-                                    points.push({x: points[0].x, y: points[0].y});
                                 }
                             });
                             if (defined(cp) && isNumber(cp[0], true) && isNumber(cp[1], true)) {
@@ -129,7 +123,7 @@
                             shape.series = series;
                             shapes.push(shape);
                         });
-                        if (!defined(projectAt) || (projectAt && !defined(projectAt.translate))) {
+                        /*if (!defined(projectAt) || (projectAt && !defined(projectAt.translate))) {
                             if (defined(translate)) {
                                 translate = TRouBLe(translate);
                                 centerX = -bounds[0][0] + translate[0] + plotX;
@@ -139,7 +133,7 @@
                                 centerX = plotX + (plotWidth - (bounds[1][0] - bounds[0][0])) / 2 - bounds[0][0];
                                 centerY = plotY + (plotHeight - (bounds[1][1] - bounds[0][1])) / 2 - bounds[0][1];
                             }
-                        }
+                        }*/
                         shapes.forEach(function (shape) {
                             shape.points.forEach(function (point, i) {
                                 point.x += centerX;

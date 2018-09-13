@@ -1,10 +1,6 @@
 /**
  * dalaba - A JavaScript chart library for Canvas.
-<<<<<<< HEAD
- * @date 2018/08/18
-=======
- * @date 2018/08/28
->>>>>>> master
+ * @date 2018/09/06
  * @version v0.3.1
  * @license ISC
  */
@@ -1113,7 +1109,7 @@
                     heap.pop();
                 }
 
-                function put(node, distance) {
+                function put (node, distance) {
                     heap.push({
                         node: node,
                         distance: distance
@@ -1123,7 +1119,7 @@
                     }
                 }
 
-                function find(tree) {
+                function find (tree) {
                     var maps = {},
                         aValue = callback(point, tree.node),
                         bValue;
@@ -2875,6 +2871,90 @@
         }
     };
 
+    var eaching = (function () {
+
+    var hasOwnProperty = ({}).hasOwnProperty;
+
+    function streamGeometry(geometry, stream) {
+  if (geometry && streamGeometryType.hasOwnProperty(geometry.type)) {
+    streamGeometryType[geometry.type](geometry, stream);
+  }
+}
+
+var streamObjectType = {
+  Feature: function(object, stream) {
+    streamGeometry(object.geometry, stream);
+  },
+  FeatureCollection: function(object, stream) {
+    var features = object.features, i = -1, n = features.length;
+    while (++i < n) streamGeometry(features[i].geometry, stream);
+  }
+};
+
+var streamGeometryType = {
+  Sphere: function(object, stream) {
+    stream.sphere();
+  },
+  Point: function(object, stream) {
+    object = object.coordinates;
+    stream.point(object[0], object[1], object[2]);
+  },
+  MultiPoint: function(object, stream) {
+    var coordinates = object.coordinates, i = -1, n = coordinates.length;
+    while (++i < n) object = coordinates[i], stream.point(object[0], object[1], object[2]);
+  },
+  LineString: function(object, stream) {
+    streamLine(object.coordinates, stream, 0);
+  },
+  MultiLineString: function(object, stream) {
+    var coordinates = object.coordinates, i = -1, n = coordinates.length;
+    while (++i < n) streamLine(coordinates[i], stream, 0);
+  },
+  Polygon: function(object, stream) {
+    streamPolygon(object.coordinates, stream);
+  },
+  MultiPolygon: function(object, stream) {
+    var coordinates = object.coordinates, i = -1, n = coordinates.length;
+    while (++i < n) streamPolygon(coordinates[i], stream);
+  },
+  GeometryCollection: function(object, stream) {
+    var geometries = object.geometries, i = -1, n = geometries.length;
+    while (++i < n) streamGeometry(geometries[i], stream);
+  }
+};
+
+function streamLine(coordinates, stream, closed) {
+  var i = -1, n = coordinates.length - closed, coordinate;
+  stream.lineStart();
+  while (++i < n) coordinate = coordinates[i], stream.point(coordinate[0], coordinate[1], coordinate[2]);
+  stream.lineEnd();
+}
+
+function streamPolygon(coordinates, stream) {
+  var i = -1, n = coordinates.length;
+  stream.polygonStart();
+  while (++i < n) streamLine(coordinates[i], stream, 1);
+  stream.polygonEnd();
+}
+
+    function geomCollection (geojson, context) {
+        var type = geojson.type;
+        geojson && hasOwnProperty.call(streamObjectType, type)
+            ? streamObjectType[type](geojson, context)
+            : streamGeometry(geojson, context);
+    }
+
+    if (typeof module === "object" && module.exports) {
+        module.exports = geomCollection;
+    }
+    else if (typeof define === "function" && define.amd) {
+        define(function () {
+            return geomCollection;
+        });
+    }
+    return geomCollection;
+}).call(typeof window !== "undefined" ? window : this);;
+
     var Feature = {
         Point: function (p, stream) {
             stream.point(p);
@@ -2933,8 +3013,6 @@
 
         var defined = Dalaba.defined;
 
-        var extend = Dalaba.extend;
-
         /**
          * Projection
         **/
@@ -2981,6 +3059,55 @@
 
             Parse.parse.prototype = new Parse();
 
+            function PathContext () {
+                this.points = [];
+                this.polygons = [];
+            }
+
+            PathContext.prototype = {
+                _radius: 4.5,
+                pointRadius: function(_) {
+                    return this._radius = _, this;
+                },
+                polygonStart: function() {
+                    this._line = 0;
+                },
+                polygonEnd: function() {
+                    this._line = NaN;
+                },
+                lineStart: function() {
+                    this._point = 0;
+                },
+                lineEnd: function() {
+                    var close = [this.points[0][0], this.points[0][1]];
+                    if (this._line === 0) this.points.push(close);//this._context.closePath();
+                    this._point = NaN;
+                    this.polygons.push(this.points);
+                    this.points = [];
+                },
+                point: function(x, y) {
+                    switch (this._point) {
+                        case 0: {
+                            //this._context.moveTo(x, y);
+                            this._point = 1;
+                            break;
+                        }
+                        case 1: {
+                            //this._context.lineTo(x, y);
+                            break;
+                        }
+                        default: {
+                            this._context.moveTo(x + this._radius, y);
+                            this._context.arc(x, y, this._radius, 0, PI2);
+                            break;
+                        }
+                    }
+                },
+                result: function () {
+
+                }
+            };
+
             var GeoParse = function (options) {
                 this._scale = options._scale;
                 this._center = options._center;
@@ -3018,17 +3145,42 @@
                     var centerX = parsed.centerX,
                         centerY = parsed.centerY,
                         scale = parsed._scale;
-                    // console.log(centerX, centerY, scale)
+                    //console.log(scale)
 
-                    Stream.clear();
-                    Stream.point = function (p) {
+                    this.Stream = new PathContext;
+
+                    this.Stream.point = function (x, y) {
+                        var p = [x, y];
                         var point = parsed._projection(p);
-                        Stream.points.push(parsed.point(point));
+                        var points = parsed.Stream.points;
+                        var xy = parsed.point(point);
                         
                         pointCaller && pointCaller.call(p, p, point);
+                        switch (this._point) {
+                            case 0: {
+                                //this._context.moveTo(x, y);
+                                xy.moved = true;
+                                points.push(xy);
+                                this._point = 1;
+                                break;
+                            }
+                            case 1: {
+                                //this._context.lineTo(x, y);
+                                points.push(xy);
+                                break;
+                            }
+                            default: {
+                                this._context.moveTo(x + this._radius, y);
+                                this._context.arc(x, y, this._radius, 0, PI2);
+                                break;
+                            }
+                        }
                     };
 
-                    if (isObject(geoJson) && geoJsonType) {
+                    eaching(geoJson, this.Stream);
+                    callback && callback(this.Stream.polygons, geoJson);
+
+                    /*if (isObject(geoJson) && geoJsonType) {
                         if (geoJsonType === "FeatureCollection") {
                             (geoJson.features || []).forEach(function (feature) {
                                 Geometry.Feature(feature, Stream);
@@ -3039,7 +3191,7 @@
                             Geometry.Feature(geoJson, Stream);
                             callback && callback(Stream.get(), geoJson);
                         }
-                    }
+                    }*/
                 },
                 parse: function (geoJson, callback, pointCaller) {
                     this.centerAndZoom(geoJson);
@@ -3150,7 +3302,8 @@
         };
 
         var geo = {
-            Projection: Projector()
+            Projection: Projector(),
+            eaching: eaching
         };
         return geo;
     }
@@ -4556,12 +4709,7 @@
             }
             !undef(value.x) && (rv._x = value.x, reValue(rv, undefined), flag = true);
             !undef(value.y) && (rv._y = value.y, reValue(rv, undefined), flag = true);
-<<<<<<< HEAD
             isNumber(rv.value, true) && (/*reValue(rv, value.value), */flag = true);
-=======
-            isNumber(rv.value, true) && (flag = true);
-            rv.sourceValue = value;
->>>>>>> master
             return flag ? rv : null;
         }
         else if (isString(value)) {
@@ -6790,11 +6938,7 @@ var DataLabels = (function () {
                     }
                 }, function (d, newData, i) {
                     if (defined(chart.series[i])) {
-<<<<<<< HEAD
                         newData.tooltip = d.tooltip || new Tooltip(chart.addLayer(tooltipOptions.layer), tooltipOptions);
-=======
-                        newData.tooltip = d.tooltip || new Tooltip(chart.addLayer(tooltipOptions.layer), tooltipOptions);;
->>>>>>> master
                     }
                 });
                 this.tooltip = panel[0].tooltip;
@@ -15120,19 +15264,11 @@ var DataLabels = (function () {
                         center: x - w / 2 * !reversed,
                     };
                 }
-<<<<<<< HEAD
-                if (isString(item)) {
-                    value = item;
-                }
-                if (isObject(item._source) && isString(item._source.value)) {
-                    value = item._source.value;
-=======
                 if (isString(shape._source)) {
                     value = shape._source;
                 }
                 else if (isObject(shape._source) && isString(shape._source.value)) {
                     value = shape._source.value;
->>>>>>> master
                 }
                 if (isFunction(formatter)) {
                     value = formatter.call({
@@ -16752,10 +16888,7 @@ var DataLabels = (function () {
                                 shape.name = properties.name;
                             shape.code = properties.code || properties.id;
                             shape.points = points;
-                            
                             var cp = properties.cp;
-                            //console.log(groups, feature)
-                            //groups = groups.slice(0, 13)
                             groups.forEach(function (polygon, i) {
                                 var x, y;
                                 var length = polygon.length,
@@ -16764,18 +16897,15 @@ var DataLabels = (function () {
                                 x = setTransform(0, polygon[j = 0][0], scaleRadio);
                                 y = setTransform(0, polygon[j][1], scaleRadio);
                                 bounds = setBounds(bounds, x, y);
-                                i && points.push({x: x, y: y, isNext: true});
-                                for (j = 1; j < length; j++) {
+                                //i && points.push({x: x, y: y, isNext: true});
+                                for (j = 0; j < length; j++) {
                                     point = polygon[j];
                                     x = setTransform(0, point[0], scaleRadio);
                                     y = setTransform(0, point[1], scaleRadio);
                                     cx += (x - cx) / ++count;
                                     cy += (y - cy) / count;
-                                    points.push({x: x, y: y});
+                                    points.push({x: x, y: y, isNext: point.moved});
                                     bounds = setBounds(bounds, x, y);
-                                }
-                                if (!i && feature.geometry.type === "Polygon") {
-                                    points.push({x: points[0].x, y: points[0].y});
                                 }
                             });
                             if (defined(cp) && isNumber(cp[0], true) && isNumber(cp[1], true)) {
@@ -16795,7 +16925,7 @@ var DataLabels = (function () {
                             shape.series = series;
                             shapes.push(shape);
                         });
-                        if (!defined(projectAt) || (projectAt && !defined(projectAt.translate))) {
+                        /*if (!defined(projectAt) || (projectAt && !defined(projectAt.translate))) {
                             if (defined(translate)) {
                                 translate = TRouBLe(translate);
                                 centerX = -bounds[0][0] + translate[0] + plotX;
@@ -16805,7 +16935,7 @@ var DataLabels = (function () {
                                 centerX = plotX + (plotWidth - (bounds[1][0] - bounds[0][0])) / 2 - bounds[0][0];
                                 centerY = plotY + (plotHeight - (bounds[1][1] - bounds[0][1])) / 2 - bounds[0][1];
                             }
-                        }
+                        }*/
                         shapes.forEach(function (shape) {
                             shape.points.forEach(function (point, i) {
                                 point.x += centerX;
@@ -16905,8 +17035,8 @@ var DataLabels = (function () {
             var gradient;
             var render = function () {
                 context.beginPath();
-                points.forEach(function (point, i) {
-                    context[i && !point.isNext ? "lineTo" : "moveTo"](point.x, point.y);
+                points.forEach(function (point) {
+                    context[/*i && */!point.isNext ? "lineTo" : "moveTo"](point.x, point.y);
                 });
                 //context.closePath();
             };

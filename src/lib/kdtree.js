@@ -73,7 +73,7 @@
                     heap.pop();
                 }
 
-                function put(node, distance) {
+                function put (node, distance) {
                     heap.push({
                         node: node,
                         distance: distance
@@ -83,7 +83,7 @@
                     }
                 }
 
-                function find(tree) {
+                function find (tree) {
                     var maps = {},
                         aValue = callback(point, tree.node),
                         bValue;

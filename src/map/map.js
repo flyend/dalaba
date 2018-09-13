@@ -65,8 +65,8 @@
             var gradient;
             var render = function () {
                 context.beginPath();
-                points.forEach(function (point, i) {
-                    context[i && !point.isNext ? "lineTo" : "moveTo"](point.x, point.y);
+                points.forEach(function (point) {
+                    context[/*i && */!point.isNext ? "lineTo" : "moveTo"](point.x, point.y);
                 });
                 //context.closePath();
             };
