@@ -44,7 +44,7 @@
 
     var valueOf = function (v, neighbor) {
         var value = parseFloat(v, 10),
-            values = v.match(rValue),
+            values = String(v).match(rValue),
             p = values && values.length;
         var filter = function (d) {
             return { x: parseFloat(d, 10) };
@@ -183,8 +183,8 @@
             return null;
         }
 
-        first = valueOf(values[0]);
-        last = valueOf(values[mathMax(0, values.length - 1)]);
+        first = isNumber(first = values[0]) ? first : valueOf(first);
+        last = isNumber(last = values[mathMax(0, length - 1)]) ? last : valueOf(last);
         
         q1 = quantile(values, 0.25);
         median = quantile(values, 0.5);

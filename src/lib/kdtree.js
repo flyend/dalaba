@@ -22,9 +22,11 @@
         var heap = new Heap(function (a, b) {
             return ascending(a, b, "distance");
         });
+
         function buildTree (points, depth, parent, dimensions) {
-            var length = points.length,
-                d = depth % Math.max(1, dimensions.length),
+            var dimn = (dimensions || []).length,
+                length = points.length,
+                d = depth % Math.max(1, dimn),
                 dim,
                 sorted = descending,
                 m;
@@ -35,9 +37,9 @@
             if (length === 1)
                 return new Tree(points[0], parent, d);//root
 
-            if (dimensions.length) {
+            if (dimn) {
                 dim = dimensions[d];//dimensions size
-                sorted = function (a, b){
+                sorted = function (a, b) {
                     return a[dim] - b[dim];
                 };
             }
@@ -59,11 +61,11 @@
         };
         KDTree.prototype = {
             build: function (points, dimensions) {
-                this.dimensions = dimensions || ["x", "y"];
+                this.dimensions = dimensions;// || ["x", "y"];
                 this.root = buildTree(points, 0, null, this.dimensions);
             },
             nearest: function (point, callback, k) {
-                var dimensions = this.dimensions,
+                var dimensions = this.dimensions || [],
                     dl = dimensions.length;
                 var ret = [];
 
@@ -73,7 +75,7 @@
                     heap.pop();
                 }
 
-                function put(node, distance) {
+                function put (node, distance) {
                     heap.push({
                         node: node,
                         distance: distance
@@ -83,14 +85,14 @@
                     }
                 }
 
-                function find(tree) {
+                function find (tree) {
                     var maps = {},
                         aValue = callback(point, tree.node),
                         bValue;
                     var node;
 
                     if (dl) {
-                        dimensions.forEach(function(item, i){
+                        dimensions.forEach(function (item, i) {
                             maps[item] = i === tree.dim ? point[item] : tree.node[item];
                         });
                     }
@@ -98,8 +100,7 @@
                         maps = point;
                     }
                     bValue = callback(maps, tree.node);
-                    //console.log(tree.node.x1, tree.node.x0, tree.node.y0, tree.node.y1)
-                    //parent
+                    //leaf
                     if (tree.right === null && tree.left === null) {
                         if (heap.size() < k || aValue < heap.peek().distance) {
                             put(tree, aValue);
@@ -135,8 +136,9 @@
                 if (this.root) {
                     find(this.root);
                 
-                    for (var i = 0; i < k; i++) if (!heap.empty() && heap[i].node !== null)
+                    for (var i = 0; i < k; i++) if (!heap.empty() && heap[i].node !== null) {
                         ret.push(heap[i].node.node);
+                    }
                 }
                 return ret;
             },
