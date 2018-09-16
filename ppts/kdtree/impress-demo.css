@@ -860,12 +860,14 @@ a:focus {
 .page17 p {margin-left: 5%; line-height: 200%; font-size: 2.2rem;}
 .page17 h3{ font-size: 2.7rem;margin: 1% 0 5% 2%;}
 .page18 .title{ margin-top: 25%;}
+.page19{overflow: hidden;}
 .page23 img {height: 550px;}
 .page25 img {height: 550px;}
 .page27 a, .page28 a{background: none;
     text-decoration: underline;
     margin-left: 15px;
     font-size: 1.3rem;}
+.page27 p{overflow: hidden;}
 .page29 p{    font-size: 2.5rem;
     text-align: center;
     margin: 9%;}
