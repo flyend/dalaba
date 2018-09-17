@@ -432,7 +432,7 @@ var hasTouch = Chart.hasTouch;
         legend: {enabled: false},
         
         series: [{
-            data: ["80%", "2018Q1,85%", "2018Q2,76%", "2018Q3,79%", "2018Q4,86%"],
+            data: ["8%", "2018Q1,85%", "2018Q2,76%", "2018Q3,79%", "2018Q4,86%"],
             lineWidth: 6
         }]
     });
