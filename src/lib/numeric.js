@@ -126,11 +126,11 @@
         if (arguments.length < 2)
             precision = EPSILON;
         return Number.prototype.toPrecision ? Number(n).toPrecision(precision) : (function (n, precision) {
-            if(n === 0 || isNaN(n) || isFinite(n))
+            if (n === 0 || isNaN(n) || isFinite(n))
                 return "" + n;
             var ln10 = ~~(log(abs(n)) / Math.LN10);//log base
             var m;
-            if(precision > ln10){
+            if (precision > ln10) {
                 m = pow(10, precision - ln10 - 1);
                 return "" + (m === 0 ? n : round(n * m) / m);
             }
@@ -159,11 +159,15 @@
     };
 
     var quantile = function (data, percent) {
-        var size = 1 + (data.length - 1) * percent,
-            length = Math.floor(size);
-        var diff = size - length;
-        var d = data[length],
-            d0 = data[length - 1];
+        var n = data.length;
+        var i0 = 1 + (~-n) * percent,
+            i = i0 | 0;
+        var diff = i0 - i;
+        var d = data[i],
+            d0 = data[i - 1];
+        if (!n) return NaN;
+        if (percent <= 0 || n < 2) return d = data[0], (isString(d) || isNumber(d)) ? valueOf(d) : 0;
+        if (percent >= 1) return d = data[n - 1], (isString(d) || isNumber(d)) ? valueOf(d) : 0;
         d = (isString(d) || isNumber(d)) ? valueOf(d) : 0;
         d0 = (isString(d0) || isNumber(d0)) ? valueOf(d0) : 0;
 

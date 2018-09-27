@@ -1,6 +1,6 @@
 /**
  * dalaba - A JavaScript chart library for Canvas.
- * @date 2018/09/17
+ * @date 2018/09/19
  * @version v0.3.1
  * @license ISC
  */
@@ -269,11 +269,11 @@
         if (arguments.length < 2)
             precision = EPSILON;
         return Number.prototype.toPrecision ? Number(n).toPrecision(precision) : (function (n, precision) {
-            if(n === 0 || isNaN(n) || isFinite(n))
+            if (n === 0 || isNaN(n) || isFinite(n))
                 return "" + n;
             var ln10 = ~~(log(abs(n)) / Math.LN10);//log base
             var m;
-            if(precision > ln10){
+            if (precision > ln10) {
                 m = pow(10, precision - ln10 - 1);
                 return "" + (m === 0 ? n : round(n * m) / m);
             }
@@ -302,11 +302,15 @@
     };
 
     var quantile = function (data, percent) {
-        var size = 1 + (data.length - 1) * percent,
-            length = Math.floor(size);
-        var diff = size - length;
-        var d = data[length],
-            d0 = data[length - 1];
+        var n = data.length;
+        var i0 = 1 + (~-n) * percent,
+            i = i0 | 0;
+        var diff = i0 - i;
+        var d = data[i],
+            d0 = data[i - 1];
+        if (!n) return NaN;
+        if (percent <= 0 || n < 2) return d = data[0], (isString(d) || isNumber(d)) ? valueOf(d) : 0;
+        if (percent >= 1) return d = data[n - 1], (isString(d) || isNumber(d)) ? valueOf(d) : 0;
         d = (isString(d) || isNumber(d)) ? valueOf(d) : 0;
         d0 = (isString(d0) || isNumber(d0)) ? valueOf(d0) : 0;
 
@@ -3502,8 +3506,7 @@
 
         return {
             show: function (e, chart) {
-                var tooltip = chart.tooltip,
-                    tooltipOptions = chart.options.tooltip,
+                var tooltipOptions = chart.options.tooltip,
                     layoutLinked = (chart.options.layout || {}).linked;
                 var pos = Event.normalize(e, chart.container);
 
@@ -3538,6 +3541,7 @@
         var isSliced = false;
         var i, j;
         var callbacks = [];
+        var useHTML = false;
 
         while (i = selector.pop()) delete i.selected;
 
@@ -3548,10 +3552,12 @@
                 for (j = 0; j < graphics[i].series.length; j++) if ((series = graphic.series[j]).selected !== false) {
                     plotPoint = (plotOptions[series.type] || {}).point || {};
                     points = graphic.getShape && graphic.getShape(x, y);
-                    if (points && points.length) {
+                    useHTML = (series.dataLabels || {}).useHTML === true;
+                    if (points && points.length || useHTML) {
                         click = (series.events || {}).click || (plotPoint.events || {}).click;
+                        //if (series.clicked !== false) {
                         callbacks.push([
-                            !!points.length && isFunction(click),
+                            (!!points.length || useHTML) && isFunction(click),
                             points.map(function (shape) { return shape.shape; }),
                             click
                         ]);
@@ -3573,14 +3579,13 @@
             event = extend({}, e, { moveX: x, moveY: y });
             for (i = 0; i < callbacks.length; i++) if (graphic = callbacks[i]) {
                 event.shapes = graphic[1], event.points = graphic[1];
-                point = graphic[1][0];
-                point.point = graphic[1][0];
+                (point = graphic[1][0]) && (point.point = graphic[1][0]);
                 graphic[0] && graphic[2].call(graphic[1].length === 1  ? (point || {}) : graphic[1], event);
             }
             if (globalClick || isSliced) {
                 globalClick && globalClick.call(points, extend({}, e, { points: points, shapes: points, moveX: x, moveY: y }));
-                chart.render(event);
-            }            
+            }
+            chart.render(event);
             chart.toolbar && chart.toolbar.onClick && chart.toolbar.onClick.call(chart.container, e);
         }
     };
@@ -3624,7 +3629,7 @@
         
         chart.globalEvent.isDragging = true;
         chart.series.forEach(function (series) {
-            if (series.type === "sankey" || series.type === "node") {
+            if (series.type === "sankey") {
                 chart.globalEvent.isDragging = false;
             }
         });
@@ -3639,7 +3644,6 @@
                 var v = dir.x > 0 || -1;
                 var start = rangeSelector._start - dm * v,
                     end = rangeSelector._end - dm * v;
-                //console.log(dm)
                 var t = end - start;
                 if (dir.x > 0) {
                     start = mathMax(0, start);
@@ -3655,13 +3659,17 @@
                 slider && slider.startToEnd(start + "%", end + "%");
                 
                 chart.globalEvent.isDragging = false;// chart.globalEvent.isDragging || !chart.globalEvent.isDragging;
-                fetchData(e, chart, start, end);
+                if (chart.charts.length) {
+                    fetchData(e, chart, start, end);
+                }
             }
             slider && slider.onDrag(p.x, p.y, function (sv, ev, start, end) {
                 chart.globalEvent.isDragging = false;//chart.globalEvent.isDragging || chart.globalEvent.isDragging;
                 rangeSelector.from = parseFloat(start, 10);
                 rangeSelector.to = parseFloat(end, 10);
-                fetchData(e, chart, start, end);
+                if (chart.charts.length) {
+                    fetchData(e, chart, start, end);
+                }
             });
         });
         chart.charts.forEach(function (item) {
@@ -3693,6 +3701,8 @@
     };
 
     var onZoom = function (chart) {
+        var options = chart.options,
+            chartOptions = options.chart || {};
         var getZoom = function (e) {
             var deltaX, deltaY, delta;
             var vector;
@@ -3709,8 +3719,8 @@
                 delta = deltaY === 0 ? deltaX : deltaY;
                 delta = deltaY = pack("number", -e.deltaY, deltaY);
                 deltaX = pack("number", e.deltaX, deltaX);
-                deltaY === 0 && (delta === -deltaX);
-                if(deltaY === 0 && deltaX === 0){
+                deltaY === 0 && (delta = -deltaX);
+                if (deltaY === 0 && deltaX === 0) {
                     scale.disabled = true;
                     return scale;
                 }
@@ -3725,34 +3735,50 @@
                 x = Event.normalize(e, this),
                 y = x.y;
             x = x.x;
-            if(Intersection.rect(
+            e.preventDefault && e.preventDefault();
+            if (Intersection.rect(
                 {x: x, y: y},
                 {x: viewport.left, y: viewport.top, width: viewport.left + viewport.width, height: viewport.top + viewport.height}
-            )){
+            )) {
                 var scale = getZoom(e);
                 if (scale.disabled)
                     return;
                 chart.rangeSlider.forEach(function (slider, i) {
+                    var options = slider.options,
+                        zoomRatio = options.zoomRatio,
+                        events = options.events;
                     var rangeSelector = chart.rangeSelector[i];
                     var from = rangeSelector.from,
                         to = rangeSelector.to;
-                    var r = Math.max(1 - from / to || 0, 0.1);
-                    var v = (scale.length > 0 ? from < to | 0 : -1) * scale.scale * r;
-                        v || (from = to);
-                    
-                    from = Math.max(0, from += v);
-                    to = Math.min(100, to -= v);
-                    rangeSelector.from = rangeSelector._start = from;
-                    rangeSelector.to = rangeSelector._end = to;
-                    
+                    if (!defined(events) || (defined(events) && isFunction(events.zoom))) {
+                        var ratio = pack("number",
+                            zoomRatio,
+                            isFunction(zoomRatio) && zoomRatio.call(slider, e, scale.length),
+                            Math.max(1 - from / to || 0, 0.1)
+                        );
+                        var v = (scale.length > 0 ? from < to | 0 : -1) * scale.scale * ratio;
+                            v || (from = to);
                         
-                    slider && slider.startToEnd(from + "%", to + "%");
+                        from = Math.max(0, from += v);
+                        to = Math.min(100, to -= v);
+                        rangeSelector.from = rangeSelector._start = from;
+                        rangeSelector.to = rangeSelector._end = to;
+
+                        slider && slider.startToEnd(from + "%", to + "%");
+                    }
+                    events && isFunction(events.zoom) && events.zoom.call(slider, e);
                 });
                 var rangeSelector = chart.rangeSelector;
                 if (rangeSelector.length && rangeSelector[0].from !== rangeSelector[0].to) {
-                    fetchData(e, chart, rangeSelector[0].from, rangeSelector[0].to);
-                    e.preventDefault && e.preventDefault();
+                    if (chart.charts.length) {
+                        fetchData(e, chart, rangeSelector[0].from, rangeSelector[0].to);
+                    }
                 }
+                if (chartOptions.events && isFunction(chartOptions.events.zoom)) {
+                    e.delta = scale.length;
+                    chartOptions.events.zoom.call(null, e);
+                }
+                !chart.charts.length && chart.render(e);
             }
         };
     };
@@ -3760,7 +3786,7 @@
     var onResize = function (e, chart) {
         var timer;
         var width, height;
-        if (chart.globalAnimation.isReady === true) {
+        if (chart.renderer && chart.globalAnimation.isReady === true) {
             timer && clearTimeout(timer);
             timer = setTimeout(function () {
                 height = (width = chart.getSize(chart.renderer)).height;
@@ -3795,8 +3821,9 @@
                 visibilitychange: {el: document, listener: globalEvent.visible},
                 webkitvisibilitychange: {el: document, listener: globalEvent.visible}
             }, event;
-            for (var p in events) if (event = events[p], events.hasOwnProperty(p))
+            for (var p in events) if (event = events[p], events.hasOwnProperty(p)) {
                 (event.el || container)[type](p, event.listener || event, useCapture);
+            }
 
             //container[type]("mousemove", globalEvent.drag, useCapture);
         }
@@ -16553,7 +16580,6 @@ var DataLabels = (function () {
                     delete item.current;
                 });
             }
-            //x=543;
 
             for (var i = 0, n = this.series.length; i < n; i++) {
                 reset(shapes = (series = this.series[i]).shapes);
