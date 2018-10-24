@@ -472,10 +472,12 @@
             }
         },
         draw: function () {
-            this.drawPlot();
-            this.drawSeries();
-            this.drawNavigator();
-            this.getRangeValue();
+            if (this.options.enabled !== false) {
+                this.drawPlot();
+                this.drawSeries();
+                this.drawNavigator();
+                this.getRangeValue();
+            }
         },
         onStart: function (x, y, e) {
             var target;

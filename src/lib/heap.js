@@ -106,7 +106,7 @@
             return index;
         },
         peek: function () {
-            return this[0];
+            return this[0].value;
         },
         indexOf: function (value) {
             var i = -1,

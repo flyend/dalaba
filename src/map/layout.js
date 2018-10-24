@@ -87,7 +87,7 @@
                             shape.code = properties.code || properties.id;
                             shape.points = points;
                             var cp = properties.cp;
-                            groups.forEach(function (polygon, i) {
+                            groups.forEach(function (polygon) {
                                 var x, y;
                                 var length = polygon.length,
                                     j;
@@ -123,7 +123,7 @@
                             shape.series = series;
                             shapes.push(shape);
                         });
-                        /*if (!defined(projectAt) || (projectAt && !defined(projectAt.translate))) {
+                        if (!defined(projectAt) || (projectAt && !defined(projectAt.translate))) {
                             if (defined(translate)) {
                                 translate = TRouBLe(translate);
                                 centerX = -bounds[0][0] + translate[0] + plotX;
@@ -133,7 +133,7 @@
                                 centerX = plotX + (plotWidth - (bounds[1][0] - bounds[0][0])) / 2 - bounds[0][0];
                                 centerY = plotY + (plotHeight - (bounds[1][1] - bounds[0][1])) / 2 - bounds[0][1];
                             }
-                        }*/
+                        }
                         shapes.forEach(function (shape) {
                             shape.points.forEach(function (point, i) {
                                 point.x += centerX;
