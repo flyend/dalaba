@@ -63,6 +63,7 @@
     function revalue (value, rules, nocopy) {
         var rv = valuer(value);
         var flag = false;
+        var v;
         if (isNumber(value, true)) {
             rv._x = rv._y = undefined;
             return rv;
@@ -75,9 +76,10 @@
             else {
                 rv = mergeAt(rv, value, {value: true});// candlestick chart
             }
+            v = rv.value;
             !undef(value.x) && (rv._x = value.x, reValue(rv, undefined), flag = true);
             !undef(value.y) && (rv._y = value.y, reValue(rv, undefined), flag = true);
-            isNumber(rv.value, true) && (/*reValue(rv, value.value), */flag = true);
+            isNumber(v, true) && (reValue(rv, v), flag = true);
             return flag ? rv : null;
         }
         else if (isString(value)) {

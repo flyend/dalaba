@@ -98,7 +98,6 @@
             chart.canvas.style.cursor = moving ? "pointer" : "default";
             //tooltip enabled = false
             if (defined(curPanel)) {
-                var shape;
                 var curIndex;
                 item = curPanel.tooltip.move(x, y, true);
                 if ((item = item[0]) && linked === true  && panels.length) {// if exists link to panel
@@ -527,7 +526,10 @@
                         hasAnimateReady(chart) & hasEventDisabled(chart) & hasDragging(chart) && tooltip.show.call(this, e, chart);
                     },
                     mouseout: function (e) {
-                        hasEventDisabled(chart) && tooltip.hide.call(this, e, chart);
+                        var related = e.relatedTarget;
+                        if (!related || (related !== this && (related.compareDocumentPosition(this) & 8))) {
+                            hasEventDisabled(chart) && tooltip.hide.call(this, e, chart);
+                        }
                     },
                     start: function (e) {
                         hasEventDisabled(chart) && onStart.call(container, e, chart);

@@ -3808,7 +3808,6 @@
             chart.canvas.style.cursor = moving ? "pointer" : "default";
             //tooltip enabled = false
             if (defined(curPanel)) {
-                var shape;
                 var curIndex;
                 item = curPanel.tooltip.move(x, y, true);
                 if ((item = item[0]) && linked === true  && panels.length) {// if exists link to panel
@@ -4237,7 +4236,10 @@
                         hasAnimateReady(chart) & hasEventDisabled(chart) & hasDragging(chart) && tooltip.show.call(this, e, chart);
                     },
                     mouseout: function (e) {
-                        hasEventDisabled(chart) && tooltip.hide.call(this, e, chart);
+                        var related = e.relatedTarget;
+                        if (!related || (related !== this && (related.compareDocumentPosition(this) & 8))) {
+                            hasEventDisabled(chart) && tooltip.hide.call(this, e, chart);
+                        }
                     },
                     start: function (e) {
                         hasEventDisabled(chart) && onStart.call(container, e, chart);
@@ -4619,6 +4621,7 @@
     function revalue (value, rules, nocopy) {
         var rv = valuer(value);
         var flag = false;
+        var v;
         if (isNumber(value, true)) {
             rv._x = rv._y = undefined;
             return rv;
@@ -4631,9 +4634,10 @@
             else {
                 rv = mergeAt(rv, value, {value: true});// candlestick chart
             }
+            v = rv.value;
             !undef(value.x) && (rv._x = value.x, reValue(rv, undefined), flag = true);
             !undef(value.y) && (rv._y = value.y, reValue(rv, undefined), flag = true);
-            isNumber(rv.value, true) && (/*reValue(rv, value.value), */flag = true);
+            isNumber(v, true) && (reValue(rv, v), flag = true);
             return flag ? rv : null;
         }
         else if (isString(value)) {
@@ -18240,7 +18244,7 @@ var DataLabels = (function () {
                 }[t];
             }).call(shape, series, context);
         },
-        getShape: function(x, y){
+        getShape: function (x, y) {
             var series = this.series,
                 length = series.length,
                 shapeLength;
@@ -18260,15 +18264,15 @@ var DataLabels = (function () {
                 item = series[i];
                 reset(shapes = item.shapes);
                 shapeLength = shapes.length;
-                for(var j = 0; j < shapeLength; j++) {
+                for (var j = 0; j < shapeLength; j++) {
                     shape = shapes[j];
-                    if(shape.value === null){
+                    if (shape.value === null) {
                         continue;
                     }
-                    if(Intersection.rect(
+                    if (Intersection.rect(
                         {x: x, y: y},
                         {x: shape.x0, y: shape.y0, width: shape.x1, height: shape.y1}
-                    )){
+                    )) {
                         shape.current = j;
                         if (isNumber(shape._x, true) && isNumber(shape._y, true)) {
                             shape.$value = shape._x + ", " + shape._y + ", " + shape.value;
