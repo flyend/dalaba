@@ -12,4 +12,5 @@ bin/
 build/
 gulpfile.js
 package-lock.json
-index.html
+/index.html
+src/index.html

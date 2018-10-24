@@ -209,6 +209,7 @@
         var isSliced = false;
         var i, j;
         var callbacks = [];
+        var useHTML = false;
 
         while (i = selector.pop()) delete i.selected;
 
@@ -219,10 +220,12 @@
                 for (j = 0; j < graphics[i].series.length; j++) if ((series = graphic.series[j]).selected !== false) {
                     plotPoint = (plotOptions[series.type] || {}).point || {};
                     points = graphic.getShape && graphic.getShape(x, y);
-                    if (points && points.length) {
+                    useHTML = (series.dataLabels || {}).useHTML === true;
+                    if (points && points.length || useHTML) {
                         click = (series.events || {}).click || (plotPoint.events || {}).click;
+                        //if (series.clicked !== false) {
                         callbacks.push([
-                            !!points.length && isFunction(click),
+                            (!!points.length || useHTML) && isFunction(click),
                             points.map(function (shape) { return shape.shape; }),
                             click
                         ]);
@@ -244,8 +247,7 @@
             event = extend({}, e, { moveX: x, moveY: y });
             for (i = 0; i < callbacks.length; i++) if (graphic = callbacks[i]) {
                 event.shapes = graphic[1], event.points = graphic[1];
-                point = graphic[1][0];
-                point.point = graphic[1][0];
+                (point = graphic[1][0]) && (point.point = graphic[1][0]);
                 graphic[0] && graphic[2].call(graphic[1].length === 1  ? (point || {}) : graphic[1], event);
             }
             if (globalClick || isSliced) {

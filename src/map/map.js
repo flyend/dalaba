@@ -134,7 +134,6 @@
                     delete item.current;
                 });
             }
-            //x=543;
 
             for (var i = 0, n = this.series.length; i < n; i++) {
                 reset(shapes = (series = this.series[i]).shapes);

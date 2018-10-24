@@ -591,7 +591,7 @@
 
     var valueOf = function (v, neighbor) {
         var value = parseFloat(v, 10),
-            values = v.match(rValue),
+            values = String(v).match(rValue),
             p = values && values.length;
         var filter = function (d) {
             return { x: parseFloat(d, 10) };
@@ -673,11 +673,11 @@
         if (arguments.length < 2)
             precision = EPSILON;
         return Number.prototype.toPrecision ? Number(n).toPrecision(precision) : (function (n, precision) {
-            if(n === 0 || isNaN(n) || isFinite(n))
+            if (n === 0 || isNaN(n) || isFinite(n))
                 return "" + n;
             var ln10 = ~~(log(abs(n)) / Math.LN10);//log base
             var m;
-            if(precision > ln10){
+            if (precision > ln10) {
                 m = pow(10, precision - ln10 - 1);
                 return "" + (m === 0 ? n : round(n * m) / m);
             }
@@ -706,11 +706,15 @@
     };
 
     var quantile = function (data, percent) {
-        var size = 1 + (data.length - 1) * percent,
-            length = Math.floor(size);
-        var diff = size - length;
-        var d = data[length],
-            d0 = data[length - 1];
+        var n = data.length;
+        var i0 = 1 + (~-n) * percent,
+            i = i0 | 0;
+        var diff = i0 - i;
+        var d = data[i],
+            d0 = data[i - 1];
+        if (!n) return NaN;
+        if (percent <= 0 || n < 2) return d = data[0], (isString(d) || isNumber(d)) ? valueOf(d) : 0;
+        if (percent >= 1) return d = data[n - 1], (isString(d) || isNumber(d)) ? valueOf(d) : 0;
         d = (isString(d) || isNumber(d)) ? valueOf(d) : 0;
         d0 = (isString(d0) || isNumber(d0)) ? valueOf(d0) : 0;
 
@@ -730,8 +734,8 @@
             return null;
         }
 
-        first = valueOf(values[0]);
-        last = valueOf(values[mathMax(0, values.length - 1)]);
+        first = isNumber(first = values[0]) ? first : valueOf(first);
+        last = isNumber(last = values[mathMax(0, length - 1)]) ? last : valueOf(last);
         
         q1 = quantile(values, 0.25);
         median = quantile(values, 0.5);
@@ -1058,9 +1062,11 @@
         var heap = new Heap(function (a, b) {
             return ascending(a, b, "distance");
         });
+
         function buildTree (points, depth, parent, dimensions) {
-            var length = points.length,
-                d = depth % Math.max(1, dimensions.length),
+            var dimn = (dimensions || []).length,
+                length = points.length,
+                d = depth % Math.max(1, dimn),
                 dim,
                 sorted = descending,
                 m;
@@ -1071,9 +1077,9 @@
             if (length === 1)
                 return new Tree(points[0], parent, d);//root
 
-            if (dimensions.length) {
+            if (dimn) {
                 dim = dimensions[d];//dimensions size
-                sorted = function (a, b){
+                sorted = function (a, b) {
                     return a[dim] - b[dim];
                 };
             }
@@ -1095,11 +1101,11 @@
         };
         KDTree.prototype = {
             build: function (points, dimensions) {
-                this.dimensions = dimensions || ["x", "y"];
+                this.dimensions = dimensions;// || ["x", "y"];
                 this.root = buildTree(points, 0, null, this.dimensions);
             },
             nearest: function (point, callback, k) {
-                var dimensions = this.dimensions,
+                var dimensions = this.dimensions || [],
                     dl = dimensions.length;
                 var ret = [];
 
@@ -1126,7 +1132,7 @@
                     var node;
 
                     if (dl) {
-                        dimensions.forEach(function(item, i){
+                        dimensions.forEach(function (item, i) {
                             maps[item] = i === tree.dim ? point[item] : tree.node[item];
                         });
                     }
@@ -1134,8 +1140,7 @@
                         maps = point;
                     }
                     bValue = callback(maps, tree.node);
-                    //console.log(tree.node.x1, tree.node.x0, tree.node.y0, tree.node.y1)
-                    //parent
+                    //leaf
                     if (tree.right === null && tree.left === null) {
                         if (heap.size() < k || aValue < heap.peek().distance) {
                             put(tree, aValue);
@@ -3914,6 +3919,7 @@
         var isSliced = false;
         var i, j;
         var callbacks = [];
+        var useHTML = false;
 
         while (i = selector.pop()) delete i.selected;
 
@@ -3924,10 +3930,12 @@
                 for (j = 0; j < graphics[i].series.length; j++) if ((series = graphic.series[j]).selected !== false) {
                     plotPoint = (plotOptions[series.type] || {}).point || {};
                     points = graphic.getShape && graphic.getShape(x, y);
-                    if (points && points.length) {
+                    useHTML = (series.dataLabels || {}).useHTML === true;
+                    if (points && points.length || useHTML) {
                         click = (series.events || {}).click || (plotPoint.events || {}).click;
+                        //if (series.clicked !== false) {
                         callbacks.push([
-                            !!points.length && isFunction(click),
+                            (!!points.length || useHTML) && isFunction(click),
                             points.map(function (shape) { return shape.shape; }),
                             click
                         ]);
@@ -3949,8 +3957,7 @@
             event = extend({}, e, { moveX: x, moveY: y });
             for (i = 0; i < callbacks.length; i++) if (graphic = callbacks[i]) {
                 event.shapes = graphic[1], event.points = graphic[1];
-                point = graphic[1][0];
-                point.point = graphic[1][0];
+                (point = graphic[1][0]) && (point.point = graphic[1][0]);
                 graphic[0] && graphic[2].call(graphic[1].length === 1  ? (point || {}) : graphic[1], event);
             }
             if (globalClick || isSliced) {
@@ -17023,7 +17030,6 @@ var DataLabels = (function () {
                     delete item.current;
                 });
             }
-            //x=543;
 
             for (var i = 0, n = this.series.length; i < n; i++) {
                 reset(shapes = (series = this.series[i]).shapes);
