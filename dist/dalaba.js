@@ -1,6 +1,6 @@
 /**
  * dalaba - A JavaScript chart library for Canvas.
- * @date 2018/10/22
+ * @date 2018/10/29
  * @version v0.3.1
  * @license ISC
  */
@@ -9,32 +9,36 @@
 
     var Dalaba = (function () {
     
-    var toString = Object.prototype.toString;
+    var toString = ({}).toString;
 
-    var isObject = function (a) {
-        return toString.call(a) === "[object Object]";
+    var typeOf = function (type) {
+        var typeOf = function (v, type2) { return toString.call(v) === "[object " + (type2 || type) + "]"; };
+        return function (v) {
+            return typeOf(type, "Function") ? type(v) : typeOf(v);
+        };
     };
-    var isNumber = function (a, finite) {
-        return typeof a === "number" && !isNaN(a) && (finite !== true || isFinite(a));
-    };
-    var isArray = function (a) {
-        return toString.call(a) === "[object Array]";
-    };
-    var isFunction = function (a) {
-        return toString.call(a) === "[object Function]";
-    };
-    var isString = function (a) {
-        return toString.call(a) === "[object String]";
-    };
-    var isEmptyObject = function (o) {
+
+    var isObject = typeOf("Object");
+
+    var isArray = Array.isArray ? Array.isArray : typeOf("Array");
+
+    var isFunction = typeOf("Function");
+
+    var isString = typeOf("String");
+
+    var isNumber = typeOf(function (v, finite) {
+        return typeof v === "number" && !isNaN(v) && (finite !== true || isFinite(v));
+    });
+
+    var isEmptyObject = typeOf(function (o) {
         for (var p in o) if (o.hasOwnProperty(p))
             return false;
         return true;
-    };
+    });
 
-    var defined = function (a) {
-        return typeof a !== "undefined" && a !== null;
-    };
+    var defined = typeOf(function (v) {
+        return typeof v !== "undefined" && v !== null;
+    });
 
     var Dalaba = {
         DEVICE_PIXEL_RATIO: global.devicePixelRatio || 1,
@@ -2605,6 +2609,183 @@
         }
     };
 
+    /**
+    * a tree simple method
+    **/
+    Cluster.Tree = (function () {
+
+    var typeOf = function (type) { return function (v) { return ({}).toString.call(v) === "[object " + type + "]"; }; };
+
+    var isArray = Array.isArray ? Array.isArray : typeOf("Array");
+
+    var isFunction = typeOf("Function");
+
+    var extend = Dalaba.extend;
+
+    var noop = function () {};
+
+    var dfs = function dfs(root, callbacks) {
+        var nodes = isArray(root) ? root : [root];
+        var n = nodes.length,
+            i = -1;
+        var node, childs;
+
+        while (++i < n && (node = nodes[i])) {
+            callbacks[0] && callbacks[0].call(node, node, i, nodes);
+            if (isArray(childs = node.children) && childs.length) {
+                dfs(childs, callbacks);
+            }
+            callbacks[1] && callbacks[1].call(node, node, i, nodes);
+        }
+    };
+
+    var bfs = function (root, callback) {
+        var queue = (isArray(root) ? root : [root]).slice();
+        var n, i;
+        var node, childs;
+
+        while (queue.length) {
+            node = queue.shift();
+            childs = (node.children || []).slice();
+            callback && callback.call(node, node, queue.length - 1, queue);
+            if (isArray(childs) && (i = -1, n = childs.length)) for (; ++i < n; ) {
+                queue.push(childs[i]);
+            }
+        }
+    };
+
+    var vstack = function (source, target) {
+        var root, ids;
+        return function (data) {
+            var args = [].slice.call(arguments, 1);
+            var node, parent;
+            var nodes = [];
+
+            var n, i = -1;
+
+            root = [];
+            ids = {};
+
+            if (!isArray(data)) return root;
+
+            n = data.length;
+
+            if (args.length) {
+                args[0] && (source = args[0]);
+                args[1] && (target = args[1]);
+            }
+            // use the key algorithm O(n)
+            
+            while (++i < n) if (node = data[i]) {
+                nodes.push(extend({}, node));// copy
+                node = nodes[nodes.length - 1];
+                ids[node[source]] = node;
+            }
+
+            for (i = 0; i < n; i++) if (node = nodes[i]) {
+                parent = ids[node[target]];
+                if (parent) {
+                    (parent.children = parent.children || []).push(node);
+                }
+                else {
+                    root.push(node);
+                }
+            }
+            ids = nodes = null;
+            return root;
+        };
+    };
+
+    var hstack = function (source, target) {
+        return function (data) {
+            var nodes = [],
+                node;
+            var count = 0;
+            dfs(data, [function (d) {
+                console.log(d);
+                node = {value: d.value};
+                node[source] = count++;
+
+                nodes.push(node);
+            }, null]);
+            return nodes;
+        }
+    };
+    /*console.log("a", stack("source", "target")([
+            { source: 0, target: -1, value: 1},
+            { source: 1, target: 0, value: 2},
+            { source: 2, target: 0, value: 3},
+            { source: 3, target: 1, value: 4},
+            { source: 4, target: 1, value: 5},
+            { source: 5, target: 2, value: 6},
+            { source: 6, target: 4, value: 7},
+            { source: 7, target: 4, value: 8}
+          ])[0])*/
+    console.log(JSON.stringify(hstack("id", "pid")([{
+      value: 1,
+      children: [{
+         value: 2,
+         children: [{ value: 4 }, { value: 5, children: [{value: 7}, {value: 8}] }]
+      }, {
+         value: 3,
+         children: [{value: 6}]
+     }]
+    }])));
+    
+    return {
+        /**
+         * deep first search
+         * @ordered {Boolean}
+         *        1
+         *       / \
+         *      2   3
+         *     / \   \
+         *    4   5   6
+         *       / \
+         *      7   8
+         * ordered is false or default: 4 7 8 5 2 6 3 1 (ROOT-L-R)
+         * ordered is true: 1 2 4 5 7 8 3 6 (L-R-ROOT)
+         * @example
+         * const root = [{
+         *   value: 1,
+         *   children: [{
+         *      value: 2,
+         *      children: [{ value: 4 }, { value: 5, children: [{value: 7}, {value: 8}] }]
+         *   }, {
+         *      value: 3,
+         *      children: [{value: 6}]
+         *  }]
+         * }];
+         * dfs(root, value => console.log(value), true)
+        **/
+        dfs: function (root, callback, ordered) {
+            callback = isFunction(callback) ? callback : noop;
+            return dfs(root, [null, callback][ordered === true ? "reverse" : "slice"]());
+        },
+        bfs: bfs,
+        /**
+         * vertical stack tree
+         * @param data {Array}
+         * @param id, pid {String} array object key -> parent
+         * @returns tree data
+         * @example
+         * const data = [
+         *   { source: 0, target: -1, value: 1},
+         *   { source: 1, target: 0, value: 2},
+         *   { source: 2, target: 0, value: 3},
+         *   { source: 3, target: 1, value: 4},
+         *   { source: 4, target: 1, value: 5},
+         *   { source: 5, target: 2, value: 6},
+         *   { source: 6, target: 4, value: 7},
+         *   { source: 7, target: 4, value: 8}
+         * }];
+         * vstack(data)
+        **/
+        vstack: vstack("source", "target"),
+        hstack: hstack("id", "pid")
+    };
+}).call(typeof window !== "undefined" ? window : this);;
+
 
     if (typeof module === "object" && module.exports) {
         module.exports = Cluster;
@@ -4112,14 +4293,17 @@
                 x = Event.normalize(e, this),
                 y = x.y;
             x = x.x;
-            e.preventDefault && e.preventDefault();
             if (Intersection.rect(
                 {x: x, y: y},
                 {x: viewport.left, y: viewport.top, width: viewport.left + viewport.width, height: viewport.top + viewport.height}
             )) {
                 var scale = getZoom(e);
+                var rangeSelector = chart.rangeSelector;
                 if (scale.disabled)
                     return;
+                if (chart.rangeSlider.length) {
+                    e.preventDefault && e.preventDefault();
+                }
                 chart.rangeSlider.forEach(function (slider, i) {
                     var options = slider.options,
                         zoomRatio = options.zoomRatio,
@@ -4145,12 +4329,12 @@
                     }
                     events && isFunction(events.zoom) && events.zoom.call(slider, e);
                 });
-                var rangeSelector = chart.rangeSelector;
                 if (rangeSelector.length && rangeSelector[0].from !== rangeSelector[0].to) {
                     if (chart.charts.length) {
                         fetchData(e, chart, rangeSelector[0].from, rangeSelector[0].to);
                     }
                 }
+                
                 if (chartOptions.events && isFunction(chartOptions.events.zoom)) {
                     e.delta = scale.length;
                     chartOptions.events.zoom.call(null, e);
@@ -4223,6 +4407,16 @@
                 selector._start = selector.from = pack("number", parseFloat(selector.start, 10), 0);
                 selector._end = selector.to = pack("number", parseFloat(selector.end, 10), 100);
             });
+            var contains = /*hasCompare || rnative.test( docElem.contains ) ?*/
+        function( a, b ) {
+            var adown = a.nodeType === 9 ? a.documentElement : a,
+                bup = b && b.parentNode;
+            return a === bup || !!( bup && bup.nodeType === 1 && (
+                /*adown.contains ?
+                    adown.contains( bup ) :
+                    */a.compareDocumentPosition && a.compareDocumentPosition( bup ) & 16
+            ));
+        };
             (function (chart) {
                 var container = chart.container;
                 var globalEvent = chart.globalEvent;
@@ -4237,7 +4431,10 @@
                     },
                     mouseout: function (e) {
                         var related = e.relatedTarget;
-                        if (!related || (related !== this && (related.compareDocumentPosition(this) & 8))) {
+                        console.log(related, this, related.compareDocumentPosition(this))
+                        //if (!related || (related !== this && (related.compareDocumentPosition(this) & 8))) {
+                        if (!related || (related !== this && contains(this, related))) {
+                            console.log("---")
                             hasEventDisabled(chart) && tooltip.hide.call(this, e, chart);
                         }
                     },
@@ -13493,7 +13690,7 @@ var DataLabels = (function () {
                     inverted = !!series.inverted;
                     if (isInside(series)) {
                         reset(shapes);
-                        kdtree = KDTree(shapes);
+                        kdtree = KDTree(shapes, ["x", "y"]);
                         shape = kdtree.nearest({x: x, y: y}, function(a, b){
                             var dx = a.x - b.x,
                                 dy = a.y - b.y;
@@ -13511,7 +13708,7 @@ var DataLabels = (function () {
             if (shared === false) {
                 shapes = results.map(function (item) { return item.shape; });
                 reset(shapes);
-                kdtree = KDTree(shapes);
+                kdtree = KDTree(shapes, ["x", "y"]);
                 shape = kdtree.nearest({x: x, y: y}, function(a, b){
                     var dx = a.x - b.x, dy = a.y - b.y;
                     return dx * dx + dy * dy;

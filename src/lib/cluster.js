@@ -183,6 +183,11 @@
         }
     };
 
+    /**
+    * a tree simple method
+    **/
+    Cluster.Tree = require("./tree");
+
 
     if (typeof module === "object" && module.exports) {
         module.exports = Cluster;

@@ -402,14 +402,17 @@
                 x = Event.normalize(e, this),
                 y = x.y;
             x = x.x;
-            e.preventDefault && e.preventDefault();
             if (Intersection.rect(
                 {x: x, y: y},
                 {x: viewport.left, y: viewport.top, width: viewport.left + viewport.width, height: viewport.top + viewport.height}
             )) {
                 var scale = getZoom(e);
+                var rangeSelector = chart.rangeSelector;
                 if (scale.disabled)
                     return;
+                if (chart.rangeSlider.length) {
+                    e.preventDefault && e.preventDefault();
+                }
                 chart.rangeSlider.forEach(function (slider, i) {
                     var options = slider.options,
                         zoomRatio = options.zoomRatio,
@@ -435,12 +438,12 @@
                     }
                     events && isFunction(events.zoom) && events.zoom.call(slider, e);
                 });
-                var rangeSelector = chart.rangeSelector;
                 if (rangeSelector.length && rangeSelector[0].from !== rangeSelector[0].to) {
                     if (chart.charts.length) {
                         fetchData(e, chart, rangeSelector[0].from, rangeSelector[0].to);
                     }
                 }
+                
                 if (chartOptions.events && isFunction(chartOptions.events.zoom)) {
                     e.delta = scale.length;
                     chartOptions.events.zoom.call(null, e);
@@ -513,6 +516,16 @@
                 selector._start = selector.from = pack("number", parseFloat(selector.start, 10), 0);
                 selector._end = selector.to = pack("number", parseFloat(selector.end, 10), 100);
             });
+            var contains = /*hasCompare || rnative.test( docElem.contains ) ?*/
+        function( a, b ) {
+            var adown = a.nodeType === 9 ? a.documentElement : a,
+                bup = b && b.parentNode;
+            return a === bup || !!( bup && bup.nodeType === 1 && (
+                /*adown.contains ?
+                    adown.contains( bup ) :
+                    */a.compareDocumentPosition && a.compareDocumentPosition( bup ) & 16
+            ));
+        };
             (function (chart) {
                 var container = chart.container;
                 var globalEvent = chart.globalEvent;
@@ -527,7 +540,10 @@
                     },
                     mouseout: function (e) {
                         var related = e.relatedTarget;
-                        if (!related || (related !== this && (related.compareDocumentPosition(this) & 8))) {
+                        console.log(related, this, related.compareDocumentPosition(this))
+                        //if (!related || (related !== this && (related.compareDocumentPosition(this) & 8))) {
+                        if (!related || (related !== this && contains(this, related))) {
+                            console.log("---")
                             hasEventDisabled(chart) && tooltip.hide.call(this, e, chart);
                         }
                     },
