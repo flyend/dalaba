@@ -5,7 +5,7 @@
     var typeOf = function (type) {
         var typeOf = function (v, type2) { return toString.call(v) === "[object " + (type2 || type) + "]"; };
         return function (v) {
-            return typeOf(type, "Function") ? type(v) : typeOf(v);
+            return typeOf(type, "Function") ? type.apply(null, arguments) : typeOf(v);
         };
     };
 
@@ -41,6 +41,7 @@
         isEmptyObject: isEmptyObject,
         defined: defined
     };
+    
     /**
      * @param first is object type
      * @param last default value
@@ -120,12 +121,11 @@
     Dalaba.Color = require("./color");
     Dalaba.Text = require("./text");
 
-    Dalaba.Cluster = require("./cluster");
-    Dalaba.Cluster.List.diff = require("./align").deps(Dalaba.Cluster.hirschbergs);
+    Dalaba.Cluster = require("./cluster").deps(Dalaba);
 
     Dalaba.ZTree = require("./ztree").deps(Dalaba.Cluster.List.partition);
     
-    Dalaba.geo = require("./geo")(Dalaba);
+    Dalaba.geo = require("./geo").deps(Dalaba);
 
     return Dalaba;
 })();

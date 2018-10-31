@@ -516,16 +516,7 @@
                 selector._start = selector.from = pack("number", parseFloat(selector.start, 10), 0);
                 selector._end = selector.to = pack("number", parseFloat(selector.end, 10), 100);
             });
-            var contains = /*hasCompare || rnative.test( docElem.contains ) ?*/
-        function( a, b ) {
-            var adown = a.nodeType === 9 ? a.documentElement : a,
-                bup = b && b.parentNode;
-            return a === bup || !!( bup && bup.nodeType === 1 && (
-                /*adown.contains ?
-                    adown.contains( bup ) :
-                    */a.compareDocumentPosition && a.compareDocumentPosition( bup ) & 16
-            ));
-        };
+
             (function (chart) {
                 var container = chart.container;
                 var globalEvent = chart.globalEvent;
@@ -540,10 +531,7 @@
                     },
                     mouseout: function (e) {
                         var related = e.relatedTarget;
-                        console.log(related, this, related.compareDocumentPosition(this))
-                        //if (!related || (related !== this && (related.compareDocumentPosition(this) & 8))) {
-                        if (!related || (related !== this && contains(this, related))) {
-                            console.log("---")
+                        if (!related || (related !== this && (related.compareDocumentPosition(this) & 8))) {
                             hasEventDisabled(chart) && tooltip.hide.call(this, e, chart);
                         }
                     },

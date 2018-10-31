@@ -14,7 +14,7 @@
     var typeOf = function (type) {
         var typeOf = function (v, type2) { return toString.call(v) === "[object " + (type2 || type) + "]"; };
         return function (v) {
-            return typeOf(type, "Function") ? type(v) : typeOf(v);
+            return typeOf(type, "Function") ? type.apply(null, arguments) : typeOf(v);
         };
     };
 
@@ -50,6 +50,7 @@
         isEmptyObject: isEmptyObject,
         defined: defined
     };
+    
     /**
      * @param first is object type
      * @param last default value
@@ -2427,118 +2428,121 @@
     Dalaba.Cluster = (function () {
     var indexOf = Array.prototype.indexOf;
 
-    var mathMin = Math.min;
+    var hirschbergs = (function () {
 
-    var Cluster = {};
+    var MAX_VALUE = Number.MAX_VALUE;
 
-    Cluster.hirschbergs = (function () {
+    var nativeMin = Math.min;
 
-        //a0[p0,p1) and a1[q0,q1)
-        function left (a0, a1, p1, p2, q1, q2, compare, memo) {
-            var i, j;
-            var diag;
+    //a0[p0,p1) and a1[q0,q1)
+    function left (a0, a1, p1, p2, q1, q2, compare, memo) {
+        var i, j;
+        var diag;
 
-            memo[p1 % 2][q1] = 0;
+        memo[p1 % 2][q1] = 0;
 
-            for (j = q1 + 1; j <= q2; j++)
-                memo[p1 % 2][j] = memo[p1 % 2][j - 1] + 1;
+        for (j = q1 + 1; j <= q2; j++)
+            memo[p1 % 2][j] = memo[p1 % 2][j - 1] + 1;
 
-            for (i = p1 + 1; i <= p2; i++) {
-                memo[i % 2][q1] = memo[(i - 1) % 2][q1] + 1;
-                for (j = q1 + 1; j <= q2; j++) {
-                    diag = memo[(i - 1) % 2][j - 1];
-                    if (!compare(a0[i - 1], a1[j - 1]))
-                        diag += 1;
-                    memo[i % 2][j] = mathMin(diag, mathMin(memo[(i - 1) % 2][j] + 1, memo[i % 2][j - 1] +  1));
-                }
+        for (i = p1 + 1; i <= p2; i++) {
+            memo[i % 2][q1] = memo[(i - 1) % 2][q1] + 1;
+            for (j = q1 + 1; j <= q2; j++) {
+                diag = memo[(i - 1) % 2][j - 1];
+                if (!compare(a0[i - 1], a1[j - 1]))
+                    diag += 1;
+                memo[i % 2][j] = nativeMin(diag, nativeMin(memo[(i - 1) % 2][j] + 1, memo[i % 2][j - 1] +  1));
             }
         }
+    }
 
-        //reverse(a0[p1..p2)) and reverse(a1[q1..q2))
-        function right (a0, a1, p1, p2, q1, q2, compare, memo) {
-            var i, j;
-            var diag;
+    //reverse(a0[p1..p2)) and reverse(a1[q1..q2))
+    function right (a0, a1, p1, p2, q1, q2, compare, memo) {
+        var i, j;
+        var diag;
 
-            memo[p2 % 2][q2] = 0;
+        memo[p2 % 2][q2] = 0;
 
-            for (j = q2 - 1; j >= q1; j--)
-                memo[p2 % 2][j] = memo[p2 % 2][j + 1] + 1;
+        for (j = q2 - 1; j >= q1; j--)
+            memo[p2 % 2][j] = memo[p2 % 2][j + 1] + 1;
 
-            for (i = p2 - 1; i >= p1; i--) {
-                memo[i % 2][q2] = memo[(i + 1) % 2][q2] + 1;
-                for (j = q2 - 1; j >= q1; j--) {
-                    diag = memo[(i + 1) % 2][j + 1];
-                    if (!compare(a0[i], a1[j]))
-                        diag += 1;
-                    memo[i % 2][j] = mathMin(diag, mathMin(memo[(i + 1) % 2][j] + 1, memo[i % 2][j + 1] + 1));
-                }
+        for (i = p2 - 1; i >= p1; i--) {
+            memo[i % 2][q2] = memo[(i + 1) % 2][q2] + 1;
+            for (j = q2 - 1; j >= q1; j--) {
+                diag = memo[(i + 1) % 2][j + 1];
+                if (!compare(a0[i], a1[j]))
+                    diag += 1;
+                memo[i % 2][j] = nativeMin(diag, nativeMin(memo[(i + 1) % 2][j] + 1, memo[i % 2][j + 1] + 1));
             }
         }
+    }
 
-        //align a0[p1..p2) with a1[q1..q2)
-        function align (a0, a1, p0, p1, q0, q1, score0, score1, compare, append) {
-            var ret = [];
-            var item, memo = 0;
-            var i, j;
-            //a0 is empty
-            if(p1 <= p0) {
-                for (j = q0; j < q1; j++) {
-                    ret.push(append("+", j));
-                }
+    //align a0[p1..p2) with a1[q1..q2)
+    function align (a0, a1, p0, p1, q0, q1, score0, score1, compare, append) {
+        var ret = [];
+        var item, memo = 0;
+        var i, j;
+        //a0 is empty
+        if(p1 <= p0) {
+            for (j = q0; j < q1; j++) {
+                ret.push(append("+", j));
             }
-            //a1 is empty
-            else if (q1 <= q0) {
-                for (i = p0; i < p1; i++) {
+        }
+        //a1 is empty
+        else if (q1 <= q0) {
+            for (i = p0; i < p1; i++) {
+                ret.push(append("-", i));
+            }
+        }
+        //a0 is one, a1 is not empty
+        else if (p1 - 1 === p0) {
+            item = a0[p0];
+            memo = 0;
+            for (j = q0; j < q1; j++) if (compare(item, a1[j]) && !memo && (memo = 1)) {
+                ret.push(append("=", p0, j));
+            }
+            else ret.push(append("+", j));
+            !memo && ret.push(append("-", p0));
+        }
+        else if (q1 - 1 === q0) {
+            item = a1[q0];
+            memo = 0;
+            for (i = p0; i < p1; i++) {
+                if (compare(item, a0[i]) && !memo && (memo = 1)) {
+                    ret.push(append("=", i, q0));
+                }
+                else {
                     ret.push(append("-", i));
                 }
             }
-            //a0 is one, a1 is not empty
-            else if (p1 - 1 === p0) {
-                item = a0[p0];
-                memo = 0;
-                for (j = q0; j < q1; j++) if (compare(item, a1[j]) && !memo && (memo = 1)) {
-                    ret.push(append("=", p0, j));
-                }
-                else ret.push(append("+", j));
-                !memo && ret.push(append("-", p0));
-            }
-            else if (q1 - 1 === q0) {
-                item = a1[q0];
-                memo = 0;
-                for (i = p0; i < p1; i++) {
-                    if (compare(item, a0[i]) && !memo && (memo = 1)) {
-                        ret.push(append("=", i, q0));
-                    }
-                    else {
-                        ret.push(append("-", i));
-                    }
-                }
-                !memo && ret.push(append("+", q0));
-            }
-            else {
-                var imid = p0 + p1 >> 1;
-                left(a0, a1, p0, imid, q0, q1, compare, score0);
-                right(a0, a1, imid, p1, q0, q1, compare, score1);
-
-                var jmid = q0,
-                    best = Number.MAX_VALUE;
-                for (i = q0; i <= q1; i++) {
-                    var sum = score0[imid % 2][i] + score1[imid % 2][i];
-                    if (sum < best) {
-                        best = sum;
-                        jmid = i;
-                    }
-                }
-
-                ret = align(a0, a1, p0, imid, q0, jmid, score0, score1, compare, append)
-                    .concat(align(a0, a1, imid, p1, jmid, q1, score0, score1, compare, append));
-            }
-            return ret;
+            !memo && ret.push(append("+", q0));
         }
-        return align;
-    })();
+        else {
+            var middle = p0 + p1 >> 1;
+            var bestSum, bestIndex, sum;
 
-    Cluster.List = {
+            left(a0, a1, p0, middle, q0, q1, compare, score0);// 分治
+            right(a0, a1, middle, p1, q0, q1, compare, score1);
+
+            bestIndex = q0;
+            bestSum = MAX_VALUE;
+
+            for (i = q0; i <= q1; i++) {
+                sum = score0[middle % 2][i] + score1[middle % 2][i];
+                if (sum < bestSum) {
+                    bestSum = sum;
+                    bestIndex = i;
+                }
+            }
+            // 合并 merge
+            ret = align(a0, a1, p0, middle, q0, bestIndex, score0, score1, compare, append)
+                .concat(align(a0, a1, middle, p1, bestIndex, q1, score0, score1, compare, append));
+        }
+        return ret;
+    }
+    return align;
+})();
+
+    var List = {
         /*
          * The data packet
          * @param data{Array} data Grouping
@@ -2609,195 +2613,7 @@
         }
     };
 
-    /**
-    * a tree simple method
-    **/
-    Cluster.Tree = (function () {
-
-    var typeOf = function (type) { return function (v) { return ({}).toString.call(v) === "[object " + type + "]"; }; };
-
-    var isArray = Array.isArray ? Array.isArray : typeOf("Array");
-
-    var isFunction = typeOf("Function");
-
-    var extend = Dalaba.extend;
-
-    var noop = function () {};
-
-    var dfs = function dfs(root, callbacks) {
-        var nodes = isArray(root) ? root : [root];
-        var n = nodes.length,
-            i = -1;
-        var node, childs;
-
-        while (++i < n && (node = nodes[i])) {
-            callbacks[0] && callbacks[0].call(node, node, i, nodes);
-            if (isArray(childs = node.children) && childs.length) {
-                dfs(childs, callbacks);
-            }
-            callbacks[1] && callbacks[1].call(node, node, i, nodes);
-        }
-    };
-
-    var bfs = function (root, callback) {
-        var queue = (isArray(root) ? root : [root]).slice();
-        var n, i;
-        var node, childs;
-
-        while (queue.length) {
-            node = queue.shift();
-            childs = (node.children || []).slice();
-            callback && callback.call(node, node, queue.length - 1, queue);
-            if (isArray(childs) && (i = -1, n = childs.length)) for (; ++i < n; ) {
-                queue.push(childs[i]);
-            }
-        }
-    };
-
-    var vstack = function (source, target) {
-        var root, ids;
-        return function (data) {
-            var args = [].slice.call(arguments, 1);
-            var node, parent;
-            var nodes = [];
-
-            var n, i = -1;
-
-            root = [];
-            ids = {};
-
-            if (!isArray(data)) return root;
-
-            n = data.length;
-
-            if (args.length) {
-                args[0] && (source = args[0]);
-                args[1] && (target = args[1]);
-            }
-            // use the key algorithm O(n)
-            
-            while (++i < n) if (node = data[i]) {
-                nodes.push(extend({}, node));// copy
-                node = nodes[nodes.length - 1];
-                ids[node[source]] = node;
-            }
-
-            for (i = 0; i < n; i++) if (node = nodes[i]) {
-                parent = ids[node[target]];
-                if (parent) {
-                    (parent.children = parent.children || []).push(node);
-                }
-                else {
-                    root.push(node);
-                }
-            }
-            ids = nodes = null;
-            return root;
-        };
-    };
-
-    var hstack = function (source, target) {
-        return function (data) {
-            var nodes = [],
-                node;
-            var count = 0;
-            dfs(data, [function (d) {
-                console.log(d);
-                node = {value: d.value};
-                node[source] = count++;
-
-                nodes.push(node);
-            }, null]);
-            return nodes;
-        }
-    };
-    /*console.log("a", stack("source", "target")([
-            { source: 0, target: -1, value: 1},
-            { source: 1, target: 0, value: 2},
-            { source: 2, target: 0, value: 3},
-            { source: 3, target: 1, value: 4},
-            { source: 4, target: 1, value: 5},
-            { source: 5, target: 2, value: 6},
-            { source: 6, target: 4, value: 7},
-            { source: 7, target: 4, value: 8}
-          ])[0])*/
-    console.log(JSON.stringify(hstack("id", "pid")([{
-      value: 1,
-      children: [{
-         value: 2,
-         children: [{ value: 4 }, { value: 5, children: [{value: 7}, {value: 8}] }]
-      }, {
-         value: 3,
-         children: [{value: 6}]
-     }]
-    }])));
-    
-    return {
-        /**
-         * deep first search
-         * @ordered {Boolean}
-         *        1
-         *       / \
-         *      2   3
-         *     / \   \
-         *    4   5   6
-         *       / \
-         *      7   8
-         * ordered is false or default: 4 7 8 5 2 6 3 1 (ROOT-L-R)
-         * ordered is true: 1 2 4 5 7 8 3 6 (L-R-ROOT)
-         * @example
-         * const root = [{
-         *   value: 1,
-         *   children: [{
-         *      value: 2,
-         *      children: [{ value: 4 }, { value: 5, children: [{value: 7}, {value: 8}] }]
-         *   }, {
-         *      value: 3,
-         *      children: [{value: 6}]
-         *  }]
-         * }];
-         * dfs(root, value => console.log(value), true)
-        **/
-        dfs: function (root, callback, ordered) {
-            callback = isFunction(callback) ? callback : noop;
-            return dfs(root, [null, callback][ordered === true ? "reverse" : "slice"]());
-        },
-        bfs: bfs,
-        /**
-         * vertical stack tree
-         * @param data {Array}
-         * @param id, pid {String} array object key -> parent
-         * @returns tree data
-         * @example
-         * const data = [
-         *   { source: 0, target: -1, value: 1},
-         *   { source: 1, target: 0, value: 2},
-         *   { source: 2, target: 0, value: 3},
-         *   { source: 3, target: 1, value: 4},
-         *   { source: 4, target: 1, value: 5},
-         *   { source: 5, target: 2, value: 6},
-         *   { source: 6, target: 4, value: 7},
-         *   { source: 7, target: 4, value: 8}
-         * }];
-         * vstack(data)
-        **/
-        vstack: vstack("source", "target"),
-        hstack: hstack("id", "pid")
-    };
-}).call(typeof window !== "undefined" ? window : this);;
-
-
-    if (typeof module === "object" && module.exports) {
-        module.exports = Cluster;
-    }
-    else if (typeof define === "function" && define.amd) {
-        define(function() {
-            return Cluster;
-        });
-    }
-    return Cluster;
-}).call(typeof global !== "undefined" ? global : this);;
-    Dalaba.Cluster.List.diff = (function (global) {
+    List.diff = (function (global) {
     var forEach = Array.prototype.forEach;
 
     function defaultCompare (fn) {
@@ -2908,7 +2724,211 @@
         });
     }
     return exports;
-})(typeof window !== "undefined" ? window : this).deps(Dalaba.Cluster.hirschbergs);
+})(typeof window !== "undefined" ? window : this).deps(hirschbergs);
+
+    var exports = (function (global) {
+        return {
+            deps: function () {
+                var args = Array.prototype.slice.call(arguments, 0);
+                return function (Dalaba) {
+                    var Cluster = {};
+
+                    Cluster.hirschbergs = hirschbergs;
+
+                    Cluster.List = List;
+
+                    Cluster.Tree = (function () {
+
+    var noop = function () {};
+
+    function factory (Dalaba) {
+        var isArray = Dalaba.isArray;
+
+        var isFunction = Dalaba.isFunction;
+
+        var extend = Dalaba.extend;
+
+
+        var dfs = function dfs(root, callbacks) {
+            var nodes = isArray(root) ? root : [root];
+            var n = nodes.length,
+                i = -1;
+            var node, childs;
+
+            while (++i < n && (node = nodes[i])) {
+                callbacks[0] && callbacks[0].call(node, node, i, nodes);
+                if (isArray(childs = node.children) && childs.length) {
+                    dfs(childs, callbacks);
+                }
+                callbacks[1] && callbacks[1].call(node, node, i, nodes);
+            }
+        };
+
+        var bfs = function (root, callback) {
+            var queue = (isArray(root) ? root : [root]).slice();
+            var n, i;
+            var node, childs;
+
+            while (queue.length) {
+                node = queue.shift();
+                childs = (node.children || []).slice();
+                callback && callback.call(node, node, queue.length - 1, queue);
+                if (isArray(childs) && (i = -1, n = childs.length)) for (; ++i < n; ) {
+                    queue.push(childs[i]);
+                }
+            }
+        };
+
+        var vstack = function (source, target) {
+            var root, ids;
+            return function (data) {
+                var args = [].slice.call(arguments, 1);
+                var node, parent;
+                var nodes = [];
+
+                var n, i = -1;
+
+                root = [];
+                ids = {};
+
+                if (!isArray(data)) return root;
+
+                n = data.length;
+
+                if (args.length) {
+                    args[0] && (source = String(args[0]));
+                    args[1] && (target = String(args[1]));
+                }
+                // use the key algorithm O(n)
+                
+                while (++i < n) if (node = data[i]) {
+                    nodes.push(extend({}, node));// copy
+                    node = nodes[nodes.length - 1];
+                    ids[node[source]] = node;
+                }
+
+                for (i = 0; i < n; i++) if (node = nodes[i]) {
+                    parent = ids[node[target]];
+                    if (parent) {
+                        (parent.children = parent.children || []).push(node);
+                    }
+                    else {
+                        root.push(node);
+                    }
+                }
+                ids = nodes = null;
+                return root;
+            };
+        };
+
+        var hstack = function (source, target) {
+            return function (root) {
+                var args = [].slice.call(arguments, 1);
+                var nodes = [],
+                    newNode = {};
+                var count = 0;
+                var path = [];
+
+                if (args.length) {
+                    args[0] && (source = String(args[0]));
+                    args[1] && (target = String(args[1]));
+                }
+
+                newNode[source] = -1;// root
+                path.push(newNode);
+
+                dfs(root, [function (node) {
+                    newNode = extend({}, node);
+                    newNode[source] = count++;
+                    path.push(newNode);
+                }, function () {
+                    newNode = path.pop();// Backtracking using stack to the last element
+                    newNode[target] = path[path.length - 1][source];
+                    nodes.push(newNode);
+                }]);
+                path = null;
+                return nodes;
+            };
+        };
+        
+        return {
+            /**
+             * deep first search
+             * @ordered {Boolean}
+             *        1
+             *       / \
+             *      2   3
+             *     / \   \
+             *    4   5   6
+             *       / \
+             *      7   8
+             * ordered is false or default: 4 7 8 5 2 6 3 1 (ROOT-L-R), 后序遍历
+             * ordered is true: 1 2 4 5 7 8 3 6 (L-R-ROOT)
+             * @example
+             * const root = [{
+             *   value: 1,
+             *   children: [{
+             *      value: 2,
+             *      children: [{ value: 4 }, { value: 5, children: [{value: 7}, {value: 8}] }]
+             *   }, {
+             *      value: 3,
+             *      children: [{value: 6}]
+             *  }]
+             * }];
+             * dfs(root, value => console.log(value), true)
+            **/
+            dfs: function (root, callback, ordered) {
+                callback = isFunction(callback) ? callback : noop;
+                return dfs(root, [null, callback][ordered === true ? "reverse" : "slice"]());
+            },
+            bfs: bfs,
+            /**
+             * vertical stack tree
+             * @param data {Array}
+             * @param id, pid {String} array object key -> parent
+             * @returns tree data
+             * @example
+             * const data = [
+             *   { source: 0, target: -1, value: 1},
+             *   { source: 1, target: 0, value: 2},
+             *   { source: 2, target: 0, value: 3},
+             *   { source: 3, target: 1, value: 4},
+             *   { source: 4, target: 1, value: 5},
+             *   { source: 5, target: 2, value: 6},
+             *   { source: 6, target: 4, value: 7},
+             *   { source: 7, target: 4, value: 8}
+             * }];
+             * vstack(data)
+            **/
+            vstack: vstack("source", "target"),
+            hstack: hstack("source", "target")
+        };
+    }
+
+    return {
+        deps: function () {
+            return factory.apply(null, [].slice.call(arguments));
+        }
+    };
+}).call(typeof window !== "undefined" ? window : this).deps(Dalaba);// a tree simple method
+
+                    return Cluster;
+                }.apply(global, [].concat(args));
+            }
+        };
+    })(this);
+
+
+    if (typeof module === "object" && module.exports) {
+        module.exports = exports;
+    }
+    else if (typeof define === "function" && define.amd) {
+        define(function() {
+            return exports;
+        });
+    }
+    return exports;
+}).call(typeof global !== "undefined" ? global : this).deps(Dalaba);
 
     Dalaba.ZTree = (function(factoy) {
     var exports = {
@@ -3412,8 +3432,10 @@
     }
 
     var exports = (function (global) {
-        return function (Dalaba) {
-            return factoy.call(global, Dalaba);
+        return {
+            deps: function (Dalaba) {
+                return factoy.call(global, Dalaba);
+            }
         };
     })(this);
 
@@ -3427,7 +3449,7 @@
     }
     return exports;
 
-}).call(typeof window !== "undefined" ? window : this)(Dalaba);
+}).call(typeof window !== "undefined" ? window : this).deps(Dalaba);
 
     return Dalaba;
 })();;
@@ -4407,16 +4429,7 @@
                 selector._start = selector.from = pack("number", parseFloat(selector.start, 10), 0);
                 selector._end = selector.to = pack("number", parseFloat(selector.end, 10), 100);
             });
-            var contains = /*hasCompare || rnative.test( docElem.contains ) ?*/
-        function( a, b ) {
-            var adown = a.nodeType === 9 ? a.documentElement : a,
-                bup = b && b.parentNode;
-            return a === bup || !!( bup && bup.nodeType === 1 && (
-                /*adown.contains ?
-                    adown.contains( bup ) :
-                    */a.compareDocumentPosition && a.compareDocumentPosition( bup ) & 16
-            ));
-        };
+
             (function (chart) {
                 var container = chart.container;
                 var globalEvent = chart.globalEvent;
@@ -4431,10 +4444,7 @@
                     },
                     mouseout: function (e) {
                         var related = e.relatedTarget;
-                        console.log(related, this, related.compareDocumentPosition(this))
-                        //if (!related || (related !== this && (related.compareDocumentPosition(this) & 8))) {
-                        if (!related || (related !== this && contains(this, related))) {
-                            console.log("---")
+                        if (!related || (related !== this && (related.compareDocumentPosition(this) & 8))) {
                             hasEventDisabled(chart) && tooltip.hide.call(this, e, chart);
                         }
                     },

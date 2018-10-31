@@ -308,8 +308,10 @@
     }
 
     var exports = (function (global) {
-        return function (Dalaba) {
-            return factoy.call(global, Dalaba);
+        return {
+            deps: function (Dalaba) {
+                return factoy.call(global, Dalaba);
+            }
         };
     })(this);
 
