@@ -1,5 +1,15 @@
 (function (global) {
-    function factoy () {
+    var PI = Math.PI;
+    var PI2 = PI * 2;
+
+    var nativeSqrt = Math.sqrt;
+    var nativeAtan2 = Math.atan2;
+    var nativeRound = Math.round;
+    var nativeMax = Math.max;
+    var nativeMin = Math.min;
+
+    function factoy (Vector) {
+
         var Intersection = {
             /*
              * Euclidean distance
@@ -11,7 +21,7 @@
                 var x2 = p1.x,
                     y2 = p1.y;
 
-                return Math.sqrt((x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2));
+                return nativeSqrt((x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2));
             },
             inBounds: function (x, y, rect) {
                 return x >= rect.x && x < rect.width && y >= rect.y && y < rect.height;
@@ -57,21 +67,28 @@
              * @param x and y is mouse event
              * @param checkin and checkout is callback
             */
-            pie: function (p0, p1) {
+            pie: function (p0, p1, sa) {
                 var dx = p0.x - p1.x,
                     dy = p0.y - p1.y;
+                var startAngle = p1.startAngle,
+                    endAngle = p1.endAngle,
+                    angle;
 
                 var inPie = this.distance(p0, p1) <= p1.radius;
+
+                sa = Dalaba.pack("number", sa, PI / 2);
                 if (inPie && isNumber(p1.innerRadius, true))
                     inPie = this.distance(p0, p1) >= p1.innerRadius;
 
                 if (inPie) {
-                    var angle = Math.atan2(dy, dx) + Math.PI / 2;//顺、逆时针开始
-                    if(angle < 0)
+                    angle = nativeAtan2(dy, dx) + sa;//顺、逆时针开始
+                    
+                    if (angle < 0)
                         angle += PI2;
-                    if(angle > PI2)
+                    if (angle > PI2)
                         angle -= PI2;
-                    if(angle >= p1.startAngle && angle <= p1.endAngle){
+                    startAngle += sa, endAngle += sa;
+                    if (angle >= startAngle && angle <= endAngle){
                         return inPie;
                     }
                 }
@@ -110,15 +127,15 @@
                         return true;
                     }
                     //点与相邻顶点连线的夹角
-                    var angle = Math.atan2(source.y - p0.y, source.x - p0.x) - Math.atan2(target.y - p0.y, target.x - p0.x);
+                    var angle = nativeAtan2(source.y - p0.y, source.x - p0.x) - nativeAtan2(target.y - p0.y, target.x - p0.x);
                     //确保夹角不超出取值范围（-π 到 π）
                     if (angle >= PI)
                         angle -= PI2;
-                    else if (angle <= -Math.PI)
+                    else if (angle <= -PI)
                         angle += PI2;
                     n += angle;
                 }
-                return Math.round(n / PI) !== 0;//当回转数为 0 时，点在闭合曲线外部。
+                return nativeRound(n / PI) !== 0;//当回转数为 0 时，点在闭合曲线外部。
             }
         };
         /**
@@ -143,8 +160,8 @@
             line: function (x, y, w, h, dasharray) {
                 var dx = w - x,
                     dy = h - y,
-                    length = Math.sqrt(dx * dx + dy * dy),
-                    angle = Math.atan2(dy, dx);
+                    length = nativeSqrt(dx * dx + dy * dy),
+                    angle = nativeAtan2(dy, dx);
                 var dal = dasharray.length,
                     di = 0;
                 var isDraw = true;
@@ -246,19 +263,19 @@
                         leftContX += correction;
                         rightContX += correction;
                         if (leftContX > prevX && leftContX > x) {
-                            leftContX = Math.max(prevX, x);
+                            leftContX = nativeMax(prevX, x);
                             rightContX = x * 2 - leftContX;
                         }
                         else if (leftContX < prevX && leftContX < x) {
-                            leftContX = Math.min(prevX, x);
+                            leftContX = nativeMin(prevX, x);
                             rightContX = x * 2 - leftContX;
                         }
                         if (rightContX > nextX && rightContX > x) {
-                            rightContX = Math.max(nextX, x);
+                            rightContX = nativeMax(nextX, x);
                             leftContX = x * 2 - rightContX;
                         }
                         else if (rightContX < nextX && rightContX < x) {
-                            rightContX = Math.min(nextX, x);
+                            rightContX = nativeMin(nextX, x);
                             leftContX = x * 2 - rightContX;
                         }
                     }
@@ -267,19 +284,19 @@
                         leftContY += correction;
                         rightContY += correction;
                         if (leftContY > prevY && leftContY > y) {
-                            leftContY = Math.max(prevY, y);
+                            leftContY = nativeMax(prevY, y);
                             rightContY = y * 2 - leftContY;
                         }
                         else if (leftContY < prevY && leftContY < y) {
-                            leftContY = Math.min(prevY, y);
+                            leftContY = nativeMin(prevY, y);
                             rightContY = y * 2 - leftContY;
                         }
                         if (rightContY > nextY && rightContY > y) {
-                            rightContY = Math.max(nextY, y);
+                            rightContY = nativeMax(nextY, y);
                             leftContY = y * 2 - rightContY;
                         }
                         else if (rightContY < nextY && rightContY < y) {
-                            rightContY = Math.min(nextY, y);
+                            rightContY = nativeMin(nextY, y);
                             leftContY = y * 2 - rightContY;
                         }
                     }
@@ -351,7 +368,7 @@
                         width: w,
                         height: h
                     };
-                }
+                };
             },
             circle: function (x, y, w, h) {
                 return function (context) {

@@ -22,7 +22,11 @@
             typeof positive === "undefined" && (positive = true);
             return !!positive ? mathPow(base, v) : -mathPow(base, -v);
         },
-        round: round
+        round: round,
+        hammingDistance: function (a, b) {
+            var c;
+            return (c = a ^ b) & -c;
+        }
     };
 
     return Maths;

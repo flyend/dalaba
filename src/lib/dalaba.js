@@ -117,7 +117,7 @@
     
     Dalaba.KDTree = require("./kdtree").deps(Dalaba.Heap);
 
-    Dalaba.Geometry = require("./geometry").deps(Dalaba);
+    Dalaba.Geometry = require("./geometry").deps(Dalaba.Vector);
     Dalaba.Color = require("./color");
     Dalaba.Text = require("./text");
 
