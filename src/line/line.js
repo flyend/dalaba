@@ -363,7 +363,7 @@
                     inverted = !!series.inverted;
                     if (isInside(series)) {
                         reset(shapes);
-                        kdtree = KDTree(shapes);
+                        kdtree = KDTree(shapes, ["x", "y"]);
                         shape = kdtree.nearest({x: x, y: y}, function(a, b){
                             var dx = a.x - b.x,
                                 dy = a.y - b.y;
@@ -381,7 +381,7 @@
             if (shared === false) {
                 shapes = results.map(function (item) { return item.shape; });
                 reset(shapes);
-                kdtree = KDTree(shapes);
+                kdtree = KDTree(shapes, ["x", "y"]);
                 shape = kdtree.nearest({x: x, y: y}, function(a, b){
                     var dx = a.x - b.x, dy = a.y - b.y;
                     return dx * dx + dy * dy;

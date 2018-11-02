@@ -257,7 +257,7 @@
                 }[t];
             }).call(shape, series, context);
         },
-        getShape: function(x, y){
+        getShape: function (x, y) {
             var series = this.series,
                 length = series.length,
                 shapeLength;
@@ -277,15 +277,15 @@
                 item = series[i];
                 reset(shapes = item.shapes);
                 shapeLength = shapes.length;
-                for(var j = 0; j < shapeLength; j++) {
+                for (var j = 0; j < shapeLength; j++) {
                     shape = shapes[j];
-                    if(shape.value === null){
+                    if (shape.value === null) {
                         continue;
                     }
-                    if(Intersection.rect(
+                    if (Intersection.rect(
                         {x: x, y: y},
                         {x: shape.x0, y: shape.y0, width: shape.x1, height: shape.y1}
-                    )){
+                    )) {
                         shape.current = j;
                         if (isNumber(shape._x, true) && isNumber(shape._y, true)) {
                             shape.$value = shape._x + ", " + shape._y + ", " + shape.value;

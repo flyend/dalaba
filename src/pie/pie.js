@@ -233,11 +233,11 @@
                     var bbox = tag.getBBox();
                     var w = bbox.width,
                         h = bbox.height;
-                    if(isInside){
+                    if (isInside) {
                         x = x - w * reversed;
                         y += h / 2;
                     }
-                    else{
+                    else {
                         x = pack("number",
                             setAlign(x, w)[pack("string", dataLabels.align, "right")],
                             x

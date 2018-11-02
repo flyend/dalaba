@@ -136,9 +136,8 @@
                 if (this.root) {
                     find(this.root);
                 
-                    for (var i = 0; i < k; i++) if (!heap.empty() && heap[i].node !== null) {
-                        ret.push(heap[i].node.node);
-                    }
+                    for (var i = 0; i < k; i++) if (!heap.empty() && heap[i].value.node !== null)
+                        ret.push(heap[i].value.node.node);
                 }
                 return ret;
             },

@@ -86,9 +86,8 @@
                                 shape.name = properties.name;
                             shape.code = properties.code || properties.id;
                             shape.points = points;
-                            
                             var cp = properties.cp;
-                            groups.forEach(function (polygon, i) {
+                            groups.forEach(function (polygon) {
                                 var x, y;
                                 var length = polygon.length,
                                     j;
@@ -96,18 +95,15 @@
                                 x = setTransform(0, polygon[j = 0][0], scaleRadio);
                                 y = setTransform(0, polygon[j][1], scaleRadio);
                                 bounds = setBounds(bounds, x, y);
-                                i && points.push({x: x, y: y, isNext: true});
-                                for (j = 1; j < length; j++) {
+                                //i && points.push({x: x, y: y, isNext: true});
+                                for (j = 0; j < length; j++) {
                                     point = polygon[j];
                                     x = setTransform(0, point[0], scaleRadio);
                                     y = setTransform(0, point[1], scaleRadio);
                                     cx += (x - cx) / ++count;
                                     cy += (y - cy) / count;
-                                    points.push({x: x, y: y});
+                                    points.push({x: x, y: y, isNext: point.moved});
                                     bounds = setBounds(bounds, x, y);
-                                }
-                                if (!i && feature.geometry.type === "Polygon") {
-                                    points.push({x: points[0].x, y: points[0].y});
                                 }
                             });
                             if (defined(cp) && isNumber(cp[0], true) && isNumber(cp[1], true)) {

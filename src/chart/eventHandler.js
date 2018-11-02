@@ -98,7 +98,6 @@
             chart.canvas.style.cursor = moving ? "pointer" : "default";
             //tooltip enabled = false
             if (defined(curPanel)) {
-                var shape;
                 var curIndex;
                 item = curPanel.tooltip.move(x, y, true);
                 if ((item = item[0]) && linked === true  && panels.length) {// if exists link to panel
@@ -403,14 +402,17 @@
                 x = Event.normalize(e, this),
                 y = x.y;
             x = x.x;
-            e.preventDefault && e.preventDefault();
             if (Intersection.rect(
                 {x: x, y: y},
                 {x: viewport.left, y: viewport.top, width: viewport.left + viewport.width, height: viewport.top + viewport.height}
             )) {
                 var scale = getZoom(e);
+                var rangeSelector = chart.rangeSelector;
                 if (scale.disabled)
                     return;
+                if (chart.rangeSlider.length) {
+                    e.preventDefault && e.preventDefault();
+                }
                 chart.rangeSlider.forEach(function (slider, i) {
                     var options = slider.options,
                         zoomRatio = options.zoomRatio,
@@ -436,12 +438,12 @@
                     }
                     events && isFunction(events.zoom) && events.zoom.call(slider, e);
                 });
-                var rangeSelector = chart.rangeSelector;
                 if (rangeSelector.length && rangeSelector[0].from !== rangeSelector[0].to) {
                     if (chart.charts.length) {
                         fetchData(e, chart, rangeSelector[0].from, rangeSelector[0].to);
                     }
                 }
+                
                 if (chartOptions.events && isFunction(chartOptions.events.zoom)) {
                     e.delta = scale.length;
                     chartOptions.events.zoom.call(null, e);
@@ -514,6 +516,7 @@
                 selector._start = selector.from = pack("number", parseFloat(selector.start, 10), 0);
                 selector._end = selector.to = pack("number", parseFloat(selector.end, 10), 100);
             });
+
             (function (chart) {
                 var container = chart.container;
                 var globalEvent = chart.globalEvent;
@@ -527,7 +530,10 @@
                         hasAnimateReady(chart) & hasEventDisabled(chart) & hasDragging(chart) && tooltip.show.call(this, e, chart);
                     },
                     mouseout: function (e) {
-                        hasEventDisabled(chart) && tooltip.hide.call(this, e, chart);
+                        var related = e.relatedTarget;
+                        if (!related || (related !== this && (related.compareDocumentPosition(this) & 8))) {
+                            hasEventDisabled(chart) && tooltip.hide.call(this, e, chart);
+                        }
                     },
                     start: function (e) {
                         hasEventDisabled(chart) && onStart.call(container, e, chart);

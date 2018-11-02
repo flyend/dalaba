@@ -1,31 +1,35 @@
 (function () {
     
-    var toString = Object.prototype.toString;
+    var toString = ({}).toString;
 
-    var isObject = function (a) {
-        return toString.call(a) === "[object Object]";
+    var typeOf = function (type) {
+        var typeOf = function (v, type2) { return toString.call(v) === "[object " + (type2 || type) + "]"; };
+        return function (v) {
+            return typeOf(type, "Function") ? type.apply(null, arguments) : typeOf(v);
+        };
     };
-    var isNumber = function (a, finite) {
-        return typeof a === "number" && !isNaN(a) && (finite !== true || isFinite(a));
-    };
-    var isArray = function (a) {
-        return toString.call(a) === "[object Array]";
-    };
-    var isFunction = function (a) {
-        return toString.call(a) === "[object Function]";
-    };
-    var isString = function (a) {
-        return toString.call(a) === "[object String]";
-    };
-    var isEmptyObject = function (o) {
+
+    var isObject = typeOf("Object");
+
+    var isArray = Array.isArray ? Array.isArray : typeOf("Array");
+
+    var isFunction = typeOf("Function");
+
+    var isString = typeOf("String");
+
+    var isNumber = typeOf(function (v, finite) {
+        return typeof v === "number" && !isNaN(v) && (finite !== true || isFinite(v));
+    });
+
+    var isEmptyObject = typeOf(function (o) {
         for (var p in o) if (o.hasOwnProperty(p))
             return false;
         return true;
-    };
+    });
 
-    var defined = function (a) {
-        return typeof a !== "undefined" && a !== null;
-    };
+    var defined = typeOf(function (v) {
+        return typeof v !== "undefined" && v !== null;
+    });
 
     var Dalaba = {
         DEVICE_PIXEL_RATIO: global.devicePixelRatio || 1,
@@ -37,6 +41,7 @@
         isEmptyObject: isEmptyObject,
         defined: defined
     };
+    
     /**
      * @param first is object type
      * @param last default value
@@ -102,24 +107,25 @@
         return a;
     };
 
+    Dalaba.LinkedList = require("./linkedlist");
+    Dalaba.Heap = require("./heap");
+
     Dalaba.Math = require("./math");
     Dalaba.Numeric = require("./numeric");
     Dalaba.Vector = require("./vector");
     Dalaba.Formatter = require("./formatter").deps(Dalaba);
-
-    Dalaba.Heap = require("./heap");
+    
     Dalaba.KDTree = require("./kdtree").deps(Dalaba.Heap);
 
-    Dalaba.Geometry = require("./geometry").deps(Dalaba);
+    Dalaba.Geometry = require("./geometry").deps(Dalaba.Vector);
     Dalaba.Color = require("./color");
     Dalaba.Text = require("./text");
 
-    Dalaba.Cluster = require("./cluster");
-    Dalaba.Cluster.List.diff = require("./align").deps(Dalaba.Cluster.hirschbergs);
+    Dalaba.Cluster = require("./cluster").deps(Dalaba);
 
     Dalaba.ZTree = require("./ztree").deps(Dalaba.Cluster.List.partition);
     
-    Dalaba.geo = require("./geo")(Dalaba);
+    Dalaba.geo = require("./geo").deps(Dalaba);
 
     return Dalaba;
 })();

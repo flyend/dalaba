@@ -43,48 +43,43 @@
         }
     };
 
-    var Feature = {
-        Point: function (p, stream) {
-            stream.point(p);
-        },
-        MultiPoint: function (coordinates, stream) {
-            coordinates.forEach(function (coords) {
-                Feature.Point(coords, stream);
-            });
-        },
-        LineString: function (coordinates, stream) {
-            Feature.MultiPoint(coordinates, stream);
-        },
-        MultiLineString: function (coordinates, stream) {
-            coordinates.forEach(function (coords) {
-                stream.points && (stream.points = []);
-                Feature.LineString(coords, stream);
-                stream.groups && stream.groups();
-            });
-        },
-        Polygon: function (coordinates, stream) {
-            stream.clear && stream.clear();//reset
-            Feature.MultiLineString(coordinates, stream);
-        },
-        MultiPolygon: function (coordinates, stream) {
-            stream.clear && stream.clear();
-            coordinates.forEach(function (coords) {
-                Feature.MultiLineString(coords, stream);
-            });
-        }
+    var eaching = require("./geo.eaching");
+
+    var PathContext = function () {
+        this.points = [];
+        this.polygons = [];
     };
 
-    var Geometry = {
-        Feature: function (feature, stream) {
-            var geometry = feature.geometry,
-                geometryType = geometry.type,
-                coordinates = geometry.coordinates;
-            Feature[geometryType] && Feature[geometryType](coordinates, stream);
+    PathContext.prototype = {
+        polygonStart: function () {
+            this._line = 0;
         },
-        FeatureCollection: function (geojson, stream) {
-            (geojson.features || []).forEach(function (feature) {
-                Feature.Feature(feature, stream);
-            });
+        polygonEnd: function () {
+            this._line = NaN;
+        },
+        lineStart: function () {
+            this._point = 0;
+        },
+        lineEnd: function () {
+            this._point = NaN;
+            if (this._line === 0)
+                this.points.push(this.points[0].slice());// closepath
+            this.polygons.push(this.points);
+            this.points = [];
+        },
+        point: function (x, y) {
+            switch (this._point) {
+                case 0: {
+                    this._point = 1;// moveto
+                    break;
+                }
+                case 1: {
+                    break;// lineto
+                }
+                default: {
+                    break;
+                }
+            }
         }
     };
 
@@ -100,8 +95,6 @@
         var isFunction = Dalaba.isFunction;
 
         var defined = Dalaba.defined;
-
-        var extend = Dalaba.extend;
 
         /**
          * Projection
@@ -162,20 +155,7 @@
                     return arguments.length ? (this.width = pack("number", _[0]), this.height = pack("number", _[1]), this) : [pack("number", this.width), pack("number", this.height)];
                 };
 
-                this.Stream = {
-                    points: [],
-                    get: function () {
-                        return this.polygons.length ? this.polygons : this.points;
-                    },
-                    polygons: [],
-                    clear: function () {
-                        this.polygons = [];
-                        this.points = [];
-                    },
-                    groups: function () {
-                        this.polygons.push(this.points);
-                    }
-                };
+                this.Stream = new PathContext;
             };
             
             extend(GeoParse.prototype, Parse.prototype, {
@@ -186,28 +166,31 @@
                     var centerX = parsed.centerX,
                         centerY = parsed.centerY,
                         scale = parsed._scale;
-                    // console.log(centerX, centerY, scale)
+                    //console.log(scale)
 
-                    Stream.clear();
-                    Stream.point = function (p) {
-                        var point = parsed._projection(p);
-                        Stream.points.push(parsed.point(point));
-                        
-                        pointCaller && pointCaller.call(p, p, point);
+                    Stream.feature = function (feature) {
+                        callback && callback(this.polygons, feature);// polygons != features
+                        this.polygons = [];// clear MultiPolygon
                     };
 
-                    if (isObject(geoJson) && geoJsonType) {
-                        if (geoJsonType === "FeatureCollection") {
-                            (geoJson.features || []).forEach(function (feature) {
-                                Geometry.Feature(feature, Stream);
-                                callback && callback(Stream.get(), feature);
-                            });
+                    Stream.point = function (x, y) {
+                        var p = [x, y];
+                        var point = parsed._projection(p);
+                        var points = Stream.points;
+                        var xy = parsed.point(point);
+                        
+                        pointCaller && pointCaller.call(p, p, point);
+                        if (this._point === 0) {
+                            xy.moved = true;
+                            points.push(xy);
+                            this._point = 1;
                         }
-                        else if (geoJsonType === "Feature") {
-                            Geometry.Feature(geoJson, Stream);
-                            callback && callback(Stream.get(), geoJson);
+                        else if (this._point === 1) {
+                            points.push(xy);
                         }
-                    }
+                    };
+
+                    eaching(geoJson, this.Stream);
                 },
                 parse: function (geoJson, callback, pointCaller) {
                     this.centerAndZoom(geoJson);
@@ -318,14 +301,17 @@
         };
 
         var geo = {
-            Projection: Projector()
+            Projection: Projector(),
+            eaching: eaching
         };
         return geo;
     }
 
     var exports = (function (global) {
-        return function (Dalaba) {
-            return factoy.call(global, Dalaba);
+        return {
+            deps: function (Dalaba) {
+                return factoy.call(global, Dalaba);
+            }
         };
     })(this);
 

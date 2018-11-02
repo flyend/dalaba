@@ -131,6 +131,11 @@ require("./define");
             return null;
         }
 
+        if (element && (element.nodeType !== 1 && !isFunction(element.getContext))) {
+            options = element;
+            element = {};
+        }
+
         this.options = extend({}, defaultOptions);
         extend(this.options, options);
         globalStyle(this.options);
@@ -169,7 +174,7 @@ require("./define");
                 "user-select": "none",
                 cursor: "default"
             });
-            (this.renderer = element).appendChild(this.container);
+            element.nodeType === 1 && (this.renderer = element).appendChild(this.container);
             this.canvas = new Layer(this.container, this.width, this.height).canvas;
         }
         
@@ -410,6 +415,7 @@ require("./define");
                     end = mathMin(100, mathMax(0, pack("number", parseFloat(end, 10), 100)));
                     rs.start = start + "%";
                     rs.end = end + "%";//xAxis=0
+                    rs.bindAxis = isNumber(rangeSelector.xAxis, true) || isNumber(rangeSelector.yAxis, true) || isNumber(rangeSelector.polarAxis, true);
                 }
                 return rs;
             };
@@ -793,7 +799,8 @@ require("./define");
                             rangeSelectorOptions.y,
                             Numeric.percentage(slider.height, rangeSelectorOptions.y),
                             chart.height - slider.height - legendHeight - spacing[2]
-                        )
+                        ),
+                        range: [chart.width, chart.height]
                     });
                 }
             });
@@ -908,7 +915,7 @@ require("./define");
                     }
                 }, function (d, newData, i) {
                     if (defined(chart.series[i])) {
-                        newData.tooltip = d.tooltip || new Tooltip(chart.addLayer(tooltipOptions.layer), tooltipOptions);;
+                        newData.tooltip = d.tooltip || new Tooltip(chart.addLayer(tooltipOptions.layer), tooltipOptions);
                     }
                 });
                 this.tooltip = panel[0].tooltip;
@@ -967,7 +974,7 @@ require("./define");
                 image: function() {
                     defined(chart.background) && addBackgroundImage(chart.background);
                 },
-                background: function(){
+                background: function () {
                     var backgroundColor = (options.chart || {}).backgroundColor,
                         gradient;
                     var width = chart.canvas.width,
@@ -975,7 +982,7 @@ require("./define");
                         size = Math.min(width, height);
                     size = Math.sqrt(width * width + height * height) / 2;
                     if (defined(backgroundColor)) {
-                        if(backgroundColor.linearGradient || backgroundColor.radialGradient){
+                        if (backgroundColor.linearGradient || backgroundColor.radialGradient) {
                             gradient = Color.parse(backgroundColor);
                             backgroundColor = backgroundColor.radialGradient
                                 ? gradient.radial((width - size) / 2, (height - size) / 2, size)
@@ -1292,7 +1299,7 @@ require("./define");
                         isSeted !== false && (shape.state = !0);
                     }
                 };
-                if (legend !== null) {
+                if (legend !== null && charts.length) {
                     if (event.type === "mousemove" && globalAnimation.isReady) {
                         legend.onState(event, function (item) {
                             setState(item);
@@ -1368,14 +1375,16 @@ require("./define");
                 if (ani) {
                     ani();
                 }
-                drawLegend();
+                //if (charts.length) {
+                    drawLegend();
+                //}
 
                 !once && drawTooltip();
             }
 
             var isEventing = function (event) {
                 var type = event.type;
-                return type === "mousemove" || type === "resize" || type === "click";
+                return type === "mousemove" || type === "resize" || type === "click" || type === "mousewheel";
             };
             var isAnimationReady = function (chart) {
                 return chart.globalAnimation.isReady === true;
@@ -1439,7 +1448,7 @@ require("./define");
                         chart.renderChart(animationCharts, true);
                     }, true);
                 }, function () {
-                    onLoad(), onReady();
+                    onLoad();//, onReady();
                 });
             }
             else {
@@ -1462,22 +1471,6 @@ require("./define");
                                 complete: function () {}
                             });
                         });
-                        /*if (event.type === "update") {
-                            globalAnimation.instance.stop(false, true);
-                            shapes.forEach(function (shape) {
-                                globalAnimation.instance.addAnimate(shape, {
-                                    duration: pack("number", shape.duration, globalAnimation.duration, 500),
-                                    delay: 0,
-                                    easing: "linear",
-                                    complete: function () {}
-                                });
-                            });
-                        }
-                        else if (event.type === "selected") {
-                            globalAnimation.instance.setOptions({
-                                duration: 300
-                            }).stop();
-                        }*/
 
                         globalAnimation.instance.fire(function () {
                             globalAnimation.isReady = false;
@@ -1489,7 +1482,10 @@ require("./define");
                             onRedraw(), onReady();
                         });
                     }
-                    event.type === "update" && (noAnimationCharts.length & !animationCharts.length) && (onRedraw());
+                    if (event.type === "update") {
+                        (noAnimationCharts.length & !animationCharts.length) && (onRedraw());
+                        (noAnimationCharts.length | animationCharts.length) || (paintComponent([]), onReady());
+                    }
                 }
                 else if (isAnimationReady(chart) && isDragging(chart) && isEventing(event)) {
                     paintComponent(charts);
@@ -1508,6 +1504,7 @@ require("./define");
                     dataLabel.weight = shape.weight || dataLabel.height;
                     if (dataLabel.useHTML === true && domLabel) {
                         label = document.createElement("div");
+                        setStyle(label, {visibility: "hidden"});
                         domLabel.appendChild(label);
                         label.innerHTML = dataLabel.value;
                         dataLabel.domLabel = label;
@@ -1717,7 +1714,7 @@ require("./define");
                 }).each();
                 seriesOptions.forEach(function (item, i) {
                     var newSeries;
-                    if(!item.used){
+                    if (!item.used) {
                         newSeries = chart.addSeries(item, i);
                         series.push(newSeries);
                         delete item.used;
@@ -1739,6 +1736,24 @@ require("./define");
                     null
                 );
             }
+            //setting exists slider
+            if (defined(chartOptions = options.rangeSelector) && this.rangeSlider && this.rangeSlider.length) {
+                this.rangeSlider.forEach(function (slider, i) {
+                    var rsp = isArray(chartOptions) ? chartOptions[i] : chartOptions;
+                    var rangeSelector = chart.rangeSelector[i];
+                    var from, to;
+
+                    slider.setOptions(rsp);
+
+                    if (rangeSelector && rsp && (defined(rsp.start) || defined(rsp.end))) {
+                        from = pack("number", parseFloat(chartOptions.start, 10), parseFloat(slider.start, 10));
+                        to = pack("number", parseFloat(chartOptions.end, 10), parseFloat(slider.end, 10));
+                        rangeSelector.from = rangeSelector._start = from;
+                        rangeSelector.to = rangeSelector._end = to;
+                    }
+                });
+            }
+
             redraw !== false && this.draw({ target: this, type: "update"});
             return this;
         },
@@ -1784,6 +1799,11 @@ require("./define");
                 pane.plotX = pane.x *= ratioWidth;
                 pane.plotWidth = pane.width *= ratioWidth;
                 //pane.width += ratioWidth;
+            });
+            this.rangeSlider.forEach(function (slider) {
+                slider.setOptions({
+                    width: slider.width * ratioWidth
+                });
             });
             this.translateAxis();
             this.addPlotSeries();
@@ -1833,7 +1853,7 @@ require("./define");
                 (layer.parentNode && layer.parentNode === container) && container.removeChild(layer);
             }
 
-            if (this.tooltip !== null) {
+            if (defined(this.tooltip)) {
                 layer = this.tooltip.canvas;
                 this.tooltip.useHTML === true && ((layer.parentNode && layer.parentNode === container) && container.removeChild(layer));
             }
@@ -2241,7 +2261,7 @@ require("./define");
                     var xAxisIndex = rangeSelectorOptions.xAxis,
                         yAxisIndex = rangeSelectorOptions.yAxis,
                         polarAxisIndex = rangeSelectorOptions.polarAxis;
-                    if(chart.xAxis[xAxisIndex] || chart.yAxis[yAxisIndex] || chart.polarAxis[polarAxisIndex]){
+                    //if (chart.xAxis[xAxisIndex] || chart.yAxis[yAxisIndex] || chart.polarAxis[polarAxisIndex]) {
                         var width = rangeSelectorOptions.width ||
                                 Numeric.percentage(chart.width, rangeSelectorOptions.width) ||
                                 chart.width - spacing[1] - spacing[3],
@@ -2262,9 +2282,11 @@ require("./define");
                         }
                         chart.rangeSelector.push({
                             start: rangeSelectorOptions.start,
-                            end: rangeSelectorOptions.end
+                            end: rangeSelectorOptions.end,
+                            from: parseFloat(rangeSelectorOptions.start, 10),
+                            to: parseFloat(rangeSelectorOptions.end, 10)
                         });
-                    }
+                    //}
                 });
             }
 

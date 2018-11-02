@@ -65,8 +65,8 @@
             var gradient;
             var render = function () {
                 context.beginPath();
-                points.forEach(function (point, i) {
-                    context[i && !point.isNext ? "lineTo" : "moveTo"](point.x, point.y);
+                points.forEach(function (point) {
+                    context[/*i && */!point.isNext ? "lineTo" : "moveTo"](point.x, point.y);
                 });
                 //context.closePath();
             };
@@ -79,7 +79,7 @@
                     ? gradient.radial(shapeArgs.x, shapeArgs.y, Math.sqrt(s0 * s0 + s1 * s1) / 4)
                     : gradient.linear(0, 0, s0, s1);
             }
-            if (tooltip.enabled !== false && isNumber(shape.current) && shape.current !== -1) {
+            if (tooltip.enabled !== false && fillColor !== "none" && isNumber(shape.current) && shape.current !== -1) {
                 if (!shape.isNULL) {
                     fillColor = Color.parse(fillColor).alpha(0.75).rgba();
                 }
@@ -101,8 +101,10 @@
 
             context.save();
             render();
-            context.fillStyle = fillColor;
-            context.fill();
+            if (fillColor !== "none") {
+                context.fillStyle = fillColor;
+                context.fill();
+            }
             if (borderWidth > 0) {
                 context.lineWidth = borderWidth;
                 context.strokeStyle = borderColor;

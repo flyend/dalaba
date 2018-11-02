@@ -9,32 +9,36 @@
 
     var Dalaba = (function () {
     
-    var toString = Object.prototype.toString;
+    var toString = ({}).toString;
 
-    var isObject = function (a) {
-        return toString.call(a) === "[object Object]";
+    var typeOf = function (type) {
+        var typeOf = function (v, type2) { return toString.call(v) === "[object " + (type2 || type) + "]"; };
+        return function (v) {
+            return typeOf(type, "Function") ? type.apply(null, arguments) : typeOf(v);
+        };
     };
-    var isNumber = function (a, finite) {
-        return typeof a === "number" && !isNaN(a) && (finite !== true || isFinite(a));
-    };
-    var isArray = function (a) {
-        return toString.call(a) === "[object Array]";
-    };
-    var isFunction = function (a) {
-        return toString.call(a) === "[object Function]";
-    };
-    var isString = function (a) {
-        return toString.call(a) === "[object String]";
-    };
-    var isEmptyObject = function (o) {
+
+    var isObject = typeOf("Object");
+
+    var isArray = Array.isArray ? Array.isArray : typeOf("Array");
+
+    var isFunction = typeOf("Function");
+
+    var isString = typeOf("String");
+
+    var isNumber = typeOf(function (v, finite) {
+        return typeof v === "number" && !isNaN(v) && (finite !== true || isFinite(v));
+    });
+
+    var isEmptyObject = typeOf(function (o) {
         for (var p in o) if (o.hasOwnProperty(p))
             return false;
         return true;
-    };
+    });
 
-    var defined = function (a) {
-        return typeof a !== "undefined" && a !== null;
-    };
+    var defined = typeOf(function (v) {
+        return typeof v !== "undefined" && v !== null;
+    });
 
     var Dalaba = {
         DEVICE_PIXEL_RATIO: global.devicePixelRatio || 1,
@@ -46,6 +50,7 @@
         isEmptyObject: isEmptyObject,
         defined: defined
     };
+    
     /**
      * @param first is object type
      * @param last default value
@@ -111,6 +116,410 @@
         return a;
     };
 
+    Dalaba.LinkedList = (function () {
+    /**
+     * @param data{Array}
+     * @param options{Object}
+     * @example
+     * var list = LinkedList(data);
+     * list.push(19);
+     * Doubly LinkedList
+     * new LinkedList(data, true)
+     * LinkedList(data, {
+     *    filter: function (d) { return d === null; }
+     * });
+     */
+    var toString = ({}).toString;
+
+    var isObject = function (v) {
+        return toString.call(v) === "[object Object]";
+    };
+
+    var isFunction = function (v) {
+        return toString.call(v) === "[object Function]";
+    };
+
+    var matrix = [];
+
+    // 过滤器将增加matrix
+    var linkedList = function (data) {
+        var n, i;
+        var d;
+        var node;
+        var has = toString.call(data) !== "[object Array]";
+        var filter = this.filter;
+        var isTrued;
+
+        if (has || (!has && !(n = data.length))) {
+            return this;
+        }
+        
+        d = data[i = 0];
+        node = {
+            value: d,
+            index: 0,
+            head: -1,// null,
+            tail: n - 1// null
+        };
+        if (filter) {
+            matrix[n] = n - 1;
+            node.value = data[n - 1];
+            isTrued = filter.call(node, node.value, 0) === true;            
+            node.nextIndex = (isTrued ? n : 0) - 1;
+            node.next = data[node.nextIndex];
+            node.first = !isTrued;
+        }
+        //this[0] = node; this.length++;
+
+        for (i = n - 1; i >= 0; i--) {
+            var nextIndex = node.nextIndex;
+            d = data[i];
+            node = insert(i, node, d, false);
+            this[i] = node;
+            this.length++;
+
+            if (filter) {
+                isTrued = filter.call(node, node.value, i) === true;// filter function is true
+                matrix[i] = isTrued ? matrix[i + 1] : i;
+                node.nextIndex = matrix[i];
+                node.next = data[node.nextIndex];
+                node.first = node.nextIndex === nextIndex;// && isTrued;// is previous null and cur is true
+            }
+        }
+        //console.log(matrix);
+    };
+
+    function insert (index, oldData, newData, isBefored) {
+        var data = { value: newData };
+        if (isBefored === true) {
+
+        }
+        else {
+            data.index = index;
+            data.head = index - 1;
+            data.tail = index === oldData.tail ? -1: index + 1;
+            //oldData.tail = index;
+        }
+        return data;
+    }
+
+    function up (first, list, length) {
+        var node;
+        for (var i = 1; i < length; i++) {
+            node = list[i];
+            first.value = node.value;
+            if (i === length - 1)
+                first.tail = -1;
+            first = node;
+        }
+    }
+
+    function down (first, list, length) {
+        var temp;
+        for (var i = 1; i < length; i++) {
+            temp = list[i].value;
+            list[i].value = first.value;
+            first.value = temp;
+        }
+    }
+
+    function nextTo (node) {
+        var filter = this.filter;
+        var nextIndex;
+        var isTrued;
+        if (isFunction(filter)) {
+            for (var i = this.length - 1; i >= 0; i--) {
+                nextIndex = node.nextIndex;
+                node = this[i];
+
+                isTrued = filter.call(node, node.value, i) === true;// filter function is true
+                matrix[i] = isTrued ? matrix[i + 1] : i;
+                node.nextIndex = matrix[i];
+                node.next = this._data[node.nextIndex];
+                node.first = node.nextIndex === nextIndex;// && isTrued;// is previous null and cur is true
+            }
+        }
+    }
+
+    function remove (list, index, length, isBefored) {
+        var node = list[index],
+            tail;
+        if (isBefored) {
+            if (length > 1) {
+                up(node, list, length);
+                delete list[length - 1];
+            }
+            else {
+                delete list[index];
+            }
+        }
+        else {
+            if (length > 1) {
+                tail = node.tail;
+                list[index - 1].tail = tail;
+                delete list[index];
+            }
+            else {
+                delete list[index];
+            }
+        }
+        return node;
+    }
+
+    /**
+     * class LinkedList
+     * {tail} and {head} are the basic elements of the linked list
+     * {prev} and {next} are data pointers
+     * support for array traversal, insert operations
+    **/
+
+    var LinkedList = function (data, options) {
+        return new LinkedList.init(data, options);
+    };
+    LinkedList.init = function (data, options) {
+        this.length = 0;
+        this._data = data.slice();
+
+        if (isFunction(options)) {
+            this.filter = options;
+        }
+        else if (isObject(options)) {
+            isFunction(options.filter) && (this.filter = options.filter);
+        }
+        matrix = [];
+        linkedList.call(this, data);//isSimpled
+        return this;
+    };
+
+    LinkedList.prototype = {
+        constructor: LinkedList,
+        push: function () {
+            var args = [].slice.call(arguments);
+            var length;
+            var oldData,
+                node;
+            var j = this.length;
+
+            for (var i = 0; i < args.length; i++) {
+                length = this.length;
+                if (length <= 0) {
+                    linkedList.call(this, args.slice(0, 1));
+                }
+                else {
+                    oldData = this[~-length];
+                    oldData.tail = length;
+                    this[this.length++] = node = insert(length, oldData, args[i]);
+                    matrix.push(j + args.length - 1);
+                }
+                this._data.push(args[i]);
+            }
+            nextTo.call(this, node);
+
+            return this.length;
+        },
+        pop: function () {
+            var length = this.length;
+            if (length <= 0)
+                return;
+            this.length--;
+            return remove(this, this.length, length);
+        },
+        unshift: function () {
+            var args = [].slice.call(arguments);
+            var length;
+            var oldData;
+            // insert last, each next, modified first element
+            for (var i = 0; i < args.length; i++) {
+                length = this.length;
+                if (length <= 0)
+                    linkedList.call(this, args.slice(0, 1));
+                else {
+                    this.length++;
+                    oldData = this[~-length];
+                    oldData.tail = length;
+                    
+                    this[length] = insert(length, oldData, oldData.value);
+                    down(this[0], this, length);
+                    this[0] = insert(0, this[~-length], args[i]);
+                }
+            }
+            return this.length;
+        },
+        shift: function () {
+            var length = this.length;
+            if (length <= 0)
+                return;
+            this.length--;
+            return remove(this, 0, length, true);
+        },
+        splice: [].splice,
+        forEach: function (callback) {
+            [].forEach.call(this, function (d, i, values) {
+                callback && callback.call(d, d.value, i, values);
+            });
+        },
+        reverse: function () {
+            var length = this.length;
+            for (var i = 0; i < length >> 1; i++) {
+                var left = this[i],
+                    right = this[length - i - 1];
+                var temp = left.value;
+                left.value = right.value;
+                right.value = temp;
+            }
+        },
+        size: function () {
+            return this.length;
+        },
+        empty: function () {
+            return this.length <= 0;
+        }
+    };
+
+    LinkedList.init.prototype = LinkedList.prototype;
+
+    return LinkedList;
+}).call(typeof window !== "undefined" ? window : this);;
+    Dalaba.Heap = (function () {
+    /**
+     * @param compare{Function}
+     * @example
+     * var heap = Heap(function(a, b){ return a - b; });
+     * heap.push(19);
+     * heap.push(29);
+     * heap.push(9);
+     * for(var i = 0; i < 6; i++){
+     *    heap.push(Math.random() * 20 | 0);
+     * }
+     * //var t = heap.pop();
+     * console.log(heap, heap.length);
+     * for(i = 0; i < 4; i++)
+     *    console.log(heap.pop(), heap.length);
+     */
+    var defaultCompare = function (a, b) {
+        return a - b;
+    };
+
+    function down (data, i) {
+        var value = data[i];
+        var size = data.length;
+
+        while (true) {
+            var r = (i + 1) << 1,
+                l = r - 1,
+                j = i;
+            var child = data[j];
+            if (l < size && defaultCompare(child.value, data[l].value) > 0) child = data[j = l];
+            if (r < size && defaultCompare(child.value, data[r].value) > 0) child = data[j = r];
+            if (j === i) break;
+            data[i] = child, child.index = i;
+            data[i = j] = value, value.index = i;
+        }
+    }
+
+    function up (data, i) {
+        var value = data[i];
+        while (i > 0) {
+            var j = (i + 1 >> 1) - 1,
+                parent = data[j];
+            if (defaultCompare(value.value, parent.value) >= 0) break;
+            data[i] = parent, parent.index = i;
+            data[i = j] = value, value.index = i;
+        }
+    }
+
+    var Heap = function (compare) {
+        return new Heap.init(compare);
+    };
+    Heap.init = function (compare) {
+        defaultCompare = compare || function (a, b) {
+            return a - b;
+        };
+        this.length = 0;
+        return this;
+    };
+    
+    function search (data, index, value) {
+        var left, right;
+        var i;
+        if (data[index].value === value)
+            return index;
+        else if (defaultCompare(data[index].value, value) >= 0)
+            return -1;
+        left = index * 2 + 1;
+        right = left + 1;
+
+        i = search(data, left, value);
+
+        if (i !== -1)
+            return i;
+
+        return search(data, right, value);
+    }
+
+    Heap.prototype = {
+        push: function (value) {
+            var size = this.length;
+            this[size] = {value: value, index: size};
+            up(this, size++);
+            return this.length = size;
+        },
+        pop: function () {
+            var size = this.length;
+            if (size <= 0)
+                return null;
+            var removed = this[0],
+                last = this.splice(size - 1, 1)[0];
+            if ((this.length) > 0) {
+                //last.index = 0;
+                this[0] = last;//this[size];
+                down(this, 0);
+            }
+            return removed.value;
+        },
+        remove: function (removed) {
+            var index = this.indexOf(removed),
+                
+                last = this.splice(this.length - 1, 1)[0];
+            if (index !== this.length) {
+                this[index] = last;
+                (defaultCompare(last.value, removed) < 0 ? up : down)(this, index);
+            }
+            return index;
+        },
+        peek: function () {
+            return this[0].value;
+        },
+        indexOf: function (value) {
+            var i = -1,
+                length = this.length;
+
+            while (++i < length && this[i].value !== value);
+            //b = search(this, 0, removed)
+            return i < length ? i : -1;
+        },
+        splice: [].splice,
+        size: function () {
+            return this.length;
+        },
+        empty: function () {
+            return this.length <= 0;
+        }
+    };
+
+    Heap.init.prototype = Heap.prototype;
+
+    if (typeof module === "object" && module.exports) {
+        module.exports = Heap;
+    }
+    else if (typeof define === "function" && define.amd) {
+        define(function () {
+            return Heap;
+        });
+    }
+    return Heap;
+}).call(typeof window !== "undefined" ? window : this);;
+
     Dalaba.Math = (function () {
 
     var mathPow = Math.pow;
@@ -135,7 +544,11 @@
             typeof positive === "undefined" && (positive = true);
             return !!positive ? mathPow(base, v) : -mathPow(base, -v);
         },
-        round: round
+        round: round,
+        hammingDistance: function (a, b) {
+            var c;
+            return (c = a ^ b) & -c;
+        }
     };
 
     return Maths;
@@ -633,106 +1046,7 @@
     }
     return exports;
 }).call(typeof global !== "undefined" ? global : this).deps(Dalaba);
-
-    Dalaba.Heap = (function () {
-    /**
-     * @param compare{Function}
-     * @example
-     * var heap = Heap(function(a, b){ return a - b; });
-     * heap.push(19);
-     * heap.push(29);
-     * heap.push(9);
-     * for(var i = 0; i < 6; i++){
-     *    heap.push(Math.random() * 20 | 0);
-     * }
-     * //var t = heap.pop();
-     * console.log(heap, heap.length);
-     * for(i = 0; i < 4; i++)
-     *    console.log(heap.pop(), heap.length);
-     */
-    var defaultCompare = function (a, b) {
-        return a - b;
-    };
-
-    function down (array, i) {
-        var value = array[i];
-        var size = array.length;
-
-        while (true) {
-            var r = (i + 1) << 1,
-                l = r - 1,
-                j = i;
-            var child = array[j];
-            if (l < size && defaultCompare(child, array[l]) > 0) child = array[j = l];
-            if (r < size && defaultCompare(child, array[r]) > 0) child = array[j = r];
-            if (j === i) break;
-            array[i] = child;
-            array[i = j] = value;
-        }
-    }
-    function up (array, i) {
-        var value = array[i];
-        while (i > 0) {
-            var j = (i + 1 >> 1) - 1,
-                parent = array[j];
-            if (defaultCompare(value, parent) >= 0) break;
-            array[i] = parent;
-            array[i = j] = value;
-        }
-    }
-
-    var Heap = function (compare) {
-        return new Heap.init(compare);
-    };
-    Heap.init = function (compare) {
-        defaultCompare = compare || defaultCompare;
-        this.length = 0;
-        return this;
-    };
-
-    Heap.prototype = {
-        push: function (value) {
-            var size = this.length;
-            this[size] = value;
-            up(this, size++);
-            return this.length = size;
-        },
-        pop: function () {
-            var size = this.length;
-            if (size <= 0)
-                return null;
-            var removed = this[0];
-            var end = this.splice(size - 1, 1)[0];
-            if ((this.length = --size) > 0) {
-                this[0] = end;//this[size];
-                down(this, 0);
-            }
-            return removed;
-        },
-        peek: function () {
-            return this[0];
-        },
-        splice: [].splice,
-        size: function () {
-            return this.length;
-        },
-        empty: function () {
-            return this.length <= 0;
-        }
-    };
-
-    Heap.init.prototype = Heap.prototype;
-
-    if (typeof module === "object" && module.exports) {
-        module.exports = Heap;
-    }
-    else if (typeof define === "function" && define.amd) {
-        define(function () {
-            return Heap;
-        });
-    }
-    return Heap;
-}).call(typeof window !== "undefined" ? window : this);;
+    
     Dalaba.KDTree = (function (global) {
     var descending = function (a, b) {
         return a - b;
@@ -871,9 +1185,8 @@
                 if (this.root) {
                     find(this.root);
                 
-                    for (var i = 0; i < k; i++) if (!heap.empty() && heap[i].node !== null) {
-                        ret.push(heap[i].node.node);
-                    }
+                    for (var i = 0; i < k; i++) if (!heap.empty() && heap[i].value.node !== null)
+                        ret.push(heap[i].value.node.node);
                 }
                 return ret;
             },
@@ -904,7 +1217,17 @@
 })(typeof window !== "undefined" ? window : this).deps(Dalaba.Heap);
 
     Dalaba.Geometry = (function (global) {
-    function factoy () {
+    var PI = Math.PI;
+    var PI2 = PI * 2;
+
+    var nativeSqrt = Math.sqrt;
+    var nativeAtan2 = Math.atan2;
+    var nativeRound = Math.round;
+    var nativeMax = Math.max;
+    var nativeMin = Math.min;
+
+    function factoy (Vector) {
+
         var Intersection = {
             /*
              * Euclidean distance
@@ -916,7 +1239,7 @@
                 var x2 = p1.x,
                     y2 = p1.y;
 
-                return Math.sqrt((x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2));
+                return nativeSqrt((x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2));
             },
             inBounds: function (x, y, rect) {
                 return x >= rect.x && x < rect.width && y >= rect.y && y < rect.height;
@@ -962,21 +1285,28 @@
              * @param x and y is mouse event
              * @param checkin and checkout is callback
             */
-            pie: function (p0, p1) {
+            pie: function (p0, p1, sa) {
                 var dx = p0.x - p1.x,
                     dy = p0.y - p1.y;
+                var startAngle = p1.startAngle,
+                    endAngle = p1.endAngle,
+                    angle;
 
                 var inPie = this.distance(p0, p1) <= p1.radius;
+
+                sa = Dalaba.pack("number", sa, PI / 2);
                 if (inPie && isNumber(p1.innerRadius, true))
                     inPie = this.distance(p0, p1) >= p1.innerRadius;
 
                 if (inPie) {
-                    var angle = Math.atan2(dy, dx) + Math.PI / 2;//顺、逆时针开始
-                    if(angle < 0)
+                    angle = nativeAtan2(dy, dx) + sa;//顺、逆时针开始
+                    
+                    if (angle < 0)
                         angle += PI2;
-                    if(angle > PI2)
+                    if (angle > PI2)
                         angle -= PI2;
-                    if(angle >= p1.startAngle && angle <= p1.endAngle){
+                    startAngle += sa, endAngle += sa;
+                    if (angle >= startAngle && angle <= endAngle){
                         return inPie;
                     }
                 }
@@ -1015,15 +1345,15 @@
                         return true;
                     }
                     //点与相邻顶点连线的夹角
-                    var angle = Math.atan2(source.y - p0.y, source.x - p0.x) - Math.atan2(target.y - p0.y, target.x - p0.x);
+                    var angle = nativeAtan2(source.y - p0.y, source.x - p0.x) - nativeAtan2(target.y - p0.y, target.x - p0.x);
                     //确保夹角不超出取值范围（-π 到 π）
                     if (angle >= PI)
                         angle -= PI2;
-                    else if (angle <= -Math.PI)
+                    else if (angle <= -PI)
                         angle += PI2;
                     n += angle;
                 }
-                return Math.round(n / PI) !== 0;//当回转数为 0 时，点在闭合曲线外部。
+                return nativeRound(n / PI) !== 0;//当回转数为 0 时，点在闭合曲线外部。
             }
         };
         /**
@@ -1048,8 +1378,8 @@
             line: function (x, y, w, h, dasharray) {
                 var dx = w - x,
                     dy = h - y,
-                    length = Math.sqrt(dx * dx + dy * dy),
-                    angle = Math.atan2(dy, dx);
+                    length = nativeSqrt(dx * dx + dy * dy),
+                    angle = nativeAtan2(dy, dx);
                 var dal = dasharray.length,
                     di = 0;
                 var isDraw = true;
@@ -1151,19 +1481,19 @@
                         leftContX += correction;
                         rightContX += correction;
                         if (leftContX > prevX && leftContX > x) {
-                            leftContX = Math.max(prevX, x);
+                            leftContX = nativeMax(prevX, x);
                             rightContX = x * 2 - leftContX;
                         }
                         else if (leftContX < prevX && leftContX < x) {
-                            leftContX = Math.min(prevX, x);
+                            leftContX = nativeMin(prevX, x);
                             rightContX = x * 2 - leftContX;
                         }
                         if (rightContX > nextX && rightContX > x) {
-                            rightContX = Math.max(nextX, x);
+                            rightContX = nativeMax(nextX, x);
                             leftContX = x * 2 - rightContX;
                         }
                         else if (rightContX < nextX && rightContX < x) {
-                            rightContX = Math.min(nextX, x);
+                            rightContX = nativeMin(nextX, x);
                             leftContX = x * 2 - rightContX;
                         }
                     }
@@ -1172,19 +1502,19 @@
                         leftContY += correction;
                         rightContY += correction;
                         if (leftContY > prevY && leftContY > y) {
-                            leftContY = Math.max(prevY, y);
+                            leftContY = nativeMax(prevY, y);
                             rightContY = y * 2 - leftContY;
                         }
                         else if (leftContY < prevY && leftContY < y) {
-                            leftContY = Math.min(prevY, y);
+                            leftContY = nativeMin(prevY, y);
                             rightContY = y * 2 - leftContY;
                         }
                         if (rightContY > nextY && rightContY > y) {
-                            rightContY = Math.max(nextY, y);
+                            rightContY = nativeMax(nextY, y);
                             leftContY = y * 2 - rightContY;
                         }
                         else if (rightContY < nextY && rightContY < y) {
-                            rightContY = Math.min(nextY, y);
+                            rightContY = nativeMin(nextY, y);
                             leftContY = y * 2 - rightContY;
                         }
                     }
@@ -1256,7 +1586,7 @@
                         width: w,
                         height: h
                     };
-                }
+                };
             },
             circle: function (x, y, w, h) {
                 return function (context) {
@@ -1355,7 +1685,7 @@
         });
     }
     return exports;
-})(typeof window !== "undefined" ? window : this).deps(Dalaba);
+})(typeof window !== "undefined" ? window : this).deps(Dalaba.Vector);
     Dalaba.Color = (function () {
 	var toString = Object.prototype.toString;
 
@@ -2119,118 +2449,121 @@
     Dalaba.Cluster = (function () {
     var indexOf = Array.prototype.indexOf;
 
-    var mathMin = Math.min;
+    var hirschbergs = (function () {
 
-    var Cluster = {};
+    var MAX_VALUE = Number.MAX_VALUE;
 
-    Cluster.hirschbergs = (function () {
+    var nativeMin = Math.min;
 
-        //a0[p0,p1) and a1[q0,q1)
-        function left (a0, a1, p1, p2, q1, q2, compare, memo) {
-            var i, j;
-            var diag;
+    //a0[p0,p1) and a1[q0,q1)
+    function left (a0, a1, p1, p2, q1, q2, compare, memo) {
+        var i, j;
+        var diag;
 
-            memo[p1 % 2][q1] = 0;
+        memo[p1 % 2][q1] = 0;
 
-            for (j = q1 + 1; j <= q2; j++)
-                memo[p1 % 2][j] = memo[p1 % 2][j - 1] + 1;
+        for (j = q1 + 1; j <= q2; j++)
+            memo[p1 % 2][j] = memo[p1 % 2][j - 1] + 1;
 
-            for (i = p1 + 1; i <= p2; i++) {
-                memo[i % 2][q1] = memo[(i - 1) % 2][q1] + 1;
-                for (j = q1 + 1; j <= q2; j++) {
-                    diag = memo[(i - 1) % 2][j - 1];
-                    if (!compare(a0[i - 1], a1[j - 1]))
-                        diag += 1;
-                    memo[i % 2][j] = mathMin(diag, mathMin(memo[(i - 1) % 2][j] + 1, memo[i % 2][j - 1] +  1));
-                }
+        for (i = p1 + 1; i <= p2; i++) {
+            memo[i % 2][q1] = memo[(i - 1) % 2][q1] + 1;
+            for (j = q1 + 1; j <= q2; j++) {
+                diag = memo[(i - 1) % 2][j - 1];
+                if (!compare(a0[i - 1], a1[j - 1]))
+                    diag += 1;
+                memo[i % 2][j] = nativeMin(diag, nativeMin(memo[(i - 1) % 2][j] + 1, memo[i % 2][j - 1] +  1));
             }
         }
+    }
 
-        //reverse(a0[p1..p2)) and reverse(a1[q1..q2))
-        function right (a0, a1, p1, p2, q1, q2, compare, memo) {
-            var i, j;
-            var diag;
+    //reverse(a0[p1..p2)) and reverse(a1[q1..q2))
+    function right (a0, a1, p1, p2, q1, q2, compare, memo) {
+        var i, j;
+        var diag;
 
-            memo[p2 % 2][q2] = 0;
+        memo[p2 % 2][q2] = 0;
 
-            for (j = q2 - 1; j >= q1; j--)
-                memo[p2 % 2][j] = memo[p2 % 2][j + 1] + 1;
+        for (j = q2 - 1; j >= q1; j--)
+            memo[p2 % 2][j] = memo[p2 % 2][j + 1] + 1;
 
-            for (i = p2 - 1; i >= p1; i--) {
-                memo[i % 2][q2] = memo[(i + 1) % 2][q2] + 1;
-                for (j = q2 - 1; j >= q1; j--) {
-                    diag = memo[(i + 1) % 2][j + 1];
-                    if (!compare(a0[i], a1[j]))
-                        diag += 1;
-                    memo[i % 2][j] = mathMin(diag, mathMin(memo[(i + 1) % 2][j] + 1, memo[i % 2][j + 1] + 1));
-                }
+        for (i = p2 - 1; i >= p1; i--) {
+            memo[i % 2][q2] = memo[(i + 1) % 2][q2] + 1;
+            for (j = q2 - 1; j >= q1; j--) {
+                diag = memo[(i + 1) % 2][j + 1];
+                if (!compare(a0[i], a1[j]))
+                    diag += 1;
+                memo[i % 2][j] = nativeMin(diag, nativeMin(memo[(i + 1) % 2][j] + 1, memo[i % 2][j + 1] + 1));
             }
         }
+    }
 
-        //align a0[p1..p2) with a1[q1..q2)
-        function align (a0, a1, p0, p1, q0, q1, score0, score1, compare, append) {
-            var ret = [];
-            var item, memo = 0;
-            var i, j;
-            //a0 is empty
-            if(p1 <= p0) {
-                for (j = q0; j < q1; j++) {
-                    ret.push(append("+", j));
-                }
+    //align a0[p1..p2) with a1[q1..q2)
+    function align (a0, a1, p0, p1, q0, q1, score0, score1, compare, append) {
+        var ret = [];
+        var item, memo = 0;
+        var i, j;
+        //a0 is empty
+        if(p1 <= p0) {
+            for (j = q0; j < q1; j++) {
+                ret.push(append("+", j));
             }
-            //a1 is empty
-            else if (q1 <= q0) {
-                for (i = p0; i < p1; i++) {
+        }
+        //a1 is empty
+        else if (q1 <= q0) {
+            for (i = p0; i < p1; i++) {
+                ret.push(append("-", i));
+            }
+        }
+        //a0 is one, a1 is not empty
+        else if (p1 - 1 === p0) {
+            item = a0[p0];
+            memo = 0;
+            for (j = q0; j < q1; j++) if (compare(item, a1[j]) && !memo && (memo = 1)) {
+                ret.push(append("=", p0, j));
+            }
+            else ret.push(append("+", j));
+            !memo && ret.push(append("-", p0));
+        }
+        else if (q1 - 1 === q0) {
+            item = a1[q0];
+            memo = 0;
+            for (i = p0; i < p1; i++) {
+                if (compare(item, a0[i]) && !memo && (memo = 1)) {
+                    ret.push(append("=", i, q0));
+                }
+                else {
                     ret.push(append("-", i));
                 }
             }
-            //a0 is one, a1 is not empty
-            else if (p1 - 1 === p0) {
-                item = a0[p0];
-                memo = 0;
-                for (j = q0; j < q1; j++) if (compare(item, a1[j]) && !memo && (memo = 1)) {
-                    ret.push(append("=", p0, j));
-                }
-                else ret.push(append("+", j));
-                !memo && ret.push(append("-", p0));
-            }
-            else if (q1 - 1 === q0) {
-                item = a1[q0];
-                memo = 0;
-                for (i = p0; i < p1; i++) {
-                    if (compare(item, a0[i]) && !memo && (memo = 1)) {
-                        ret.push(append("=", i, q0));
-                    }
-                    else {
-                        ret.push(append("-", i));
-                    }
-                }
-                !memo && ret.push(append("+", q0));
-            }
-            else {
-                var imid = p0 + p1 >> 1;
-                left(a0, a1, p0, imid, q0, q1, compare, score0);
-                right(a0, a1, imid, p1, q0, q1, compare, score1);
-
-                var jmid = q0,
-                    best = Number.MAX_VALUE;
-                for (i = q0; i <= q1; i++) {
-                    var sum = score0[imid % 2][i] + score1[imid % 2][i];
-                    if (sum < best) {
-                        best = sum;
-                        jmid = i;
-                    }
-                }
-
-                ret = align(a0, a1, p0, imid, q0, jmid, score0, score1, compare, append)
-                    .concat(align(a0, a1, imid, p1, jmid, q1, score0, score1, compare, append));
-            }
-            return ret;
+            !memo && ret.push(append("+", q0));
         }
-        return align;
-    })();
+        else {
+            var middle = p0 + p1 >> 1;
+            var bestSum, bestIndex, sum;
 
-    Cluster.List = {
+            left(a0, a1, p0, middle, q0, q1, compare, score0);// 分治
+            right(a0, a1, middle, p1, q0, q1, compare, score1);
+
+            bestIndex = q0;
+            bestSum = MAX_VALUE;
+
+            for (i = q0; i <= q1; i++) {
+                sum = score0[middle % 2][i] + score1[middle % 2][i];
+                if (sum < bestSum) {
+                    bestSum = sum;
+                    bestIndex = i;
+                }
+            }
+            // 合并 merge
+            ret = align(a0, a1, p0, middle, q0, bestIndex, score0, score1, compare, append)
+                .concat(align(a0, a1, middle, p1, bestIndex, q1, score0, score1, compare, append));
+        }
+        return ret;
+    }
+    return align;
+})();
+
+    var List = {
         /*
          * The data packet
          * @param data{Array} data Grouping
@@ -2301,18 +2634,7 @@
         }
     };
 
-
-    if (typeof module === "object" && module.exports) {
-        module.exports = Cluster;
-    }
-    else if (typeof define === "function" && define.amd) {
-        define(function() {
-            return Cluster;
-        });
-    }
-    return Cluster;
-}).call(typeof global !== "undefined" ? global : this);;
-    Dalaba.Cluster.List.diff = (function (global) {
+    List.diff = (function (global) {
     var forEach = Array.prototype.forEach;
 
     function defaultCompare (fn) {
@@ -2423,7 +2745,211 @@
         });
     }
     return exports;
-})(typeof window !== "undefined" ? window : this).deps(Dalaba.Cluster.hirschbergs);
+})(typeof window !== "undefined" ? window : this).deps(hirschbergs);
+
+    var exports = (function (global) {
+        return {
+            deps: function () {
+                var args = Array.prototype.slice.call(arguments, 0);
+                return function (Dalaba) {
+                    var Cluster = {};
+
+                    Cluster.hirschbergs = hirschbergs;
+
+                    Cluster.List = List;
+
+                    Cluster.Tree = (function () {
+
+    var noop = function () {};
+
+    function factory (Dalaba) {
+        var isArray = Dalaba.isArray;
+
+        var isFunction = Dalaba.isFunction;
+
+        var extend = Dalaba.extend;
+
+
+        var dfs = function dfs(root, callbacks) {
+            var nodes = isArray(root) ? root : [root];
+            var n = nodes.length,
+                i = -1;
+            var node, childs;
+
+            while (++i < n && (node = nodes[i])) {
+                callbacks[0] && callbacks[0].call(node, node, i, nodes);
+                if (isArray(childs = node.children) && childs.length) {
+                    dfs(childs, callbacks);
+                }
+                callbacks[1] && callbacks[1].call(node, node, i, nodes);
+            }
+        };
+
+        var bfs = function (root, callback) {
+            var queue = (isArray(root) ? root : [root]).slice();
+            var n, i;
+            var node, childs;
+
+            while (queue.length) {
+                node = queue.shift();
+                childs = (node.children || []).slice();
+                callback && callback.call(node, node, queue.length - 1, queue);
+                if (isArray(childs) && (i = -1, n = childs.length)) for (; ++i < n; ) {
+                    queue.push(childs[i]);
+                }
+            }
+        };
+
+        var vstack = function (source, target) {
+            var root, ids;
+            return function (data) {
+                var args = [].slice.call(arguments, 1);
+                var node, parent;
+                var nodes = [];
+
+                var n, i = -1;
+
+                root = [];
+                ids = {};
+
+                if (!isArray(data)) return root;
+
+                n = data.length;
+
+                if (args.length) {
+                    args[0] && (source = String(args[0]));
+                    args[1] && (target = String(args[1]));
+                }
+                // use the key algorithm O(n)
+                
+                while (++i < n) if (node = data[i]) {
+                    nodes.push(extend({}, node));// copy
+                    node = nodes[nodes.length - 1];
+                    ids[node[source]] = node;
+                }
+
+                for (i = 0; i < n; i++) if (node = nodes[i]) {
+                    parent = ids[node[target]];
+                    if (parent) {
+                        (parent.children = parent.children || []).push(node);
+                    }
+                    else {
+                        root.push(node);
+                    }
+                }
+                ids = nodes = null;
+                return root;
+            };
+        };
+
+        var hstack = function (source, target) {
+            return function (root) {
+                var args = [].slice.call(arguments, 1);
+                var nodes = [],
+                    newNode = {};
+                var count = 0;
+                var path = [];
+
+                if (args.length) {
+                    args[0] && (source = String(args[0]));
+                    args[1] && (target = String(args[1]));
+                }
+
+                newNode[source] = -1;// root
+                path.push(newNode);
+
+                dfs(root, [function (node) {
+                    newNode = extend({}, node);
+                    newNode[source] = count++;
+                    path.push(newNode);
+                }, function () {
+                    newNode = path.pop();// Backtracking using stack to the last element
+                    newNode[target] = path[path.length - 1][source];
+                    nodes.push(newNode);
+                }]);
+                path = null;
+                return nodes;
+            };
+        };
+        
+        return {
+            /**
+             * deep first search
+             * @ordered {Boolean}
+             *        1
+             *       / \
+             *      2   3
+             *     / \   \
+             *    4   5   6
+             *       / \
+             *      7   8
+             * ordered is false or default: 4 7 8 5 2 6 3 1 (ROOT-L-R), 后序遍历
+             * ordered is true: 1 2 4 5 7 8 3 6 (L-R-ROOT)
+             * @example
+             * const root = [{
+             *   value: 1,
+             *   children: [{
+             *      value: 2,
+             *      children: [{ value: 4 }, { value: 5, children: [{value: 7}, {value: 8}] }]
+             *   }, {
+             *      value: 3,
+             *      children: [{value: 6}]
+             *  }]
+             * }];
+             * dfs(root, value => console.log(value), true)
+            **/
+            dfs: function (root, callback, ordered) {
+                callback = isFunction(callback) ? callback : noop;
+                return dfs(root, [null, callback][ordered === true ? "reverse" : "slice"]());
+            },
+            bfs: bfs,
+            /**
+             * vertical stack tree
+             * @param data {Array}
+             * @param id, pid {String} array object key -> parent
+             * @returns tree data
+             * @example
+             * const data = [
+             *   { source: 0, target: -1, value: 1},
+             *   { source: 1, target: 0, value: 2},
+             *   { source: 2, target: 0, value: 3},
+             *   { source: 3, target: 1, value: 4},
+             *   { source: 4, target: 1, value: 5},
+             *   { source: 5, target: 2, value: 6},
+             *   { source: 6, target: 4, value: 7},
+             *   { source: 7, target: 4, value: 8}
+             * }];
+             * vstack(data)
+            **/
+            vstack: vstack("source", "target"),
+            hstack: hstack("source", "target")
+        };
+    }
+
+    return {
+        deps: function () {
+            return factory.apply(null, [].slice.call(arguments));
+        }
+    };
+}).call(typeof window !== "undefined" ? window : this).deps(Dalaba);// a tree simple method
+
+                    return Cluster;
+                }.apply(global, [].concat(args));
+            }
+        };
+    })(this);
+
+
+    if (typeof module === "object" && module.exports) {
+        module.exports = exports;
+    }
+    else if (typeof define === "function" && define.amd) {
+        define(function() {
+            return exports;
+        });
+    }
+    return exports;
+}).call(typeof global !== "undefined" ? global : this).deps(Dalaba);
 
     Dalaba.ZTree = (function(factoy) {
     var exports = {
@@ -2572,48 +3098,133 @@
         }
     };
 
-    var Feature = {
-        Point: function (p, stream) {
-            stream.point(p);
+    var eaching = (function () {
+
+    var hasOwnProperty = ({}).hasOwnProperty;
+
+    function streamGeometry (geometry, stream) {
+        var type;
+        if (geometry && hasOwnProperty.call(streamGeometryType, type = geometry.type)) {
+            streamGeometryType[type](geometry, stream);
+        }
+    }
+
+    var streamObjectType = {
+        Feature: function (object, stream) {
+            streamGeometry(object.geometry, stream);
         },
-        MultiPoint: function (coordinates, stream) {
-            coordinates.forEach(function (coords) {
-                Feature.Point(coords, stream);
-            });
-        },
-        LineString: function (coordinates, stream) {
-            Feature.MultiPoint(coordinates, stream);
-        },
-        MultiLineString: function (coordinates, stream) {
-            coordinates.forEach(function (coords) {
-                stream.points && (stream.points = []);
-                Feature.LineString(coords, stream);
-                stream.groups && stream.groups();
-            });
-        },
-        Polygon: function (coordinates, stream) {
-            stream.clear && stream.clear();//reset
-            Feature.MultiLineString(coordinates, stream);
-        },
-        MultiPolygon: function (coordinates, stream) {
-            stream.clear && stream.clear();
-            coordinates.forEach(function (coords) {
-                Feature.MultiLineString(coords, stream);
+        FeatureCollection: function (object, stream) {
+            object.features.forEach(function (feature) {
+                streamGeometry(feature.geometry, stream);
+                stream.feature && stream.feature(feature);
             });
         }
     };
 
-    var Geometry = {
-        Feature: function (feature, stream) {
-            var geometry = feature.geometry,
-                geometryType = geometry.type,
-                coordinates = geometry.coordinates;
-            Feature[geometryType] && Feature[geometryType](coordinates, stream);
+    var streamGeometryType = {
+        Sphere: function (object, stream) {
+            stream.sphere();
         },
-        FeatureCollection: function (geojson, stream) {
-            (geojson.features || []).forEach(function (feature) {
-                Feature.Feature(feature, stream);
+        Point: function (object, stream) {
+            object = object.coordinates;
+            stream.point(object[0], object[1], object[2]);
+        },
+        MultiPoint: function (object, stream) {
+            object.coordinates.forEach(function (coordinates) {
+                stream.point(coordinates[0], coordinates[1], coordinates[2]);
             });
+        },
+        LineString: function (object, stream) {
+            streamLine(object.coordinates, stream, 0);
+        },
+        MultiLineString: function (object, stream) {
+            object.coordinates.forEach(function (coordinates) {
+                streamLine(coordinates, stream, 0);
+            });
+        },
+        Polygon: function (object, stream) {
+            streamPolygon(object.coordinates, stream);
+        },
+        MultiPolygon: function (object, stream) {
+            object.coordinates.forEach(function (coordinates) {
+                streamPolygon(coordinates, stream);
+            });
+        },
+        GeometryCollection: function (object, stream) {
+            object.geometries.forEach(function (geometries) {
+                streamGeometry(geometries, stream);
+            });
+        }
+    };
+
+    function streamLine (coordinates, stream, closed) {
+        var i = -1, n = coordinates.length - closed, coordinate;
+        stream.lineStart();
+        while (++i < n) coordinate = coordinates[i], stream.point(coordinate[0], coordinate[1], coordinate[2]);
+        stream.lineEnd();
+    }
+
+    function streamPolygon (coordinates, stream) {
+        stream.polygonStart();
+        coordinates.forEach(function (coordinates) {
+            streamLine(coordinates, stream, 1);
+        });
+        stream.polygonEnd();
+    }
+
+    function geomCollection (geojson, context) {
+        var type = geojson.type;
+        geojson && hasOwnProperty.call(streamObjectType, type)
+            ? streamObjectType[type](geojson, context)
+            : streamGeometry(geojson, context);
+    }
+
+    if (typeof module === "object" && module.exports) {
+        module.exports = geomCollection;
+    }
+    else if (typeof define === "function" && define.amd) {
+        define(function () {
+            return geomCollection;
+        });
+    }
+    return geomCollection;
+}).call(typeof window !== "undefined" ? window : this);;
+
+    var PathContext = function () {
+        this.points = [];
+        this.polygons = [];
+    };
+
+    PathContext.prototype = {
+        polygonStart: function () {
+            this._line = 0;
+        },
+        polygonEnd: function () {
+            this._line = NaN;
+        },
+        lineStart: function () {
+            this._point = 0;
+        },
+        lineEnd: function () {
+            this._point = NaN;
+            if (this._line === 0)
+                this.points.push(this.points[0].slice());// closepath
+            this.polygons.push(this.points);
+            this.points = [];
+        },
+        point: function (x, y) {
+            switch (this._point) {
+                case 0: {
+                    this._point = 1;// moveto
+                    break;
+                }
+                case 1: {
+                    break;// lineto
+                }
+                default: {
+                    break;
+                }
+            }
         }
     };
 
@@ -2629,8 +3240,6 @@
         var isFunction = Dalaba.isFunction;
 
         var defined = Dalaba.defined;
-
-        var extend = Dalaba.extend;
 
         /**
          * Projection
@@ -2691,20 +3300,7 @@
                     return arguments.length ? (this.width = pack("number", _[0]), this.height = pack("number", _[1]), this) : [pack("number", this.width), pack("number", this.height)];
                 };
 
-                this.Stream = {
-                    points: [],
-                    get: function () {
-                        return this.polygons.length ? this.polygons : this.points;
-                    },
-                    polygons: [],
-                    clear: function () {
-                        this.polygons = [];
-                        this.points = [];
-                    },
-                    groups: function () {
-                        this.polygons.push(this.points);
-                    }
-                };
+                this.Stream = new PathContext;
             };
             
             extend(GeoParse.prototype, Parse.prototype, {
@@ -2715,28 +3311,31 @@
                     var centerX = parsed.centerX,
                         centerY = parsed.centerY,
                         scale = parsed._scale;
-                    // console.log(centerX, centerY, scale)
+                    //console.log(scale)
 
-                    Stream.clear();
-                    Stream.point = function (p) {
-                        var point = parsed._projection(p);
-                        Stream.points.push(parsed.point(point));
-                        
-                        pointCaller && pointCaller.call(p, p, point);
+                    Stream.feature = function (feature) {
+                        callback && callback(this.polygons, feature);// polygons != features
+                        this.polygons = [];// clear MultiPolygon
                     };
 
-                    if (isObject(geoJson) && geoJsonType) {
-                        if (geoJsonType === "FeatureCollection") {
-                            (geoJson.features || []).forEach(function (feature) {
-                                Geometry.Feature(feature, Stream);
-                                callback && callback(Stream.get(), feature);
-                            });
+                    Stream.point = function (x, y) {
+                        var p = [x, y];
+                        var point = parsed._projection(p);
+                        var points = Stream.points;
+                        var xy = parsed.point(point);
+                        
+                        pointCaller && pointCaller.call(p, p, point);
+                        if (this._point === 0) {
+                            xy.moved = true;
+                            points.push(xy);
+                            this._point = 1;
                         }
-                        else if (geoJsonType === "Feature") {
-                            Geometry.Feature(geoJson, Stream);
-                            callback && callback(Stream.get(), geoJson);
+                        else if (this._point === 1) {
+                            points.push(xy);
                         }
-                    }
+                    };
+
+                    eaching(geoJson, this.Stream);
                 },
                 parse: function (geoJson, callback, pointCaller) {
                     this.centerAndZoom(geoJson);
@@ -2847,14 +3446,17 @@
         };
 
         var geo = {
-            Projection: Projector()
+            Projection: Projector(),
+            eaching: eaching
         };
         return geo;
     }
 
     var exports = (function (global) {
-        return function (Dalaba) {
-            return factoy.call(global, Dalaba);
+        return {
+            deps: function (Dalaba) {
+                return factoy.call(global, Dalaba);
+            }
         };
     })(this);
 
@@ -2868,7 +3470,7 @@
     }
     return exports;
 
-}).call(typeof window !== "undefined" ? window : this)(Dalaba);
+}).call(typeof window !== "undefined" ? window : this).deps(Dalaba);
 
     return Dalaba;
 })();;
@@ -3430,7 +4032,6 @@
             chart.canvas.style.cursor = moving ? "pointer" : "default";
             //tooltip enabled = false
             if (defined(curPanel)) {
-                var shape;
                 var curIndex;
                 item = curPanel.tooltip.move(x, y, true);
                 if ((item = item[0]) && linked === true  && panels.length) {// if exists link to panel
@@ -3735,14 +4336,17 @@
                 x = Event.normalize(e, this),
                 y = x.y;
             x = x.x;
-            e.preventDefault && e.preventDefault();
             if (Intersection.rect(
                 {x: x, y: y},
                 {x: viewport.left, y: viewport.top, width: viewport.left + viewport.width, height: viewport.top + viewport.height}
             )) {
                 var scale = getZoom(e);
+                var rangeSelector = chart.rangeSelector;
                 if (scale.disabled)
                     return;
+                if (chart.rangeSlider.length) {
+                    e.preventDefault && e.preventDefault();
+                }
                 chart.rangeSlider.forEach(function (slider, i) {
                     var options = slider.options,
                         zoomRatio = options.zoomRatio,
@@ -3768,12 +4372,12 @@
                     }
                     events && isFunction(events.zoom) && events.zoom.call(slider, e);
                 });
-                var rangeSelector = chart.rangeSelector;
                 if (rangeSelector.length && rangeSelector[0].from !== rangeSelector[0].to) {
                     if (chart.charts.length) {
                         fetchData(e, chart, rangeSelector[0].from, rangeSelector[0].to);
                     }
                 }
+                
                 if (chartOptions.events && isFunction(chartOptions.events.zoom)) {
                     e.delta = scale.length;
                     chartOptions.events.zoom.call(null, e);
@@ -3846,6 +4450,7 @@
                 selector._start = selector.from = pack("number", parseFloat(selector.start, 10), 0);
                 selector._end = selector.to = pack("number", parseFloat(selector.end, 10), 100);
             });
+
             (function (chart) {
                 var container = chart.container;
                 var globalEvent = chart.globalEvent;
@@ -3859,7 +4464,10 @@
                         hasAnimateReady(chart) & hasEventDisabled(chart) & hasDragging(chart) && tooltip.show.call(this, e, chart);
                     },
                     mouseout: function (e) {
-                        hasEventDisabled(chart) && tooltip.hide.call(this, e, chart);
+                        var related = e.relatedTarget;
+                        if (!related || (related !== this && (related.compareDocumentPosition(this) & 8))) {
+                            hasEventDisabled(chart) && tooltip.hide.call(this, e, chart);
+                        }
                     },
                     start: function (e) {
                         hasEventDisabled(chart) && onStart.call(container, e, chart);
@@ -4241,6 +4849,7 @@
     function revalue (value, rules, nocopy) {
         var rv = valuer(value);
         var flag = false;
+        var v;
         if (isNumber(value, true)) {
             rv._x = rv._y = undefined;
             return rv;
@@ -4251,12 +4860,13 @@
                 rv = mergeAt(rv, value, {value: true});
             }
             else {
-                rv = mergeAt(rv, value, {value: true});// candlestick chart
+                rv = mergeAt({}, value, {value: true});// candlestick chart
+                flag = true;
             }
+            v = rv.value;
             !undef(value.x) && (rv._x = value.x, reValue(rv, undefined), flag = true);
             !undef(value.y) && (rv._y = value.y, reValue(rv, undefined), flag = true);
-            isNumber(rv.value, true) && (flag = true);
-            rv.sourceValue = value;
+            isNumber(v, true) && (reValue(rv, v), flag = true);
             return flag ? rv : null;
         }
         else if (isString(value)) {
@@ -4326,7 +4936,7 @@
         candlestick: function (data) {
             var rev = revalue(data, ["open", "close", "high", "low"], true);// {open[0], close[1], high[2], low[3]}
             if (rev) {
-                isNumber(rev.high, true) && (rev.value = rev.high);
+                isNumber(rev.high, true) && (rev.value = rev.maxValue = rev.high);
                 isNumber(rev.low, true) && (rev.minValue = rev.low);
                 !(rev.isNULL = !(isNumber(rev.open, true) && isNumber(rev.close, true)
                     && isNumber(rev.high, true) && isNumber(rev.low))) && (rev["$value"] = [
@@ -4394,6 +5004,9 @@
         },
         map: function (data) {
             return this.pie(data);
+        },
+        custom: function (data) {
+            return this.line(data);
         }
     };
 })();;
@@ -4434,11 +5047,16 @@
                     i = 0;
 
                 var newSeries = this;
-
-                var start = pack("number", parseFloat(newSeries.start, 10) / 100, 0),
+                var start, end;
+                if (newSeries.bindAxis) {
+                    start = pack("number", parseFloat(newSeries.start, 10) / 100, 0);
                     end = pack("number", parseFloat(newSeries.end, 10) / 100, 1);
-                start = Math.max(0, Math.min(~~(length * start), ~-length));
-                end = Math.min(length, Math.max(~~(length * end), -~start));
+                    start = Math.max(0, Math.min(~~(length * start), ~-length));
+                    end = Math.min(length, Math.max(~~(length * end), -~start));
+                }
+                else {
+                    start = 0, end = length;
+                }
                 newSeries.startIndex = start;
                 newSeries.endIndex = end;
 
@@ -5693,6 +6311,11 @@ var DataLabels = (function () {
             return null;
         }
 
+        if (element && (element.nodeType !== 1 && !isFunction(element.getContext))) {
+            options = element;
+            element = {};
+        }
+
         this.options = extend({}, defaultOptions);
         extend(this.options, options);
         globalStyle(this.options);
@@ -5731,7 +6354,7 @@ var DataLabels = (function () {
                 "user-select": "none",
                 cursor: "default"
             });
-            (this.renderer = element).appendChild(this.container);
+            element.nodeType === 1 && (this.renderer = element).appendChild(this.container);
             this.canvas = new Layer(this.container, this.width, this.height).canvas;
         }
         
@@ -5972,6 +6595,7 @@ var DataLabels = (function () {
                     end = mathMin(100, mathMax(0, pack("number", parseFloat(end, 10), 100)));
                     rs.start = start + "%";
                     rs.end = end + "%";//xAxis=0
+                    rs.bindAxis = isNumber(rangeSelector.xAxis, true) || isNumber(rangeSelector.yAxis, true) || isNumber(rangeSelector.polarAxis, true);
                 }
                 return rs;
             };
@@ -6355,7 +6979,8 @@ var DataLabels = (function () {
                             rangeSelectorOptions.y,
                             Numeric.percentage(slider.height, rangeSelectorOptions.y),
                             chart.height - slider.height - legendHeight - spacing[2]
-                        )
+                        ),
+                        range: [chart.width, chart.height]
                     });
                 }
             });
@@ -6470,7 +7095,7 @@ var DataLabels = (function () {
                     }
                 }, function (d, newData, i) {
                     if (defined(chart.series[i])) {
-                        newData.tooltip = d.tooltip || new Tooltip(chart.addLayer(tooltipOptions.layer), tooltipOptions);;
+                        newData.tooltip = d.tooltip || new Tooltip(chart.addLayer(tooltipOptions.layer), tooltipOptions);
                     }
                 });
                 this.tooltip = panel[0].tooltip;
@@ -6529,7 +7154,7 @@ var DataLabels = (function () {
                 image: function() {
                     defined(chart.background) && addBackgroundImage(chart.background);
                 },
-                background: function(){
+                background: function () {
                     var backgroundColor = (options.chart || {}).backgroundColor,
                         gradient;
                     var width = chart.canvas.width,
@@ -6537,7 +7162,7 @@ var DataLabels = (function () {
                         size = Math.min(width, height);
                     size = Math.sqrt(width * width + height * height) / 2;
                     if (defined(backgroundColor)) {
-                        if(backgroundColor.linearGradient || backgroundColor.radialGradient){
+                        if (backgroundColor.linearGradient || backgroundColor.radialGradient) {
                             gradient = Color.parse(backgroundColor);
                             backgroundColor = backgroundColor.radialGradient
                                 ? gradient.radial((width - size) / 2, (height - size) / 2, size)
@@ -6854,7 +7479,7 @@ var DataLabels = (function () {
                         isSeted !== false && (shape.state = !0);
                     }
                 };
-                if (legend !== null) {
+                if (legend !== null && charts.length) {
                     if (event.type === "mousemove" && globalAnimation.isReady) {
                         legend.onState(event, function (item) {
                             setState(item);
@@ -6930,14 +7555,16 @@ var DataLabels = (function () {
                 if (ani) {
                     ani();
                 }
-                drawLegend();
+                //if (charts.length) {
+                    drawLegend();
+                //}
 
                 !once && drawTooltip();
             }
 
             var isEventing = function (event) {
                 var type = event.type;
-                return type === "mousemove" || type === "resize" || type === "click";
+                return type === "mousemove" || type === "resize" || type === "click" || type === "mousewheel";
             };
             var isAnimationReady = function (chart) {
                 return chart.globalAnimation.isReady === true;
@@ -7001,7 +7628,7 @@ var DataLabels = (function () {
                         chart.renderChart(animationCharts, true);
                     }, true);
                 }, function () {
-                    onLoad(), onReady();
+                    onLoad();//, onReady();
                 });
             }
             else {
@@ -7024,22 +7651,6 @@ var DataLabels = (function () {
                                 complete: function () {}
                             });
                         });
-                        /*if (event.type === "update") {
-                            globalAnimation.instance.stop(false, true);
-                            shapes.forEach(function (shape) {
-                                globalAnimation.instance.addAnimate(shape, {
-                                    duration: pack("number", shape.duration, globalAnimation.duration, 500),
-                                    delay: 0,
-                                    easing: "linear",
-                                    complete: function () {}
-                                });
-                            });
-                        }
-                        else if (event.type === "selected") {
-                            globalAnimation.instance.setOptions({
-                                duration: 300
-                            }).stop();
-                        }*/
 
                         globalAnimation.instance.fire(function () {
                             globalAnimation.isReady = false;
@@ -7051,7 +7662,10 @@ var DataLabels = (function () {
                             onRedraw(), onReady();
                         });
                     }
-                    event.type === "update" && (noAnimationCharts.length & !animationCharts.length) && (onRedraw());
+                    if (event.type === "update") {
+                        (noAnimationCharts.length & !animationCharts.length) && (onRedraw());
+                        (noAnimationCharts.length | animationCharts.length) || (paintComponent([]), onReady());
+                    }
                 }
                 else if (isAnimationReady(chart) && isDragging(chart) && isEventing(event)) {
                     paintComponent(charts);
@@ -7070,6 +7684,7 @@ var DataLabels = (function () {
                     dataLabel.weight = shape.weight || dataLabel.height;
                     if (dataLabel.useHTML === true && domLabel) {
                         label = document.createElement("div");
+                        setStyle(label, {visibility: "hidden"});
                         domLabel.appendChild(label);
                         label.innerHTML = dataLabel.value;
                         dataLabel.domLabel = label;
@@ -7279,7 +7894,7 @@ var DataLabels = (function () {
                 }).each();
                 seriesOptions.forEach(function (item, i) {
                     var newSeries;
-                    if(!item.used){
+                    if (!item.used) {
                         newSeries = chart.addSeries(item, i);
                         series.push(newSeries);
                         delete item.used;
@@ -7301,6 +7916,24 @@ var DataLabels = (function () {
                     null
                 );
             }
+            //setting exists slider
+            if (defined(chartOptions = options.rangeSelector) && this.rangeSlider && this.rangeSlider.length) {
+                this.rangeSlider.forEach(function (slider, i) {
+                    var rsp = isArray(chartOptions) ? chartOptions[i] : chartOptions;
+                    var rangeSelector = chart.rangeSelector[i];
+                    var from, to;
+
+                    slider.setOptions(rsp);
+
+                    if (rangeSelector && rsp && (defined(rsp.start) || defined(rsp.end))) {
+                        from = pack("number", parseFloat(chartOptions.start, 10), parseFloat(slider.start, 10));
+                        to = pack("number", parseFloat(chartOptions.end, 10), parseFloat(slider.end, 10));
+                        rangeSelector.from = rangeSelector._start = from;
+                        rangeSelector.to = rangeSelector._end = to;
+                    }
+                });
+            }
+
             redraw !== false && this.draw({ target: this, type: "update"});
             return this;
         },
@@ -7346,6 +7979,11 @@ var DataLabels = (function () {
                 pane.plotX = pane.x *= ratioWidth;
                 pane.plotWidth = pane.width *= ratioWidth;
                 //pane.width += ratioWidth;
+            });
+            this.rangeSlider.forEach(function (slider) {
+                slider.setOptions({
+                    width: slider.width * ratioWidth
+                });
             });
             this.translateAxis();
             this.addPlotSeries();
@@ -7395,7 +8033,7 @@ var DataLabels = (function () {
                 (layer.parentNode && layer.parentNode === container) && container.removeChild(layer);
             }
 
-            if (this.tooltip !== null) {
+            if (defined(this.tooltip)) {
                 layer = this.tooltip.canvas;
                 this.tooltip.useHTML === true && ((layer.parentNode && layer.parentNode === container) && container.removeChild(layer));
             }
@@ -7803,7 +8441,7 @@ var DataLabels = (function () {
                     var xAxisIndex = rangeSelectorOptions.xAxis,
                         yAxisIndex = rangeSelectorOptions.yAxis,
                         polarAxisIndex = rangeSelectorOptions.polarAxis;
-                    if(chart.xAxis[xAxisIndex] || chart.yAxis[yAxisIndex] || chart.polarAxis[polarAxisIndex]){
+                    //if (chart.xAxis[xAxisIndex] || chart.yAxis[yAxisIndex] || chart.polarAxis[polarAxisIndex]) {
                         var width = rangeSelectorOptions.width ||
                                 Numeric.percentage(chart.width, rangeSelectorOptions.width) ||
                                 chart.width - spacing[1] - spacing[3],
@@ -7824,9 +8462,11 @@ var DataLabels = (function () {
                         }
                         chart.rangeSelector.push({
                             start: rangeSelectorOptions.start,
-                            end: rangeSelectorOptions.end
+                            end: rangeSelectorOptions.end,
+                            from: parseFloat(rangeSelectorOptions.start, 10),
+                            to: parseFloat(rangeSelectorOptions.end, 10)
                         });
-                    }
+                    //}
                 });
             }
 
@@ -11641,7 +12281,7 @@ var DataLabels = (function () {
         height: 30,
         margin: 0,
         layout: "horizontal",//horizontal or vertical,
-        verticalAlign: "bottom",//top, bottom, middle
+        //verticalAlign: "bottom",//top, bottom, middle
         align: "center",//left, right or center
         floating: false,
         borderWidth: 1,
@@ -11676,7 +12316,7 @@ var DataLabels = (function () {
                 w = size,
                 h = 15;
             var linePixel = fixLinePixel(x, y, w, h);
-            return function(context){
+            return function (context) {
                 var bw = 1;
                 context.save();
                 context.fillStyle = color;
@@ -11686,7 +12326,7 @@ var DataLabels = (function () {
                 w = linePixel.width, h = linePixel.height;
                 
                 context.translate(-w / 2 + bw, (height - h) / 2 - 1);
-                context.lineWidth = 1;
+                
                 context.strokeStyle = color;
                 context.fillStyle = options.backgroundColor;
                 context.beginPath();
@@ -11695,6 +12335,7 @@ var DataLabels = (function () {
                 context.lineTo(x + w, y + h);//right bottom
                 context.lineTo(x, y + h);//left bottom
                 context.lineTo(x, y);//close path
+                context.lineWidth = 1;
                 setShadow(context, options);
                 context.fill();
                 context.stroke();
@@ -11748,7 +12389,7 @@ var DataLabels = (function () {
             this.minValue = pack("number", options.min, 0);
             this.maxValue = pack("number", options.max, 0);
 
-            this.range = [];
+            this.range = [{width: 8}, {width: 8}];
             this.target = -1;
 
             this.dragging = false;
@@ -11771,7 +12412,7 @@ var DataLabels = (function () {
             //sync start & end
             startValue = minValue + (maxValue - minValue) * parseFloat(this.start, 10) / 100;// (this.from - x) * percent;
             endValue = minValue + (maxValue - minValue) * parseFloat(this.end, 10) / 100;// (this.to - x) * percent;
-            if(startValue > endValue){
+            if (startValue > endValue) {
                 x = startValue;
                 startValue = endValue;
                 endValue = x;
@@ -11786,7 +12427,24 @@ var DataLabels = (function () {
             this.draw();
         },
         setOptions: function (options) {
+            var verticalAlign,
+                borderWidth;
+            var slider = this;
+            var setVAlign = function (type, options) {
+                var range = options.range;
+                var valign = {
+                    top: function () {
+                        return borderWidth;
+                    },
+                    bottom: function () {
+                        return range[1] - slider.height - borderWidth;
+                    }
+                };
+                valign[type] && (slider.y = valign[type]());
+            };
             extend(this.options, options);
+            verticalAlign = this.options.verticalAlign;
+            borderWidth = pack("number", this.options.borderWidth, 1);
 
             switch (true) {
                 case hasOwnProperty.call(options, "min"):
@@ -11796,7 +12454,7 @@ var DataLabels = (function () {
                 case hasOwnProperty.call(options, "y"):
                     isNumber(options.min) && (this.minValue = options.min);
                     isNumber(options.max) && (this.maxValue = options.max);
-                    isNumber(options.x) && (this.x = pack("number", options.x, 0), this.setWidth(this.width - options.x));
+                    isNumber(options.x) && (this.x = pack("number", options.x, 0), this.setWidth(this.width - pack("number", options.x)));
                     isNumber(options.y) && (this.y = pack("number", options.y, 0));
                     defined(options.width) && this.setWidth(options.width);
                 break;
@@ -11807,6 +12465,9 @@ var DataLabels = (function () {
             if (hasOwnProperty.call(options, "start") && hasOwnProperty.call(options, "end")) {
                 this.startToEnd(options.start, options.end);
             }
+            if (verticalAlign) {
+                setVAlign(verticalAlign, this.options);
+            }
             return this;
         },
         drawPlot: function () {
@@ -11815,10 +12476,12 @@ var DataLabels = (function () {
                 borderColor = options.borderColor;
             var width = this.width,
                 height = this.height,
-                x = this.x,
+                x = this.x + borderWidth,
                 y = this.y - borderWidth;
             var context = this.context;
             var linePixel = fixLinePixel(x, y, width, height, borderWidth);
+            linePixel.width -= 10;
+            linePixel.x += 4;
 
             context.save();
             context.fillStyle = options.backgroundColor;
@@ -11828,14 +12491,14 @@ var DataLabels = (function () {
             context.lineTo(linePixel.x + linePixel.width, linePixel.y + linePixel.height);
             context.lineTo(linePixel.x, linePixel.y + linePixel.height);
             context.closePath();
-                
+            
+            if (defined(options.backgroundColor)) {
+                context.fill();
+            }
             if (borderWidth > 0) {
                 context.strokeStyle = borderColor;
                 context.lineWidth = borderWidth;
                 context.stroke();
-            }
-            if (defined(options.backgroundColor)) {
-                context.fill();
             }
             context.fillRect(linePixel.x, linePixel.y, 0, height);
             context.clip();
@@ -11849,36 +12512,34 @@ var DataLabels = (function () {
             var height = this.height,
                 y = this.y;
             var context = this.context;
-            var startX = this.from,// interpolate(this.start, 0, 100, x, width),
-                endX = this.to;// interpolate(this.end, 0, 100, x, width);
-            //console.log(startX, endX, this.start, this.end);
-            var z0 = {x: startX, y: y},
-                z1 = {x: endX, y: y};
-            if(startX > endX){
-                z0 = {x: endX, y: y};
-                z1 = {x: startX, y: y};
+            var startX = this.from,
+                endX = this.to;
+            var z0 = this.range[0],
+                z1 = this.range[1];
+            z0.x = startX, z1.x = endX;
+            z0.y = y, z1.y = y;
+            if (startX > endX) {
+                z0.x = endX;
+                z1.x = startX;
             }
             context.save();
             context.fillStyle = "rgba(51,92,173,0.2)";
-            context.fillRect(z0.x, y, z1.x - z0.x, height);
-            /*context.fillStyle = zoomColor;
-            context.fillRect(startX, y, Math.abs(startX - endX), 1);
-            context.fillRect(startX, y + height, Math.abs(startX - endX), 1);*/
-            //context.translate(x, 0);
+            context.fillRect(z0.x + z0.width / 2, y, z1.x - z0.x - z1.width, height);
             handle = handles[0] || {};
-            z0.viewport = handle.enabled !== false ? Symbol.rect(z0.x, z0.y, 8, height, handle)(context) : {};
+            z0.viewport = handle.enabled !== false ? Symbol.rect(z0.x + z0.width / 2, z0.y, z0.width, height, handle)(context) : {};
             handle = handles[1] || handle;
-            z1.viewport = handle.enabled !== false ? Symbol.rect(z1.x, z1.y, 8, height, handle)(context) : {};
+            z1.viewport = handle.enabled !== false ? Symbol.rect(z1.x - z1.width / 2 - 2, z1.y, z1.width, height, handle)(context) : {};
             context.restore();
-            this.range = [z0, z1];
         },
-        drawSeries: function() {
+        drawSeries: function () {
             var options = this.options;
             var context = this.context;
+            var range = this.range;
             var tx,
                 ty = this.y,
                 width,
                 height = this.height;
+            var selector = this;
             var getDataValue = function (item) {
                 var value = item;
                 if (isArray(item)) {
@@ -11892,16 +12553,16 @@ var DataLabels = (function () {
             var plotX = MIN_VALUE,
                 plotWidth = plotX;
 
-            if (hasOwnProperty.call(options, "series")) {
+            if (hasOwnProperty.call(options, "series") && options.series.length) {
                 options.series.forEach(function (series) {
                     plotX = Math.max(plotX, series.plotX);
-                    plotWidth = mathMax(plotWidth, series.plotWidth);
+                    plotWidth = mathMax(plotWidth, pack("number", series.plotWidth, selector.width));
                 });
                 this.x = plotX;
                 this.setWidth(plotWidth);
             }
-            tx = this.x;
-            width = this.width / (options.series.length || 1);
+            tx = this.x + range[0].width / 2;
+            width = (this.width - range[1].width) / (options.series.length || 1);
             options.series.forEach(function (series, index) {
                 var x, y;
                 var data = series.data;
@@ -11930,7 +12591,7 @@ var DataLabels = (function () {
                     startX = tx + dx + i * size,
                     startY = ty + interpolate(getDataValue(data[i]), minValue, maxValue, height, 0)
                 );
-                for(; i < length; i++){
+                for (; i < length; i++) {
                     value = getDataValue(data[i]);
                     x = i * size + dx + tx;
                     if (!isNumber(value)) {
@@ -11965,28 +12626,28 @@ var DataLabels = (function () {
                 endZoom,
                 size;
             var target = -1;
-            if(!this.range.length){
+            if (!this.range.length) {
                 return target;
             }
             startZoom = range[0].viewport;
             endZoom = range[1].viewport;
             size = range[1].x - range[0].x;
-            if(Intersection.rect(
+            if (Intersection.rect(
                 {x: x, y: y},
                 {x: range[0].x, y: this.y, width: range[0].x + size, height: this.y + height}
-            )){
+            )) {
                 target = 0;
             }
-            if(Intersection.rect(
+            if (Intersection.rect(
                 {x: x, y: y},
                 {x: startZoom.left, y: startZoom.top, width: startZoom.left + startZoom.width, height: startZoom.top + this.height}
-            )){
+            )) {
                 target = 1;
             }
-            else if(Intersection.rect(
+            else if (Intersection.rect(
                 {x: x, y: y},
                 {x: endZoom.left, y: endZoom.top, width: endZoom.left + endZoom.width, height: endZoom.top + height}
-            )){
+            )) {
                 target = 2;
             }
             return target;
@@ -11994,14 +12655,14 @@ var DataLabels = (function () {
         getCursor: function (x, y) {
             var cursor = null;
             var target = this.getTarget(x, y);
-            if(target === 0)
+            if (target === 0)
                 cursor = "move";
-            if(target === 1 || target === 2)
+            if (target === 1 || target === 2)
                 cursor = "ew-resize";
             this.hasRange = target > -1 && target < 3;
             return cursor;
         },
-        getRangeValue: function(){
+        getRangeValue: function () {
             var options = this.options,
                 style = options.style || {},
                 fontStyle = {
@@ -12014,13 +12675,16 @@ var DataLabels = (function () {
                 };
             var height = this.height,
                 y = this.y,
+                x,
+                tw,
                 fontSize = pack("number", parseFloat(fontStyle.fontSize, 10) * 0.8);
+            var align;
             var range = this.range,
                 z0 = range[0].viewport,
                 z1 = range[1].viewport;
             var startValue = parseFloat(this.start, 10),
                 endValue = parseFloat(this.end, 10);
-            if(startValue > endValue){
+            if (startValue > endValue) {
                 var t = startValue;
                 startValue = endValue;
                 endValue = t;
@@ -12040,26 +12704,44 @@ var DataLabels = (function () {
             var context = this.context;
 
             this.setValue();
-            if(this.hasRange || this.dragging){
+            if (this.hasRange || this.dragging) {
                 context.save();
                 context.fillStyle = fontStyle.color;
                 context.font = [fontStyle.fontStyle, fontStyle.fontWeight,
                     fontStyle.fontSize + "/" + fontStyle.lineHeight, fontStyle.fontFamily].join(" ");
+                tw = context.measureText(startValue).width;
+                align = "right";
+                x = range[0].x;
+                if (x - tw - z0.width <= this.x) {
+                    align = "left";
+                    x += z0.width * 2;
+                }
+                else x -= z0.width / 2;
+                context.textAlign = align;
+                context.fillText(startValue, x, y + fontSize + (height - fontSize) / 2);
+                tw = context.measureText(endValue).width;
+                x = range[1].x;
+                align = "left";
+                if (x + tw >= this.width) {
+                    align = "right";
+                    x -= z1.width + z1.width;
+                }
+                else x += z1.width / 2;
                 //context.textBaseline = "top";
-                context.textAlign = "right";
-                context.fillText(startValue, range[0].x - z0.width / 2, y + fontSize + (height - fontSize) / 2);
-                context.textAlign = "left";
-                context.fillText(endValue, range[1].x + z1.width / 2, y + fontSize + (height - fontSize) / 2);
+                context.textAlign = align;
+                context.fillText(endValue, x, y + fontSize + (height - fontSize) / 2);
                 context.restore();
             }
         },
         draw: function () {
-            this.drawPlot();
-            this.drawSeries();
-            this.drawNavigator();
-            this.getRangeValue();
+            if (this.options.enabled !== false) {
+                this.drawPlot();
+                this.drawSeries();
+                this.drawNavigator();
+                this.getRangeValue();
+            }
         },
-        onStart: function(x, y, e){
+        onStart: function (x, y, e) {
             var target;
             var start = parseFloat(this.start, 10),
                 end = parseFloat(this.end, 10),
@@ -12069,18 +12751,18 @@ var DataLabels = (function () {
             x = x.x;
             this.dragging = (target = this.target = this.getTarget(x, y)) > -1 && target < 3;
             this.dx = x - this.range[0].x;
-            if(this.from > this.to){
+            if (this.from > this.to) {
                 t = this.from;
                 this.from = this.to;
                 this.to = t;
             }
-            if(start > end){
+            if (start > end) {
                 t = this.start;
                 this.start = this.end;
                 this.end = t;
             }
         },
-        onDrag: function(x, y, callback){
+        onDrag: function (x, y, callback) {
             var width = this.width;
             var range = this.range,
                 z0 = range[0],
@@ -13041,7 +13723,7 @@ var DataLabels = (function () {
                     inverted = !!series.inverted;
                     if (isInside(series)) {
                         reset(shapes);
-                        kdtree = KDTree(shapes);
+                        kdtree = KDTree(shapes, ["x", "y"]);
                         shape = kdtree.nearest({x: x, y: y}, function(a, b){
                             var dx = a.x - b.x,
                                 dy = a.y - b.y;
@@ -13059,7 +13741,7 @@ var DataLabels = (function () {
             if (shared === false) {
                 shapes = results.map(function (item) { return item.shape; });
                 reset(shapes);
-                kdtree = KDTree(shapes);
+                kdtree = KDTree(shapes, ["x", "y"]);
                 shape = kdtree.nearest({x: x, y: y}, function(a, b){
                     var dx = a.x - b.x, dy = a.y - b.y;
                     return dx * dx + dy * dy;
@@ -14764,11 +15446,11 @@ var DataLabels = (function () {
                     var bbox = tag.getBBox();
                     var w = bbox.width,
                         h = bbox.height;
-                    if(isInside){
+                    if (isInside) {
                         x = x - w * reversed;
                         y += h / 2;
                     }
-                    else{
+                    else {
                         x = pack("number",
                             setAlign(x, w)[pack("string", dataLabels.align, "right")],
                             x
@@ -14942,6 +15624,7 @@ var DataLabels = (function () {
                     var minValue, maxValue, logBase;
                     var reversed;
                     var inverted = series.inverted;
+                    var marker = series.marker;
 
                     xAxisOptions = series._xAxis || {};
                     yAxisOptions = series._yAxis || {};
@@ -14970,6 +15653,8 @@ var DataLabels = (function () {
                             isFunction(series.radius) && series.radius.call(shape, shape._source, value, series.minValue, series.maxValue, series),
                             5
                         );
+                        if (isObject(shape.marker))
+                            marker = shape.marker;
 
                         if (isFunction(projection)) {
                             //投影数据需要x，y和value
@@ -15044,6 +15729,8 @@ var DataLabels = (function () {
                         }, shape._source);
                         shape.x = x;
                         shape.y = y;
+                        shape.width = pack("number", marker.width, radius);
+                        shape.height = pack("number", marker.height, radius);
                         shape.radius = radius;
                     }
                 });
@@ -15119,23 +15806,20 @@ var DataLabels = (function () {
                 shadowColor = shape.shadowColor || series.shadowColor,
                 marker = shape.marker || series.marker || {},
                 states = (series.states || {}).hover;
-            var radius = shape.radius,
-                cx = shape.x,
+            var cx = shape.x,
                 cy = shape.y,
-                width, height;
+                width = shape.width,
+                height = shape.height;
             var symbol = pack("string", marker && marker.symbol, "circle");
 
             var color = fillColor;
-            //cy += radius
-            width = radius;
-            height = radius;
             if (shape.isNULL) {
                 return this;
             }
 
             if (defined(fillColor.radialGradient)) {
                 color = Color.parse(fillColor);
-                fillColor = color.radial(cx, cy, radius);
+                fillColor = color.radial(cx, cy, shape.radius);
                 color = color.color;
             }
             if (opacity < 1) {
@@ -15153,6 +15837,7 @@ var DataLabels = (function () {
                 context.fill();
                 context.restore();
             }
+            // symbol 按中心点偏移
             
             context.save();
             context.fillStyle = fillColor;
@@ -15170,11 +15855,11 @@ var DataLabels = (function () {
             context.restore();
         },
         dataLabels: function (context, shape, series) {
-            var radius = shape.radius;
             if (defined(shape.dataLabel.value)) {
                 DataLabels.value(shape.dataLabel.value);
             }
             DataLabels.align(function (type, bbox, options) {
+                var radius = shape.width;
                 var x = shape.x;
                 var t = pack("string", type, "center");
                 var margin = 5;
@@ -15184,6 +15869,7 @@ var DataLabels = (function () {
                     right: x + radius + margin
                 }[t];
             }).vertical(function (type, bbox) {
+                var radius = shape.height;
                 var y = shape.y;
                 var t = pack("string", type, "middle");
                 var margin = 5;
@@ -16362,9 +17048,8 @@ var DataLabels = (function () {
                                 shape.name = properties.name;
                             shape.code = properties.code || properties.id;
                             shape.points = points;
-                            
                             var cp = properties.cp;
-                            groups.forEach(function (polygon, i) {
+                            groups.forEach(function (polygon) {
                                 var x, y;
                                 var length = polygon.length,
                                     j;
@@ -16372,18 +17057,15 @@ var DataLabels = (function () {
                                 x = setTransform(0, polygon[j = 0][0], scaleRadio);
                                 y = setTransform(0, polygon[j][1], scaleRadio);
                                 bounds = setBounds(bounds, x, y);
-                                i && points.push({x: x, y: y, isNext: true});
-                                for (j = 1; j < length; j++) {
+                                //i && points.push({x: x, y: y, isNext: true});
+                                for (j = 0; j < length; j++) {
                                     point = polygon[j];
                                     x = setTransform(0, point[0], scaleRadio);
                                     y = setTransform(0, point[1], scaleRadio);
                                     cx += (x - cx) / ++count;
                                     cy += (y - cy) / count;
-                                    points.push({x: x, y: y});
+                                    points.push({x: x, y: y, isNext: point.moved});
                                     bounds = setBounds(bounds, x, y);
-                                }
-                                if (!i && feature.geometry.type === "Polygon") {
-                                    points.push({x: points[0].x, y: points[0].y});
                                 }
                             });
                             if (defined(cp) && isNumber(cp[0], true) && isNumber(cp[1], true)) {
@@ -16513,8 +17195,8 @@ var DataLabels = (function () {
             var gradient;
             var render = function () {
                 context.beginPath();
-                points.forEach(function (point, i) {
-                    context[i && !point.isNext ? "lineTo" : "moveTo"](point.x, point.y);
+                points.forEach(function (point) {
+                    context[/*i && */!point.isNext ? "lineTo" : "moveTo"](point.x, point.y);
                 });
                 //context.closePath();
             };
@@ -16527,7 +17209,7 @@ var DataLabels = (function () {
                     ? gradient.radial(shapeArgs.x, shapeArgs.y, Math.sqrt(s0 * s0 + s1 * s1) / 4)
                     : gradient.linear(0, 0, s0, s1);
             }
-            if (tooltip.enabled !== false && isNumber(shape.current) && shape.current !== -1) {
+            if (tooltip.enabled !== false && fillColor !== "none" && isNumber(shape.current) && shape.current !== -1) {
                 if (!shape.isNULL) {
                     fillColor = Color.parse(fillColor).alpha(0.75).rgba();
                 }
@@ -16549,8 +17231,10 @@ var DataLabels = (function () {
 
             context.save();
             render();
-            context.fillStyle = fillColor;
-            context.fill();
+            if (fillColor !== "none") {
+                context.fillStyle = fillColor;
+                context.fill();
+            }
             if (borderWidth > 0) {
                 context.lineWidth = borderWidth;
                 context.strokeStyle = borderColor;
@@ -17790,7 +18474,7 @@ var DataLabels = (function () {
                 }[t];
             }).call(shape, series, context);
         },
-        getShape: function(x, y){
+        getShape: function (x, y) {
             var series = this.series,
                 length = series.length,
                 shapeLength;
@@ -17810,15 +18494,15 @@ var DataLabels = (function () {
                 item = series[i];
                 reset(shapes = item.shapes);
                 shapeLength = shapes.length;
-                for(var j = 0; j < shapeLength; j++) {
+                for (var j = 0; j < shapeLength; j++) {
                     shape = shapes[j];
-                    if(shape.value === null){
+                    if (shape.value === null) {
                         continue;
                     }
-                    if(Intersection.rect(
+                    if (Intersection.rect(
                         {x: x, y: y},
                         {x: shape.x0, y: shape.y0, width: shape.x1, height: shape.y1}
-                    )){
+                    )) {
                         shape.current = j;
                         if (isNumber(shape._x, true) && isNumber(shape._y, true)) {
                             shape.$value = shape._x + ", " + shape._y + ", " + shape.value;
