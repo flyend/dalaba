@@ -4860,7 +4860,8 @@
                 rv = mergeAt(rv, value, {value: true});
             }
             else {
-                rv = mergeAt(rv, value, {value: true});// candlestick chart
+                rv = mergeAt({}, value, {value: true});// candlestick chart
+                flag = true;
             }
             v = rv.value;
             !undef(value.x) && (rv._x = value.x, reValue(rv, undefined), flag = true);
@@ -4935,7 +4936,7 @@
         candlestick: function (data) {
             var rev = revalue(data, ["open", "close", "high", "low"], true);// {open[0], close[1], high[2], low[3]}
             if (rev) {
-                isNumber(rev.high, true) && (rev.value = rev.high);
+                isNumber(rev.high, true) && (rev.value = rev.maxValue = rev.high);
                 isNumber(rev.low, true) && (rev.minValue = rev.low);
                 !(rev.isNULL = !(isNumber(rev.open, true) && isNumber(rev.close, true)
                     && isNumber(rev.high, true) && isNumber(rev.low))) && (rev["$value"] = [
@@ -12476,7 +12477,7 @@ var DataLabels = (function () {
             var width = this.width,
                 height = this.height,
                 x = this.x + borderWidth,
-                y = this.y;
+                y = this.y - borderWidth;
             var context = this.context;
             var linePixel = fixLinePixel(x, y, width, height, borderWidth);
             linePixel.width -= 10;
@@ -12533,6 +12534,7 @@ var DataLabels = (function () {
         drawSeries: function () {
             var options = this.options;
             var context = this.context;
+            var range = this.range;
             var tx,
                 ty = this.y,
                 width,
@@ -12559,8 +12561,8 @@ var DataLabels = (function () {
                 this.x = plotX;
                 this.setWidth(plotWidth);
             }
-            tx = this.x;
-            width = this.width / (options.series.length || 1);
+            tx = this.x + range[0].width / 2;
+            width = (this.width - range[1].width) / (options.series.length || 1);
             options.series.forEach(function (series, index) {
                 var x, y;
                 var data = series.data;
@@ -15817,7 +15819,7 @@ var DataLabels = (function () {
 
             if (defined(fillColor.radialGradient)) {
                 color = Color.parse(fillColor);
-                fillColor = color.radial(cx, cy, radius);
+                fillColor = color.radial(cx, cy, shape.radius);
                 color = color.color;
             }
             if (opacity < 1) {

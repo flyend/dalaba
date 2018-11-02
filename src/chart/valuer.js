@@ -74,7 +74,8 @@
                 rv = mergeAt(rv, value, {value: true});
             }
             else {
-                rv = mergeAt(rv, value, {value: true});// candlestick chart
+                rv = mergeAt({}, value, {value: true});// candlestick chart
+                flag = true;
             }
             v = rv.value;
             !undef(value.x) && (rv._x = value.x, reValue(rv, undefined), flag = true);
@@ -149,7 +150,7 @@
         candlestick: function (data) {
             var rev = revalue(data, ["open", "close", "high", "low"], true);// {open[0], close[1], high[2], low[3]}
             if (rev) {
-                isNumber(rev.high, true) && (rev.value = rev.high);
+                isNumber(rev.high, true) && (rev.value = rev.maxValue = rev.high);
                 isNumber(rev.low, true) && (rev.minValue = rev.low);
                 !(rev.isNULL = !(isNumber(rev.open, true) && isNumber(rev.close, true)
                     && isNumber(rev.high, true) && isNumber(rev.low))) && (rev["$value"] = [

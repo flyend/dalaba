@@ -74,7 +74,7 @@
 
             if (defined(fillColor.radialGradient)) {
                 color = Color.parse(fillColor);
-                fillColor = color.radial(cx, cy, radius);
+                fillColor = color.radial(cx, cy, shape.radius);
                 color = color.color;
             }
             if (opacity < 1) {

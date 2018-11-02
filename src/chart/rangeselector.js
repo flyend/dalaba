@@ -216,7 +216,7 @@
             var width = this.width,
                 height = this.height,
                 x = this.x + borderWidth,
-                y = this.y;
+                y = this.y - borderWidth;
             var context = this.context;
             var linePixel = fixLinePixel(x, y, width, height, borderWidth);
             linePixel.width -= 10;
@@ -273,6 +273,7 @@
         drawSeries: function () {
             var options = this.options;
             var context = this.context;
+            var range = this.range;
             var tx,
                 ty = this.y,
                 width,
@@ -299,8 +300,8 @@
                 this.x = plotX;
                 this.setWidth(plotWidth);
             }
-            tx = this.x;
-            width = this.width / (options.series.length || 1);
+            tx = this.x + range[0].width / 2;
+            width = (this.width - range[1].width) / (options.series.length || 1);
             options.series.forEach(function (series, index) {
                 var x, y;
                 var data = series.data;
