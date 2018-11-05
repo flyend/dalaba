@@ -9,6 +9,8 @@
 
         var extend = Dalaba.extend;
 
+        var hammingDistance = Dalaba.Math.hammingDistance;
+
 
         var dfs = function dfs(root, callbacks) {
             var nodes = isArray(root) ? root : [root];
@@ -38,6 +40,8 @@
                     queue.push(childs[i]);
                 }
             }
+
+            queue = null;// gc
         };
 
         var vstack = function (source, target) {
@@ -111,59 +115,107 @@
                 return nodes;
             };
         };
-        
-        return {
-            /**
-             * deep first search
-             * @ordered {Boolean}
-             *        1
-             *       / \
-             *      2   3
-             *     / \   \
-             *    4   5   6
-             *       / \
-             *      7   8
-             * ordered is false or default: 4 7 8 5 2 6 3 1 (ROOT-L-R), 后序遍历
-             * ordered is true: 1 2 4 5 7 8 3 6 (L-R-ROOT)
-             * @example
-             * const root = [{
-             *   value: 1,
-             *   children: [{
-             *      value: 2,
-             *      children: [{ value: 4 }, { value: 5, children: [{value: 7}, {value: 8}] }]
-             *   }, {
-             *      value: 3,
-             *      children: [{value: 6}]
-             *  }]
-             * }];
-             * dfs(root, value => console.log(value), true)
-            **/
-            dfs: function (root, callback, ordered) {
-                callback = isFunction(callback) ? callback : noop;
-                return dfs(root, [null, callback][ordered === true ? "reverse" : "slice"]());
-            },
-            bfs: bfs,
-            /**
-             * vertical stack tree
-             * @param data {Array}
-             * @param id, pid {String} array object key -> parent
-             * @returns tree data
-             * @example
-             * const data = [
-             *   { source: 0, target: -1, value: 1},
-             *   { source: 1, target: 0, value: 2},
-             *   { source: 2, target: 0, value: 3},
-             *   { source: 3, target: 1, value: 4},
-             *   { source: 4, target: 1, value: 5},
-             *   { source: 5, target: 2, value: 6},
-             *   { source: 6, target: 4, value: 7},
-             *   { source: 7, target: 4, value: 8}
-             * }];
-             * vstack(data)
-            **/
-            vstack: vstack("source", "target"),
-            hstack: hstack("source", "target")
+
+        function tree (root) {
+
+            var insert = function (node, path) {
+            };
+
+            function tree () {
+                return {
+                    push: function (node) {
+                        insert(node);
+                    },
+                    insert: function (node, path) {
+                        insert(node, path);
+                    },
+                    forEach: function (callback) {
+                        dfs(root, [null, callback]);
+                    }
+                };
+            }
+            return tree(root);
+        }
+
+        /**
+         * deep first search
+         * @ordered {Boolean}
+         *        1
+         *       / \
+         *      2   3
+         *     / \   \
+         *    4   5   6
+         *       / \
+         *      7   8
+         * ordered is false or default: 4 7 8 5 2 6 3 1 (ROOT-L-R), 后序遍历
+         * ordered is true: 1 2 4 5 7 8 3 6 (L-R-ROOT)
+         * @example
+         * const root = [{
+         *   value: 1,
+         *   children: [{
+         *      value: 2,
+         *      children: [{ value: 4 }, { value: 5, children: [{value: 7}, {value: 8}] }]
+         *   }, {
+         *      value: 3,
+         *      children: [{value: 6}]
+         *  }]
+         * }];
+         * dfs(root, value => console.log(value), true)
+        **/
+        tree.dfs = function (root, callback, ordered) {
+            callback = isFunction(callback) ? callback : noop;
+            return dfs(root, [null, callback][ordered === true ? "reverse" : "slice"]());
         };
+        tree.bfs = bfs;
+        /**
+         * vertical stack tree
+         * @param data {Array}
+         * @param id, pid {String} array object key -> parent
+         * @returns tree data
+         * @example
+         * const data = [
+         *   { source: 0, target: -1, value: 1},
+         *   { source: 1, target: 0, value: 2},
+         *   { source: 2, target: 0, value: 3},
+         *   { source: 3, target: 1, value: 4},
+         *   { source: 4, target: 1, value: 5},
+         *   { source: 5, target: 2, value: 6},
+         *   { source: 6, target: 4, value: 7},
+         *   { source: 7, target: 4, value: 8}
+         * }];
+         * vstack(data)
+        **/
+        tree.vstack = vstack("source", "target");
+        tree.hstack = hstack("source", "target");
+
+        /**
+         * diff tree
+         * @param a {Array}
+         * @param b {Array}
+         * @param compare {Function}
+         * @returns arrays
+         * @example
+         * diff([{
+         *   value: 1,
+         *   children: [{
+         *      value: 2,
+         *      children: [{ value: 4 }, { value: 5, children: [{value: 7}, {value: 8}] }]
+         *   }, {
+         *      value: 3,
+         *      children: [{value: 6}]
+         *  }]
+         * }], [{
+         *   value: 1,
+         *   children: [{
+         *      value: 2,
+         *      children: [{ value: 4 }, { value: 5, children: [{value: 7}, {value: 8}] }]
+         *   }]
+         * }])
+        **/
+
+        tree.diff = require("./tree.diff").deps(dfs, hammingDistance);
+
+        return tree;
     }
 
     return {

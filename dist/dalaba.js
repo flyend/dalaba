@@ -2769,6 +2769,8 @@
 
         var extend = Dalaba.extend;
 
+        var hammingDistance = Dalaba.Math.hammingDistance;
+
 
         var dfs = function dfs(root, callbacks) {
             var nodes = isArray(root) ? root : [root];
@@ -2798,6 +2800,8 @@
                     queue.push(childs[i]);
                 }
             }
+
+            queue = null;// gc
         };
 
         var vstack = function (source, target) {
@@ -2871,59 +2875,239 @@
                 return nodes;
             };
         };
-        
-        return {
-            /**
-             * deep first search
-             * @ordered {Boolean}
-             *        1
-             *       / \
-             *      2   3
-             *     / \   \
-             *    4   5   6
-             *       / \
-             *      7   8
-             * ordered is false or default: 4 7 8 5 2 6 3 1 (ROOT-L-R), 后序遍历
-             * ordered is true: 1 2 4 5 7 8 3 6 (L-R-ROOT)
-             * @example
-             * const root = [{
-             *   value: 1,
-             *   children: [{
-             *      value: 2,
-             *      children: [{ value: 4 }, { value: 5, children: [{value: 7}, {value: 8}] }]
-             *   }, {
-             *      value: 3,
-             *      children: [{value: 6}]
-             *  }]
-             * }];
-             * dfs(root, value => console.log(value), true)
-            **/
-            dfs: function (root, callback, ordered) {
-                callback = isFunction(callback) ? callback : noop;
-                return dfs(root, [null, callback][ordered === true ? "reverse" : "slice"]());
-            },
-            bfs: bfs,
-            /**
-             * vertical stack tree
-             * @param data {Array}
-             * @param id, pid {String} array object key -> parent
-             * @returns tree data
-             * @example
-             * const data = [
-             *   { source: 0, target: -1, value: 1},
-             *   { source: 1, target: 0, value: 2},
-             *   { source: 2, target: 0, value: 3},
-             *   { source: 3, target: 1, value: 4},
-             *   { source: 4, target: 1, value: 5},
-             *   { source: 5, target: 2, value: 6},
-             *   { source: 6, target: 4, value: 7},
-             *   { source: 7, target: 4, value: 8}
-             * }];
-             * vstack(data)
-            **/
-            vstack: vstack("source", "target"),
-            hstack: hstack("source", "target")
+
+        function tree (root) {
+
+            var insert = function (node, path) {
+            };
+
+            function tree () {
+                return {
+                    push: function (node) {
+                        insert(node);
+                    },
+                    insert: function (node, path) {
+                        insert(node, path);
+                    },
+                    forEach: function (callback) {
+                        dfs(root, [null, callback]);
+                    }
+                };
+            }
+            return tree(root);
+        }
+
+        /**
+         * deep first search
+         * @ordered {Boolean}
+         *        1
+         *       / \
+         *      2   3
+         *     / \   \
+         *    4   5   6
+         *       / \
+         *      7   8
+         * ordered is false or default: 4 7 8 5 2 6 3 1 (ROOT-L-R), 后序遍历
+         * ordered is true: 1 2 4 5 7 8 3 6 (L-R-ROOT)
+         * @example
+         * const root = [{
+         *   value: 1,
+         *   children: [{
+         *      value: 2,
+         *      children: [{ value: 4 }, { value: 5, children: [{value: 7}, {value: 8}] }]
+         *   }, {
+         *      value: 3,
+         *      children: [{value: 6}]
+         *  }]
+         * }];
+         * dfs(root, value => console.log(value), true)
+        **/
+        tree.dfs = function (root, callback, ordered) {
+            callback = isFunction(callback) ? callback : noop;
+            return dfs(root, [null, callback][ordered === true ? "reverse" : "slice"]());
         };
+        tree.bfs = bfs;
+        /**
+         * vertical stack tree
+         * @param data {Array}
+         * @param id, pid {String} array object key -> parent
+         * @returns tree data
+         * @example
+         * const data = [
+         *   { source: 0, target: -1, value: 1},
+         *   { source: 1, target: 0, value: 2},
+         *   { source: 2, target: 0, value: 3},
+         *   { source: 3, target: 1, value: 4},
+         *   { source: 4, target: 1, value: 5},
+         *   { source: 5, target: 2, value: 6},
+         *   { source: 6, target: 4, value: 7},
+         *   { source: 7, target: 4, value: 8}
+         * }];
+         * vstack(data)
+        **/
+        tree.vstack = vstack("source", "target");
+        tree.hstack = hstack("source", "target");
+
+        /**
+         * diff tree
+         * @param a {Array}
+         * @param b {Array}
+         * @param compare {Function}
+         * @returns arrays
+         * @example
+         * diff([{
+         *   value: 1,
+         *   children: [{
+         *      value: 2,
+         *      children: [{ value: 4 }, { value: 5, children: [{value: 7}, {value: 8}] }]
+         *   }, {
+         *      value: 3,
+         *      children: [{value: 6}]
+         *  }]
+         * }], [{
+         *   value: 1,
+         *   children: [{
+         *      value: 2,
+         *      children: [{ value: 4 }, { value: 5, children: [{value: 7}, {value: 8}] }]
+         *   }]
+         * }])
+        **/
+
+        tree.diff = (function () {
+
+    var TREE_POSITION_DISCONNECTED = 1;
+    var TREE_POSITION_CONTAINS = 2;
+    var TREE_POSITION_INTERSECTED = 4;
+    //var TREE_POSITION_DISCONNECTED = 8;
+
+    var toArray = function (data) {
+        return data;
+    };
+
+    function factory (dfs, hammingDistance) {
+
+        var compareTo = function (a, b) {
+            var i0 = a.length,
+                i1 = b.length;
+            //console.log(a, b, a[i0 - 1].hash, b[i1 - 1].hash)
+            if (i0 === i1) {
+                /*var adistance = [];
+                a.forEach(function (d, i) {
+                    var buri = b[i].uri;
+                    if (buri === d.uri && a.value === b.value) {
+
+                    }
+                })*/
+                if (!hammingDistance(parseInt(a[i0 - 1].hash), parseInt(b[i1 - 1].hash)))
+                    return TREE_POSITION_INTERSECTED;
+                else return TREE_POSITION_DISCONNECTED;
+            }
+        };
+
+        var diff = function (compare) {
+            var deep = function (root) {
+
+            };
+
+            var path = function (root) {
+                var path = [];
+                var nodes = [];
+                var newNode;
+                var deep = 0,
+                    hash = "";
+
+                dfs(root, [function (node) {
+                    newNode = extend({}, node);
+                    //newNode.index = 0;
+                    (newNode.children || []).forEach(function (d, i) {
+                        d.index = i;
+                    });
+                    newNode.deep = deep++;
+                    path.push(newNode);
+                }, function () {
+                    var uri = "",
+                        pating = "";
+                    var parent;
+                    path.forEach(function (d) {
+                        var index = d.index,
+                            code = d.deep.toString(2);
+                        var hasIndex = typeof index === "undefined";
+                        !hasIndex && (code += index.toString(2));
+                        pating += code;
+                        if (!d.children) {
+                            hash += pating;
+                            //console.log(d.deep, code, index, hash, d.value, d.index, d.deep)
+                        }
+                        uri += d.deep + "" + (hasIndex ? "" : index) + "/";
+                    });
+                    
+                    newNode = path.pop();
+                    parent = path[path.length - 1];
+                    nodes.push({
+                        node: newNode.value,
+                        deep: deep,
+                        index: newNode.index,
+                        isLeaf: !newNode.children || (newNode.children && !newNode.children.length),
+                        //parent: parent,
+                        uri: uri.slice(0, -1)
+                    });
+                    deep--;
+                }]);
+                path = null;
+                nodes[nodes.length - 1].hash = hash;//后序遍历push最后一个节点为根节点
+                //console.log(JSON.stringify(nodes.map(function (d) { return d.uri; }), null, 2));
+                return toArray(nodes);
+            };
+
+            function diff (a, b) {
+                if (!isFunction(arguments[2])) {
+                    compare = arguments[2];
+                }
+                return compareTo(path(a), path(b));
+            }
+
+            diff.equals = function () {
+
+            };
+
+
+            return diff;
+        };
+
+        return diff(function (a, b) {
+            return a.value === b.value;
+        });
+    }
+
+    return {
+        deps: function (dfs, bfs) {
+            var diff = factory(dfs, bfs);
+            console.log(diff(
+                [{
+                    value: 1,
+                    children: [{
+                        value: 2,
+                        children: [{ value: 4 }, { value: 5, children: [{value: 7}, {value: 8}] }]
+                    }, {
+                        value: 3,
+                        children: [{value: 6}]
+                    }]
+                }],
+                [{
+                    value: 1,
+                    children: [{
+                        value: 2,
+                        children: [{ value: 4 }/*, { value: 5, children: [{value: 7}, {value: 8}] }*/]
+                    }]
+                }]
+            ));
+
+            return diff;
+        }
+    };
+})().deps(dfs, hammingDistance);
+
+        return tree;
     }
 
     return {
@@ -2951,23 +3135,24 @@
     return exports;
 }).call(typeof global !== "undefined" ? global : this).deps(Dalaba);
 
-    Dalaba.ZTree = (function(factoy) {
+    Dalaba.ZTree = (function (factoy) {
     var exports = {
-        deps: function(){
-            var args = Array.prototype.slice.call(arguments, 0);
-            return factoy.apply(null, [].concat(args));
+        deps: function () {
+            return factoy.apply(null, [].slice.call(arguments, 0));
         }
     };
     return exports;
-}).call(this, function(partition) {
+}).call(this, function (partition) {
 
-    var Tree = function(parent, leaf) {
+    var hasOwnProperty = ({}).hasOwnProperty;
+
+    var Tree = function (parent, leaf) {
         this.parent = parent;
-        if(leaf !== null)
+        if (leaf !== null)
             this.leaf = leaf;
     };
 
-    var buildTree = function(data, parent, dimensions, depth) {
+    var buildTree = function (data, parent, dimensions, depth) {
         var dim = dimensions[depth];
         var tree;
         var length, i;
@@ -2976,17 +3161,17 @@
         if (depth >= dimensions.length) {
             return new Tree(parent, data);
         }
-        var groups = partition(data, function(a, b) {
+        var groups = partition(data, function (a, b) {
             if(typeof a[dim] === "undefined" && typeof b[dim] === "undefined")
                 return false;
             return a[dim] === b[dim];
         });
         tree = new Tree(parent, null);//no leaf
         //tree.node = [];
-        for(i = 0, length = groups.length; i < length; i++){
+        for (i = 0, length = groups.length; i < length; i++) {
             //tree.node.push(buildTree(groups[i], tree, dimensions, depth + 1));
             key = groups[i][0][dim];
-            if(typeof key === "undefined"){
+            if (typeof key === "undefined") {
                 key = "z-" + ++id;//会有冲突
             }
             tree[key] = buildTree(groups[i], tree, dimensions, depth + 1);
@@ -2994,20 +3179,21 @@
         return tree;
     };
 
-    var ZTree = function(data, dimensions) {
+    var ZTree = function (data, dimensions) {
         return new ZTree.init(data.slice(0), dimensions);
     };
 
-    ZTree.init = function(data, dimensions) {
+    ZTree.init = function (data, dimensions) {
         this.build(data, dimensions);
         return this;
     };
+
     ZTree.prototype = {
-        build: function(data, dimensions){
+        build: function (data, dimensions) {
             this.root = buildTree(data, null, dimensions, 0);
             //console.log(this.root);
         },
-        update: function(add, modify){
+        update: function (add, modify) {
             var root = this.root;
 
             var setProp = function(node, attrs){
@@ -3016,23 +3202,24 @@
                 }
             };
 
-            var each = function(root){
+            var dfs = function (root) {
                 var props,
                     newProps = { };
+                var p;
 
-                if(!root){
+                if (!root) {
                     return null;
                 }
-                if(root.leaf){
+                if (root.leaf) {
                     newProps = props = add && add(root.leaf);
                     setProp(root, props);
                     return props;
                 }
                 
-                for(var p in root) if(root.hasOwnProperty(p)){
-                    if(p !== "parent"){
-                        props = each(root[p]);
-                        if(props){
+                for (p in root) if (hasOwnProperty.call(root, p)) {
+                    if (p !== "parent") {
+                        props = dfs(root[p]);
+                        if (props) {
                             newProps = modify && modify(newProps, props);
                         }
                     }
@@ -3041,15 +3228,17 @@
                 return newProps;
             };
 
-            each(root);
+            dfs(root);
 
             return this;
         },
-        getRoot: function(){
+        getRoot: function () {
             return this.root;
         }
     };
+
     ZTree.init.prototype = ZTree.prototype;
+
     return ZTree;
 }).deps(Dalaba.Cluster.List.partition);
     
