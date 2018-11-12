@@ -1,9 +1,10 @@
 (function () {
 
     var TREE_POSITION_DISCONNECTED = 1;
-    var TREE_POSITION_CONTAINS = 2;
-    var TREE_POSITION_INTERSECTED = 4;
-    //var TREE_POSITION_DISCONNECTED = 8;
+    var TREE_POSITION_PRECEDING = 2;
+    var TREE_POSITION_FOLLOWING = 4;
+    var TREE_POSITION_CONTAINS = 8;
+    var TREE_POSITION_CONTAINED_BY = 16;
 
     var toArray = function (data) {
         return data;
@@ -14,25 +15,26 @@
         var compareTo = function (a, b) {
             var i0 = a.length,
                 i1 = b.length;
-            //console.log(a, b, a[i0 - 1].hash, b[i1 - 1].hash)
+            var aHash = a[i0 - 1].hash,
+                bHash = b[i1 - 1].hash;
+            //console.log(a, b, aHash, bHash);
             if (i0 === i1) {
-                /*var adistance = [];
-                a.forEach(function (d, i) {
-                    var buri = b[i].uri;
-                    if (buri === d.uri && a.value === b.value) {
-
-                    }
-                })*/
-                if (!hammingDistance(parseInt(a[i0 - 1].hash), parseInt(b[i1 - 1].hash)))
-                    return TREE_POSITION_INTERSECTED;
-                else return TREE_POSITION_DISCONNECTED;
+                if (!hammingDistance(parseInt(aHash), parseInt(bHash)))
+                    return 0;
             }
+            else if (i0 > i1) {
+                //a contain b
+                if (bHash === aHash.slice(0, bHash.length))
+                    return TREE_POSITION_CONTAINED_BY;
+            }
+            else {
+                if (aHash === bHash.slice(0, aHash.length))
+                    return TREE_POSITION_CONTAINS;
+            }
+            return TREE_POSITION_DISCONNECTED;
         };
 
         var diff = function (compare) {
-            var deep = function (root) {
-
-            };
 
             var path = function (root) {
                 var path = [];
@@ -91,10 +93,6 @@
                 return compareTo(path(a), path(b));
             }
 
-            diff.equals = function () {
-
-            };
-
 
             return diff;
         };
@@ -107,7 +105,7 @@
     return {
         deps: function (dfs, bfs) {
             var diff = factory(dfs, bfs);
-            console.log(diff(
+            /*console.log(diff(
                 [{
                     value: 1,
                     children: [{
@@ -122,10 +120,10 @@
                     value: 1,
                     children: [{
                         value: 2,
-                        children: [{ value: 4 }/*, { value: 5, children: [{value: 7}, {value: 8}] }*/]
+                        children: [{ value: 4 }, { value: 5, children: [{value: 7}, {value: 8}] }]
                     }]
                 }]
-            ));
+            ));*/
 
             return diff;
         }
