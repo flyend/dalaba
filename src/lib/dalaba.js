@@ -127,5 +127,7 @@
     
     Dalaba.geo = require("./geo").deps(Dalaba);
 
+    Dalaba.geo.simplify = require("./simplify").deps(Dalaba.Heap, Dalaba.LinkedList);
+
     return Dalaba;
 })();

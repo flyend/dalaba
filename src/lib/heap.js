@@ -27,6 +27,7 @@
                 l = r - 1,
                 j = i;
             var child = data[j];
+
             if (l < size && defaultCompare(child.value, data[l].value) > 0) child = data[j = l];
             if (r < size && defaultCompare(child.value, data[r].value) > 0) child = data[j = r];
             if (j === i) break;
@@ -53,6 +54,7 @@
         defaultCompare = compare || function (a, b) {
             return a - b;
         };
+        this.data = [];
         this.length = 0;
         return this;
     };
@@ -80,6 +82,7 @@
             var size = this.length;
             this[size] = {value: value, index: size};
             up(this, size++);
+            this.data.push(value);
             return this.length = size;
         },
         pop: function () {
@@ -104,6 +107,12 @@
                 (defaultCompare(last.value, removed) < 0 ? up : down)(this, index);
             }
             return index;
+        },
+        update: function (index, value) {
+            var el = this.data[index],
+                i = el.index;
+            this.data[index] = value;
+            (defaultCompare(el.value, value) < 0 ? up : down)(this, i);
         },
         peek: function () {
             return this[0].value;
