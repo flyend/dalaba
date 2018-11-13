@@ -12,7 +12,7 @@
         var hammingDistance = Dalaba.Math.hammingDistance;
 
 
-        var dfs = function dfs(root, callbacks) {
+        var dfs = function dfs (root, callbacks) {
             var nodes = isArray(root) ? root : [root];
             var n = nodes.length,
                 i = -1;
@@ -31,11 +31,12 @@
             var queue = (isArray(root) ? root : [root]).slice();
             var n, i;
             var node, childs;
+            var index = 0;
 
             while (queue.length) {
                 node = queue.shift();
                 childs = (node.children || []).slice();
-                callback && callback.call(node, node, queue.length - 1, queue);
+                callback && callback.call(node, node, index++, queue);
                 if (isArray(childs) && (i = -1, n = childs.length)) for (; ++i < n; ) {
                     queue.push(childs[i]);
                 }
@@ -164,7 +165,7 @@
         **/
         tree.dfs = function (root, callback, ordered) {
             callback = isFunction(callback) ? callback : noop;
-            return dfs(root, [null, callback][ordered === true ? "reverse" : "slice"]());
+            return dfs(root, [isFunction(ordered) ? ordered : null, callback][ordered === true || isFunction(ordered) ? "reverse" : "slice"]());
         };
         tree.bfs = bfs;
         /**

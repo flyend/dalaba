@@ -52,10 +52,12 @@
          * @param filter{Function}
          * Returns Array
         */
-        indexOf: function (data, key) {
-            return indexOf ? indexOf.call(data, key) : (function () {
-                var i = -1, n = data.length;
-                while (++i < n && data[i] !== key);
+        indexOf: function (data, key, fromIndex, useNative) {
+            return (useNative !== false && indexOf) ? indexOf.call(data, key, fromIndex) : (function () {
+                var i = (fromIndex || 0) - 1, n = data.length;
+                var nan = key !== key;
+
+                while (++i < n && ((!nan && data[i] !== key) || (nan && data[i] === data[i])));
                     return i < n ? i : -1;
             })();
         },
@@ -66,7 +68,7 @@
          * Returns Array
         */
         fill: function (n, place) {
-            return Array.prototype.fill ? new Array(n = Math.max(0, n) || 0).fill(place) : (function(){
+            return Array.prototype.fill ? new Array(n = Math.max(0, n) || 0).fill(place) : (function () {
                 var array = [];
                 while (n--) array.push(place);
                 return array;
@@ -79,7 +81,7 @@
     var exports = (function (global) {
         return {
             deps: function () {
-                var args = Array.prototype.slice.call(arguments, 0);
+                var args = [].slice.call(arguments, 0);
                 return function (Dalaba) {
                     var Cluster = {};
 

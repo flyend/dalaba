@@ -43,30 +43,7 @@
         );
     };
 
-    function simplify (points, left, right, weights, threshold) {
-        var maxValue = 0,//distance > 0
-            maxIndex = 0;
-        var distance;
-        var i;
-
-        if (right > (i = left + 1)) {
-            for (; i < right; i++) {
-                distance = length(points[i], points[left], points[right]);//最长的线段距离
-                if (distance > maxValue) {
-                    maxIndex = i;
-                    maxValue = distance;
-                }
-            }
-            if (maxValue > threshold) {
-                weights[maxIndex] = true;
-
-                simplify(points, left, maxIndex, weights, threshold);// 分治
-                simplify(points, maxIndex, right, weights, threshold);
-            }
-        }
-    }
-
-    function filter (buffer, caller) {
+    var filter = function (buffer, caller) {
         var points = [];
         var n = buffer.length - 1,// not last point
             i, j;
@@ -74,9 +51,31 @@
             points[j++] = buffer[i];
         }
         return points;
-    }
+    };
 
     function douglasPeucker (threshold) {
+        function simplify (points, left, right, weights, threshold) {
+            var maxValue = 0,//distance > 0
+                maxIndex = 0;
+            var distance;
+            var i;
+
+            if (right > (i = left + 1)) {
+                for (; i < right; i++) {
+                    distance = length(points[i], points[left], points[right]);//最长的线段距离
+                    if (distance > maxValue) {
+                        maxIndex = i;
+                        maxValue = distance;
+                    }
+                }
+                if (maxValue > threshold) {
+                    weights[maxIndex] = true;
+
+                    simplify(points, left, maxIndex, weights, threshold);// 分治
+                    simplify(points, maxIndex, right, weights, threshold);
+                }
+            }
+        }
 
         function toBuffer (points, tol) {
             var prev = points[0],
