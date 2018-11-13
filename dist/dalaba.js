@@ -2621,10 +2621,12 @@
          * @param filter{Function}
          * Returns Array
         */
-        indexOf: function (data, key) {
-            return indexOf ? indexOf.call(data, key) : (function () {
-                var i = -1, n = data.length;
-                while (++i < n && data[i] !== key);
+        indexOf: function (data, key, fromIndex, useNative) {
+            return (useNative !== false && indexOf) ? indexOf.call(data, key, fromIndex) : (function () {
+                var i = (fromIndex || 0) - 1, n = data.length;
+                var nan = key !== key;
+
+                while (++i < n && ((!nan && data[i] !== key) || (nan && data[i] === data[i])));
                     return i < n ? i : -1;
             })();
         },
@@ -2635,7 +2637,7 @@
          * Returns Array
         */
         fill: function (n, place) {
-            return Array.prototype.fill ? new Array(n = Math.max(0, n) || 0).fill(place) : (function(){
+            return Array.prototype.fill ? new Array(n = Math.max(0, n) || 0).fill(place) : (function () {
                 var array = [];
                 while (n--) array.push(place);
                 return array;
@@ -2759,7 +2761,7 @@
     var exports = (function (global) {
         return {
             deps: function () {
-                var args = Array.prototype.slice.call(arguments, 0);
+                var args = [].slice.call(arguments, 0);
                 return function (Dalaba) {
                     var Cluster = {};
 
@@ -2781,7 +2783,7 @@
         var hammingDistance = Dalaba.Math.hammingDistance;
 
 
-        var dfs = function dfs(root, callbacks) {
+        var dfs = function dfs (root, callbacks) {
             var nodes = isArray(root) ? root : [root];
             var n = nodes.length,
                 i = -1;
@@ -2800,11 +2802,12 @@
             var queue = (isArray(root) ? root : [root]).slice();
             var n, i;
             var node, childs;
+            var index = 0;
 
             while (queue.length) {
                 node = queue.shift();
                 childs = (node.children || []).slice();
-                callback && callback.call(node, node, queue.length - 1, queue);
+                callback && callback.call(node, node, index++, queue);
                 if (isArray(childs) && (i = -1, n = childs.length)) for (; ++i < n; ) {
                     queue.push(childs[i]);
                 }
@@ -2933,7 +2936,7 @@
         **/
         tree.dfs = function (root, callback, ordered) {
             callback = isFunction(callback) ? callback : noop;
-            return dfs(root, [null, callback][ordered === true ? "reverse" : "slice"]());
+            return dfs(root, [isFunction(ordered) ? ordered : null, callback][ordered === true || isFunction(ordered) ? "reverse" : "slice"]());
         };
         tree.bfs = bfs;
         /**
@@ -3713,30 +3716,7 @@
         );
     };
 
-    function simplify (points, left, right, weights, threshold) {
-        var maxValue = 0,//distance > 0
-            maxIndex = 0;
-        var distance;
-        var i;
-
-        if (right > (i = left + 1)) {
-            for (; i < right; i++) {
-                distance = length(points[i], points[left], points[right]);//最长的线段距离
-                if (distance > maxValue) {
-                    maxIndex = i;
-                    maxValue = distance;
-                }
-            }
-            if (maxValue > threshold) {
-                weights[maxIndex] = true;
-
-                simplify(points, left, maxIndex, weights, threshold);// 分治
-                simplify(points, maxIndex, right, weights, threshold);
-            }
-        }
-    }
-
-    function filter (buffer, caller) {
+    var filter = function (buffer, caller) {
         var points = [];
         var n = buffer.length - 1,// not last point
             i, j;
@@ -3744,9 +3724,31 @@
             points[j++] = buffer[i];
         }
         return points;
-    }
+    };
 
     function douglasPeucker (threshold) {
+        function simplify (points, left, right, weights, threshold) {
+            var maxValue = 0,//distance > 0
+                maxIndex = 0;
+            var distance;
+            var i;
+
+            if (right > (i = left + 1)) {
+                for (; i < right; i++) {
+                    distance = length(points[i], points[left], points[right]);//最长的线段距离
+                    if (distance > maxValue) {
+                        maxIndex = i;
+                        maxValue = distance;
+                    }
+                }
+                if (maxValue > threshold) {
+                    weights[maxIndex] = true;
+
+                    simplify(points, left, maxIndex, weights, threshold);// 分治
+                    simplify(points, maxIndex, right, weights, threshold);
+                }
+            }
+        }
 
         function toBuffer (points, tol) {
             var prev = points[0],
