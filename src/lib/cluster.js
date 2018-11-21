@@ -67,10 +67,15 @@
          * @param place{.} All js data type
          * Returns Array
         */
-        fill: function (n, place) {
-            return Array.prototype.fill ? new Array(n = Math.max(0, n) || 0).fill(place) : (function () {
+        fill: function (n, place, start, end) {
+            return Array.prototype.fill ? new Array(n = Math.max(0, n) || 0).fill(place, start, end) : (function () {
                 var array = [];
-                while (n--) array.push(place);
+                var i = start || 0;
+
+                if (!isNaN(+end)) n = +end;
+
+                while (i < n) array.push(place), i++;
+                
                 return array;
             })();
         }

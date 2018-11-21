@@ -917,51 +917,25 @@
 
     var mathMax = Math.max,
         mathMin = Math.min;
-
+    
     //Think Right Before you Leap
     function TRouBLe () {
+        var packNumber = function (d) { return pack("number", +d, 0); };
         var args = arguments,
-            n = args.length;
-        var top = args[0];
+            top = [0];//default value is 0
 
-        var filled = function (n, v) {
-            var r = [], i = -1;
-            while (++i < n) r.push(pack("number", v[i], 0));
+        if (isArray(args[0]))
+            top = args[0].map(packNumber);
+        else if (args.length)
+            top = [].map.call(args, packNumber);
 
-            return r;
-        };
-
-        var fixed = function (d) {
-            var r = [], n = d.length, i = -1;
-            while (++i < n) r.push(pack("number", d[i], 0));
-
-            return r;
-        };
-
-        var concated = function () {
-            var args = [].slice.call(arguments, 0),
-                i = -1,
-                n = args.length;
-            var r = [];
-
-            while (++i < n) r = r.concat(args[i]);
-
-            return r;
-        };
-
-        if (!n && !(top = 0) || (isNumber(top, true) && n === 1)) {
-            return [top, top, top, top];
+        switch (top.length) {
+            case 0: case 1: top.push(top[0]);
+            case 2: [].push.apply(top, top); break;
+            case 3: top.push(top[1]);
         }
 
-        if (!isArray(args[0]) && n) {
-            top = [].slice.call(args, 0);
-        }
-
-        n = top.length;
-
-        return n === 1 ? filled(4, top.concat(top, top, top))
-            : n === 2 ? concated(filled(2, top), fixed(top))
-                : n === 3 ? concated(fixed(top), filled(1, [top[0]])) : fixed(top.slice(0, 4));
+        return top.slice(0, 4);
     }
 
     var Formatter = {
@@ -2636,10 +2610,15 @@
          * @param place{.} All js data type
          * Returns Array
         */
-        fill: function (n, place) {
-            return Array.prototype.fill ? new Array(n = Math.max(0, n) || 0).fill(place) : (function () {
+        fill: function (n, place, start, end) {
+            return Array.prototype.fill ? new Array(n = Math.max(0, n) || 0).fill(place, start, end) : (function () {
                 var array = [];
-                while (n--) array.push(place);
+                var i = start || 0;
+
+                if (!isNaN(+end)) n = +end;
+
+                while (i < n) array.push(place), i++;
+                
                 return array;
             })();
         }
