@@ -2,8 +2,8 @@
 
     var mathMax = Math.max,
         mathMin = Math.min;
-    
-    //Think Right Before you Leap
+
+    //Think Right Before you Leap, top->right->bottom->left
     function TRouBLe () {
         var packNumber = function (d) { return pack("number", +d, 0); };
         var args = arguments,
@@ -15,7 +15,7 @@
             top = [].map.call(args, packNumber);
 
         switch (top.length) {
-            case 0: case 1: top.push(top[0]);
+            case 1: top.push(top[0]);
             case 2: [].push.apply(top, top); break;
             case 3: top.push(top[1]);
         }

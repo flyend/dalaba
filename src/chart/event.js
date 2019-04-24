@@ -11,31 +11,38 @@
 
         var hasTouch = defined(document) && ("ontouchstart" in document);// document.documentElement.ontouchstart !== undefined;
 
-        var normalize = function(e, element){
+        var normalize = function (e, element) {
             var x, y;
-            var pos, bbox;
+            var event, bbox;
+            var sw, sh;
+
             e = e || global.event;
-            if(!e.target)
+            if (!e.target)
                 e.target = e.srcElement;
-            pos = e.touches ? e.touches.length ? e.touches[0] : e.changedTouches[0] : e;
+            event = e.touches ? e.touches.length ? e.touches[0] : e.changedTouches[0] : e;
             bbox = element.getBoundingClientRect();
-            if(!bbox){
-                //bbox = offset(element);
+
+            isNaN(sw = element.width / bbox.width) && (sw = 1);
+            isNaN(sh = element.height / bbox.height) && (sh = 1);
+
+            if (event.pageX === undefined) {
+                x = Math.max(e.x, e.clientX - bbox.left - element.clientLeft) * sw;
+                y = (event.clientY - bbox.top - element.clientTop) * sh;
             }
-            
-            if(pos.pageX === undefined){
-                x = Math.max(e.x, e.clientX - bbox.left);
-                y = e.y;
+            else {
+                x = (event.pageX - bbox.left) * sw;
+                y = (event.pageY - bbox.top) * sh;
             }
-            else{
-                x = pos.pageX - bbox.left;
-                y = pos.pageY - bbox.top;
-            }
-            x *= pack("number", element.width / DEVICE_PIXEL_RATIO, element.offsetWidth) / bbox.width;
-            y *= pack("number", element.height / DEVICE_PIXEL_RATIO, element.offsetHeight) / bbox.height;
+
+            x *= pack(function (d) {
+                return isNumber(d, true);
+            }, element.width / DEVICE_PIXEL_RATIO, element.offsetWidth / bbox.width, 1);
+            y *= pack(function (d) {
+                return isNumber(d, true);
+            }, element.height / DEVICE_PIXEL_RATIO, element.offsetHeight / bbox.height, 1);
             return {
-                x: x - Math.max(document.body.scrollLeft, global.scrollX),
-                y: y - Math.max(document.body.scrollTop, global.scrollY)
+                x: x - pack("number", global.scrollX),// Math.max(document.body.scrollLeft, global.scrollX),
+                y: y - pack("number", global.scrollY)// Math.max(document.body.scrollTop, global.scrollY)
             };
         };
         var Event = {
@@ -43,7 +50,7 @@
             normalize: normalize
         };
         return extend(Event, {
-            draggable: function(){
+            draggable: function () {
                 var sx = 0, sy = 0, dx = 0, dy = 0;
                 return {
                     start: function(element, e){

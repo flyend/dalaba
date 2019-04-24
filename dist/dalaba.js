@@ -1,6 +1,6 @@
 /**
  * dalaba - A JavaScript chart library for Canvas.
- * @date 2018/11/10
+ * @date 2019/04/17
  * @version v0.3.1
  * @license ISC
  */
@@ -917,8 +917,8 @@
 
     var mathMax = Math.max,
         mathMin = Math.min;
-    
-    //Think Right Before you Leap
+
+    //Think Right Before you Leap, top->right->bottom->left
     function TRouBLe () {
         var packNumber = function (d) { return pack("number", +d, 0); };
         var args = arguments,
@@ -930,7 +930,7 @@
             top = [].map.call(args, packNumber);
 
         switch (top.length) {
-            case 0: case 1: top.push(top[0]);
+            case 1: top.push(top[0]);
             case 2: [].push.apply(top, top); break;
             case 3: top.push(top[1]);
         }
@@ -2779,7 +2779,6 @@
 
         var bfs = function (root, callback) {
             var queue = (isArray(root) ? root : [root]).slice();
-            var n, i;
             var node, childs;
             var index = 0;
 
@@ -2787,9 +2786,7 @@
                 node = queue.shift();
                 childs = (node.children || []).slice();
                 callback && callback.call(node, node, index++, queue);
-                if (isArray(childs) && (i = -1, n = childs.length)) for (; ++i < n; ) {
-                    queue.push(childs[i]);
-                }
+                if (isArray(childs)) [].push.apply(queue, childs);
             }
 
             queue = null;// gc
@@ -3095,6 +3092,272 @@
         }
     };
 })().deps(dfs, hammingDistance);
+
+        tree.trie = (function () {
+    function factory (levenshtein) {
+        function trie () {
+            var root = null;
+            var leafs = [];
+
+            var splitter = Infinity;
+            var valueOf = function (d) { return d; };
+
+            function trie (tables) {
+                var dp = [];
+                var prev = [];
+
+                root = {value: "-1", children: []};
+                leafs = [];
+
+                for (var i = 0; i < tables.length; i++) {
+                    var values = tables[i], value;
+                    var state = dp[dp.length - 1];
+
+                    var next = root;
+                    var n = values.length, j = 0, k;
+                    var indexes = levenshtein(prev, prev = values.map(valueOf), state, splitter);
+                    // console.log(indexes)
+
+                    for (j = 0; j < n; j++) {
+                        value = values[j];
+                        k = indexes[j];
+                        if (j < splitter) {
+                            next = next.children[k] = next.children[k] || { value: value, children: [], col: j, index: i};
+                        }
+                    }
+                    // delete next.children;                    
+                    // merge remaining node
+                    for (j = 0; j < n - splitter; j++) {
+                        value = {
+                            __sort: j,
+                            col: j + splitter,
+                            index: i,
+                            range: [i, i],
+                            isLeaf: splitter + 1 <= j + splitter,
+                            value: values[splitter + j]
+                        };
+                        next.children.push(value);
+                    }
+                    leafs.push(next);
+                    dp.push(indexes);
+                }
+                leafs.forEach(function (leaf) {
+                    leaf.children.sort(function (a, b) { return a.__sort - b.__sort; });
+                    leaf.children.forEach(function (d) { delete d.__sort; });
+                });
+
+                dp = prev = null;
+
+                return trie;
+            }
+
+            trie.root = function () {
+                return root;
+            };
+            trie.leaf = function () {
+                return leafs;
+            };
+
+            trie.splitter = function (_) {
+                return arguments.length ? (splitter = +_, isNaN(splitter) && (splitter = Infinity), trie) : splitter;
+            };
+
+            trie.valueOf = function (_) {
+                return arguments.length && ({}).toString.call(_) === "[object Function]" ? (valueOf = _, trie) : valueOf;
+            };
+
+            return trie;
+        }
+        return trie;
+    }
+    return {
+        deps: function (levenshtein) {
+            return factory(levenshtein);
+        }
+    };
+}).call(typeof window !== "undefined" ? window : this).deps((function () {
+	function levenshtein (s0, s1, dp, splitter) {
+        var indexes = new Array(s1.length);// s0 and s1 are the same size
+        var n = s1.length, i = 0;
+        var current, left, top, lefttop;
+
+        splitter = Math.min(splitter, n);
+
+        for (; i < n; i++) indexes[i] = 0;
+
+        if (s0 == null || !s0.length) return indexes;
+
+        indexes[0] = (0 >= splitter || s0[0] !== s1[0]) ? dp[0] + 1 : dp[0];
+        
+        for (i = 1; i < n; i++) {
+            current = s1[i];
+            left = s1[i - 1];
+            lefttop = s0[i - 1];// left-top i - 1, top = i
+            top = s0[i];
+            if (!(i <= splitter && left === lefttop)) {
+                indexes[i] = 0;// 遗传下去
+                break;
+            }
+            indexes[i] = current === top
+                ? (i === splitter || i === n - 1) ? dp[i] + 1 : dp[i] // some leaf
+                : dp[i] + 1;
+        }
+        return indexes;
+    }
+    return levenshtein;
+})());
+
+        tree.rangetree = (function () {
+
+    function factory (trie, dfs) {
+        function rangetree () {
+
+            var filter = function (childs) { return childs; };
+            var valueOf = function (d) { return d; };
+
+            var tree, tables;
+            var splitter = Infinity;
+            var dp;
+
+            function build (data) {
+                tree = [trie().valueOf(valueOf).splitter(rangetree.splitter())(data).root()];
+                return tree;
+            }
+
+            function treePath (root) {
+                var path = [];
+                var nodes = [];
+                var tables = {};
+                var newNode;
+                var deep = 0,
+                    hash = "";
+
+                dfs(root, function (node) {
+                    newNode = extend({}, node);
+                    (newNode.children || []).forEach(function (d, i) {
+                        d.index = i;
+                    });
+                    newNode.deep = deep++;
+                    path.push(newNode);
+                }, function () {
+                    var uri = "",
+                        pating = "";
+                    var node, parent;
+                    path.forEach(function (d) {
+                        var index = d.index,
+                            code = d.deep.toString(2);
+                        var hasIndex = typeof index === "undefined";
+                        !hasIndex && (code += index.toString(2));
+                        pating += code;
+                        if (!d.children) {
+                            hash += pating;
+                        }
+                        uri += d.deep + "" + (hasIndex ? "" : index) + "/";
+                    });
+                    
+                    newNode = path.pop();
+                    parent = path[path.length - 1];
+                    node = {
+                        node: newNode.value,
+                        deep: deep,
+                        index: newNode.index,
+                        row: newNode.range[1],
+                        col: newNode.col,
+                        range: newNode.range,
+                        isLeaf: !newNode.children || (newNode.children && !newNode.children.length),
+                        //parent: parent,
+                        uri: uri.slice(0, -1),
+                    };
+                    nodes.push(node);
+                    tables[node.uri] = node;
+                    deep--;
+                });
+                path = null;
+                if (nodes.length) {
+                    nodes[nodes.length - 1].hash = hash;//后序遍历push最后一个节点为根节点
+                }
+                return tables;
+            }
+            
+            function treeRange (filter) {
+                function dfs (tree, deep) {
+                    var childs;
+                    tree.forEach(function (node) {
+                        childs = node.children;
+                        if (childs) {
+                            if (filter) childs = filter.call(node, childs);
+                            dfs(childs, deep + 1);
+                            dp[deep] = dp[deep] ? [dp[deep][1] + 1, dp[deep][1] + childs.length] : [0, childs.length - 1];
+                            node.range = [dp[deep][0], dp[dp.length - 1][1]];
+                        }
+                    });
+                }
+                return dfs;
+            }
+
+            function rangetree (data) {
+                dp = [];
+                tree = build.apply(null, [data].concat([].slice.call(arguments, 1)));
+
+                treeRange(filter)(tree, 0);
+
+                tables = treePath(tree);
+
+                dp = null;
+
+                return rangetree;
+            }
+
+            rangetree.filter = function (_) {
+                return arguments.length ? (filter = _, rangetree) : filter;
+            };
+
+            rangetree.splitter = function (_) {
+                return arguments.length ? (splitter = +_, isNaN(splitter) && (splitter = Infinity), rangetree) : splitter;
+            };
+
+            rangetree.treePath = function () {
+                return tables;
+            };
+
+            rangetree.tree = function () {
+                return tree;
+            };
+
+            rangetree.getXY = function (uri) {
+                return tables[uri];
+            };
+
+            rangetree.getPath = function (x, y) {
+                var table, range, p;
+                if (isNumber(x, true) && isNumber(y, true) && x * y >= 0) for (p in tables) if (hasOwnProperty.call(tables, p)) {
+                    range = (table = tables[p]).range;
+                    if (y === table.col && (x === table.row || (x >= range[0] && x <= range[1]))) {
+                        return p;// console.log(table, p);
+                    }
+                }
+                return null;
+            };
+
+            rangetree.valueOf = function (_) {
+                return arguments.length && ({}).toString.call(_) === "[object Function]" ? (valueOf = _, rangetree) : valueOf;
+            };
+
+            return rangetree;
+        }
+
+        return rangetree;
+    }
+
+    return {
+        deps: function () {
+            return factory.apply(null, [].slice.call(arguments));
+        }
+    };
+}).call(typeof window !== "undefined" ? window : this).deps(
+            tree.trie,
+            tree.dfs
+        );
 
         return tree;
     }
@@ -3877,6 +4140,320 @@
     };
 })().deps(Dalaba.Heap, Dalaba.LinkedList);
 
+    Dalaba.CSSParser = (function () {
+    var hasOwnProperty = ({}).hasOwnProperty;
+
+    var toString = ({}).toString;
+
+    var isString = function (d) {
+        return toString.call(d) === "[object Object]";
+    };
+
+    var isFunction = function (d) {
+        return toString.call(d) === "[object Function]";
+    };
+
+    var camelize = function (s) {
+        return s.replace(/-(\w)/g, function (_, c) {
+            return c ? c.toUpperCase() : "";
+        });
+    };
+
+    var namespace = function (context, selector, value) {
+        var tokens = selector.split(/\s+/g),
+            ns = context[tokens[0]] = context[tokens[0]] || {};
+        tokens.slice(1).forEach(function (d) {
+            ns = ns[d] = ns[d] || {};
+        });
+        return Object.assign(ns, value);
+    };
+
+    var merge = function (source, target) {
+        var p;
+        for (p in target) if (!hasOwnProperty.call(source, p) && hasOwnProperty.call(target, p)) {
+            source[p] = target[p];
+        }
+    };
+
+    var isPrimitive = function (content) {
+        var start = content[0],
+            end = content[content.length - 1];
+        var primitive = 0;
+
+        switch (true) {
+            case start.charCodeAt() === 0x7B && end.charCodeAt() === 0x7D: primitive = 1; break;
+            case start.charCodeAt() === 0x5B && end.charCodeAt() === 0x5D: primitive = 1; break;
+            default: primitive = 0; break;
+        }
+        return primitive;
+    };
+
+    var parseJSON = function (content) {
+        var vars = this.var;
+        var start = content[0],
+            args = [].slice.call(arguments, 1);
+        var primitive = 0;
+        var evalFn = content;
+        var callArgs;
+
+        try {
+            if (primitive = isPrimitive(content)) {
+                evalFn = JSON.parse(content);
+            }
+            else if (content.substr(0, 1) === "@") {
+                start = content.indexOf("(");
+                primitive = content.substr(1, start < 0 ? content.length : start - 1).trim();
+                if (primitive && hasOwnProperty.call(vars, primitive)) {
+                    if (start < 0) {
+                        evalFn = isFunction(vars[primitive]) ? vars[primitive].apply(vars, args) : vars[primitive];
+                    }
+                    else {
+                        // only one call is supported
+                        callArgs = content.substr(-~start, content.lastIndexOf(")") - start - 1);
+                        callArgs = new Function("", "return [" + callArgs + "]")();
+                        evalFn = vars[primitive].apply(null, callArgs);
+                        return isFunction(evalFn) ? evalFn.apply(vars, args) : evalFn;
+                    }
+                }
+            }
+            else if (content.substr(0, 8) === "function") {
+                start = content.indexOf("{");
+                evalFn = new Function("", [
+                    "return " + content.substr(0, start - 1) + " {",
+                    vars == null ? "if (true) {" : "with (this.var) {",
+                    content.substr(start + 1),
+                    "}"
+                ].join("\n"))().apply(this, args);
+            }
+            return evalFn;
+        }
+        catch (_) {
+            console.error("error parse " + _ + ".");
+            return content;
+        }
+    };
+
+    var CSSParser = (function () {
+
+        var propertyMap = function (styles, isvar) {
+            var props;
+            [].forEach.call(styles, function (prop) {
+                var name = prop.trim(),
+                    value;
+                var prefix;
+                name = name.substr(name.substr(0, 2) === "--" ? 2 : 0);
+                value = (styles.getPropertyValue(prop) || "").trim();
+                if (isvar) {
+                    prefix = value.indexOf("{");
+                    value = new Function("", "return " +
+                        (value.substr(0, 8) === "function"
+                            ? [value.substr(0, prefix - 1),
+                                " { ",
+                                "with (this) {",
+                                value.substr(prefix + 1),
+                                " }"
+                            ].join("\n")
+                            : value)
+                    ).apply(this, [prop]);
+                }
+                if (name && value) {
+                    props || (props = {});
+                    props[camelize(name)] = value;
+                }
+            }, this);
+            return props;
+        };
+
+        var attrMap = function (rule) {
+            var prefix, suffix, ns, attr;
+            if (!isString(rule) && (rule = (rule || "").trim()) && !rule.length) {
+                return null;
+            }
+            prefix = rule.indexOf("[");
+            suffix = rule.lastIndexOf("]");
+            if (prefix * suffix < 0) {
+                return null;
+            }
+            ns = rule.substr(0, prefix).trim();
+            attr = rule.substr(-~prefix, ~-suffix - prefix).trim();
+            if (!ns.length || !attr.length || attr.indexOf("[") + attr.lastIndexOf("]") > -1) {
+                return null;
+            }
+            return {
+                ns: ns,
+                name: attr,
+                value: null // TODO parse attribute value
+            };
+        };
+
+        var styleSheets = function (cssText) {
+            var style = document.createElement("style");
+            style.type = "text/css";
+            style.innerText = cssText;
+            document.head.appendChild(style);
+            return style.sheet;// document.styleSheets[0];
+        };
+
+        var parser = function (rule) {
+            var selector = (rule.selectorText || "").trim(),
+                styles = rule.style;
+            var props;
+            var isvar = selector === "var" || selector === "function";
+            
+            if (selector.length) {
+                props = propertyMap.call(this, styles, isvar);
+                if (isvar) {
+                    Object.assign(this.var, props);
+                }
+                else {
+                    if (hasOwnProperty.call(this.rules, selector)) {
+                        props = Object.assign(this.rules[selector], props);
+                    }
+                    else {
+                        this.rules[selector] = props;
+                    }
+                    props && namespace(this._json, selector, props);
+                }
+            }
+        };
+
+        function CSSParser (cssText, options) {
+            return new CSSParser.fn.init(cssText, options);
+        }
+
+        CSSParser.parse = function (cssText, options) {
+            return new CSSParser.fn.init(cssText, options);
+        };
+
+        CSSParser.fn = CSSParser.prototype = {
+            constructor: CSSParser,
+            init: function (cssText, options) {
+                this.rules = {};
+                this.var = {};
+                this._json = {};
+
+                this.useJSON = !!options || !!(options && options.useJSON);
+                
+                if (cssText) {
+                    if (cssText.sheet instanceof CSSStyleSheet) {
+                        this.sheet = cssText.sheet;
+                    }
+                    else {
+                        this.sheet = styleSheets(cssText);
+                    }
+                    if (this.sheet.cssRules != null) {
+                        [].forEach.call(this.sheet.cssRules, function (rule) {
+                            parser.call(this, rule);
+                        }, this);
+
+                        merge(this, this._json);
+                    }
+                }
+
+                return this;
+            },
+            addRule: function (rule, value) {
+                var newRule, rules;
+                this.sheet.addRule(rule, value);
+                rules = this.sheet.cssRules;
+                if (rules != null) {
+                    newRule = rules[rules.length - 1];
+                    parser.call(this, newRule);
+                    merge(this, this._json);
+                }
+            },
+            attr: function (rule) {
+                var rules = this.rules,
+                    vars = this.var,
+                    useJSON = this.useJSON,
+                    context = this;
+                var attr = attrMap(rule), ns;// namespace and attr name&value
+                var args = [].slice.call(arguments, 1),
+                    objects,
+                    n,
+                    i = -1,
+                    ob;
+
+                var parseTo = function (d) {
+                    return useJSON ? parseJSON.apply(context, [d].concat(args)) : d;
+                };
+
+                if (attr === null) return null;
+                ns = attr.ns;
+                attr = attr.name;
+                objects = args.concat(rules[ns]);//[].splice.call(objects, objects.length, 0, rules[ns]);
+                n = objects.length;
+
+                while (++i < n) if (ob = objects[i]) {
+                    if (hasOwnProperty.call(ob, attr)) {
+                        return parseTo(ob[attr]);
+                    }
+                }
+                return null;
+            },
+            rule: function (rule) {
+                var rules = this.rules;
+                var newRule = null, p;
+                var context = this;
+
+                var toPrimitive = function (content) {
+                    var evalFn = content;
+
+                    if (content.includes("false")) return false;
+                    else if (content.includes("true")) return true;
+
+                    try {
+                        if (isPrimitive(content)) {
+                            evalFn = JSON.parse(content);
+                        }
+                    }
+                    catch (_) {
+                        console.error("Uncaught SyntaxError: Unexpected token o in JSON " + _ + ".");
+                    }
+                    return evalFn;
+                };
+
+                if (hasOwnProperty.call(rules, rule)) {
+                    rule = rules[rule];
+                    if (!this.useJSON) return rule;
+
+                    for (p in rule) if (hasOwnProperty.call(rule, p)) {
+                        newRule || (newRule = {});
+                        newRule[p] = toPrimitive.call(context, rule[p]);
+                    }
+                    return newRule;
+                }
+                return null;
+            },
+            toJSON: function () {
+                return this._json;
+            },
+            clear: function () {
+                this.sheet.deleteRule();
+                this.rules = {};
+                this._json = {};
+            }
+        };
+
+        CSSParser.fn.init.prototype = CSSParser.fn;
+
+        return CSSParser;
+    })();
+
+    if (typeof module === "object" && module.exports) {
+        module.exports = CSSParser;
+    }
+    else if (typeof define === "function" && define.amd) {
+        define(function () {
+            return CSSParser;
+        });
+    }
+    else {
+        global.CSSParser = CSSParser;
+    }
+    return CSSParser;
+}).call(typeof global !== "undefined" ? global : window);;
+
     return Dalaba;
 })();;
 
@@ -4175,31 +4752,38 @@
 
         var hasTouch = defined(document) && ("ontouchstart" in document);// document.documentElement.ontouchstart !== undefined;
 
-        var normalize = function(e, element){
+        var normalize = function (e, element) {
             var x, y;
-            var pos, bbox;
+            var event, bbox;
+            var sw, sh;
+
             e = e || global.event;
-            if(!e.target)
+            if (!e.target)
                 e.target = e.srcElement;
-            pos = e.touches ? e.touches.length ? e.touches[0] : e.changedTouches[0] : e;
+            event = e.touches ? e.touches.length ? e.touches[0] : e.changedTouches[0] : e;
             bbox = element.getBoundingClientRect();
-            if(!bbox){
-                //bbox = offset(element);
+
+            isNaN(sw = element.width / bbox.width) && (sw = 1);
+            isNaN(sh = element.height / bbox.height) && (sh = 1);
+
+            if (event.pageX === undefined) {
+                x = Math.max(e.x, e.clientX - bbox.left - element.clientLeft) * sw;
+                y = (event.clientY - bbox.top - element.clientTop) * sh;
             }
-            
-            if(pos.pageX === undefined){
-                x = Math.max(e.x, e.clientX - bbox.left);
-                y = e.y;
+            else {
+                x = (event.pageX - bbox.left) * sw;
+                y = (event.pageY - bbox.top) * sh;
             }
-            else{
-                x = pos.pageX - bbox.left;
-                y = pos.pageY - bbox.top;
-            }
-            x *= pack("number", element.width / DEVICE_PIXEL_RATIO, element.offsetWidth) / bbox.width;
-            y *= pack("number", element.height / DEVICE_PIXEL_RATIO, element.offsetHeight) / bbox.height;
+
+            x *= pack(function (d) {
+                return isNumber(d, true);
+            }, element.width / DEVICE_PIXEL_RATIO, element.offsetWidth / bbox.width, 1);
+            y *= pack(function (d) {
+                return isNumber(d, true);
+            }, element.height / DEVICE_PIXEL_RATIO, element.offsetHeight / bbox.height, 1);
             return {
-                x: x - Math.max(document.body.scrollLeft, global.scrollX),
-                y: y - Math.max(document.body.scrollTop, global.scrollY)
+                x: x - pack("number", global.scrollX),// Math.max(document.body.scrollLeft, global.scrollX),
+                y: y - pack("number", global.scrollY)// Math.max(document.body.scrollTop, global.scrollY)
             };
         };
         var Event = {
@@ -4207,7 +4791,7 @@
             normalize: normalize
         };
         return extend(Event, {
-            draggable: function(){
+            draggable: function () {
                 var sx = 0, sy = 0, dx = 0, dy = 0;
                 return {
                     start: function(element, e){
@@ -4559,7 +5143,7 @@
                     plotPoint = (plotOptions[series.type] || {}).point || {};
                     points = graphic.getShape && graphic.getShape(x, y);
                     useHTML = (series.dataLabels || {}).useHTML === true;
-                    if (points && points.length || useHTML) {
+                    if (points && points.length) {
                         click = (series.events || {}).click || (plotPoint.events || {}).click;
                         //if (series.clicked !== false) {
                         callbacks.push([
@@ -4613,7 +5197,7 @@
                 {x: sx, y: sy},
                 {x: pane.plotX, y: pane.plotY, width: pane.plotX + pane.plotWidth, height: pane.plotY + pane.plotHeight}
             ) && 1;//no rangeSelector;
-            slider && slider.onStart(0, 0, e);
+            slider && slider.onStart(0, 0, e, chart.container);
         });
         chart.charts.forEach(function(item){
             isFunction(item.onStart) && item.onStart();
@@ -6548,7 +7132,8 @@ var DataLabels = (function () {
                 x: px,
                 y: py,
                 width: pw,
-                height: ph
+                height: ph,
+                _height: ph
             });
         }
         return panel;
@@ -6564,6 +7149,7 @@ var DataLabels = (function () {
                 grid.push({
                     x: px, y: py,
                     width: pw, height: ph,
+                    _height: ph,
                     plotX: px, plotY: py,
                     plotWidth: pw, plotHeight: ph,
                     borderWidth: pane.borderWidth,
@@ -8344,17 +8930,18 @@ var DataLabels = (function () {
         },
         setSize: function (width, height, event) {
             var options = this.options,
-                spacing = TRouBLe(options.chart.spacing),
-                layout = options.layout;
+                spacing = TRouBLe(options.chart.spacing);
             var panel = this.panel;
             var percentage = Numeric.percentage;
             var chart = this;
+            //var viewport = this.getViewport();
             var oldWidth = this.width,
                 oldHeight = this.height;
-            var ratioWidth = width - oldWidth;
+            var ratioWidth = width - oldWidth,
+                ratioHeight;
 
-            this.width = width;
-            this.height = height;
+            //this.width = width;
+            //this.height = height;
 
             this.layer.forEach(function (layer) {
                 if (!chart.is3D) {
@@ -8379,11 +8966,14 @@ var DataLabels = (function () {
                 );
             }
             ratioWidth = width / oldWidth;
-            
+            ratioHeight = height / oldHeight;
+            //console.log(this.height, oldHeight);
+
             panel.forEach(function (pane) {
                 pane.plotX = pane.x *= ratioWidth;
                 pane.plotWidth = pane.width *= ratioWidth;
                 //pane.width += ratioWidth;
+                pane.height = pane._height + (height - oldHeight);// viewport.height;// *= ratioHeight;
             });
             this.rangeSlider.forEach(function (slider) {
                 slider.setOptions({
@@ -8621,6 +9211,7 @@ var DataLabels = (function () {
                     var plotHeight = pane.height - pane.viewportTop - pack("number", pane.viewportBottom),
                         plotWidth = pane.width - pane.viewportLeft - pane.viewportRight,
                         plotY = pane.y + pane.viewportTop;
+
                     var x = pane.x,
                         y = plotY;
                     //startX = x;
@@ -13146,12 +13737,12 @@ var DataLabels = (function () {
                 this.getRangeValue();
             }
         },
-        onStart: function (x, y, e) {
+        onStart: function (x, y, e, container) {
             var target;
             var start = parseFloat(this.start, 10),
                 end = parseFloat(this.end, 10),
                 t;
-            x = Event.normalize(e, this.canvas);
+            x = Event.normalize(e, container || this.canvas);
             y = x.y;
             x = x.x;
             this.dragging = (target = this.target = this.getTarget(x, y)) > -1 && target < 3;

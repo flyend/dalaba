@@ -129,5 +129,7 @@
 
     Dalaba.geo.simplify = require("./simplify").deps(Dalaba.Heap, Dalaba.LinkedList);
 
+    Dalaba.CSSParser = require("./cssparser");
+
     return Dalaba;
 })();

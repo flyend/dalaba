@@ -20,7 +20,8 @@
                 x: px,
                 y: py,
                 width: pw,
-                height: ph
+                height: ph,
+                _height: ph
             });
         }
         return panel;
@@ -36,6 +37,7 @@
                 grid.push({
                     x: px, y: py,
                     width: pw, height: ph,
+                    _height: ph,
                     plotX: px, plotY: py,
                     plotWidth: pw, plotHeight: ph,
                     borderWidth: pane.borderWidth,

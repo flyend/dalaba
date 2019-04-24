@@ -1759,17 +1759,18 @@ require("./define");
         },
         setSize: function (width, height, event) {
             var options = this.options,
-                spacing = TRouBLe(options.chart.spacing),
-                layout = options.layout;
+                spacing = TRouBLe(options.chart.spacing);
             var panel = this.panel;
             var percentage = Numeric.percentage;
             var chart = this;
+            //var viewport = this.getViewport();
             var oldWidth = this.width,
                 oldHeight = this.height;
-            var ratioWidth = width - oldWidth;
+            var ratioWidth = width - oldWidth,
+                ratioHeight;
 
-            this.width = width;
-            this.height = height;
+            //this.width = width;
+            //this.height = height;
 
             this.layer.forEach(function (layer) {
                 if (!chart.is3D) {
@@ -1794,11 +1795,14 @@ require("./define");
                 );
             }
             ratioWidth = width / oldWidth;
-            
+            ratioHeight = height / oldHeight;
+            //console.log(this.height, oldHeight);
+
             panel.forEach(function (pane) {
                 pane.plotX = pane.x *= ratioWidth;
                 pane.plotWidth = pane.width *= ratioWidth;
                 //pane.width += ratioWidth;
+                pane.height = pane._height + (height - oldHeight);// viewport.height;// *= ratioHeight;
             });
             this.rangeSlider.forEach(function (slider) {
                 slider.setOptions({
@@ -2036,6 +2040,7 @@ require("./define");
                     var plotHeight = pane.height - pane.viewportTop - pack("number", pane.viewportBottom),
                         plotWidth = pane.width - pane.viewportLeft - pane.viewportRight,
                         plotY = pane.y + pane.viewportTop;
+
                     var x = pane.x,
                         y = plotY;
                     //startX = x;
