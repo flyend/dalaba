@@ -1,0 +1,10 @@
+node_modules/
+.DS_Store
+.orig
+.swp
+.cache/
+npm-debug.log
+deploy/
+.plus.yaml
+bin/
+demo/
