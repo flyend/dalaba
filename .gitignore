@@ -10,7 +10,6 @@ tools/
 .plus.yaml
 bin/
 build/
-gulpfile.js
 package-lock.json
 /index.html
 src/index.html

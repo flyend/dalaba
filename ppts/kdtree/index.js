@@ -209,9 +209,7 @@ var hasTouch = Chart.hasTouch;
         result,
         bestNodes;
 
-      bestNodes = new Dalaba.Heap(
-        function (e) { return e[1]; }
-      );
+      bestNodes = new Dalaba.Heap(function (e) {return e[1]; });
 
       function nearestSearch(node) {
         var bestChild,
@@ -285,10 +283,10 @@ var hasTouch = Chart.hasTouch;
       nearestSearch(self.root);
 
       result = [];
-
+      
       for (i = 0; i < maxNodes; i += 1) {
-        if (bestNodes[i][0]) {
-          result.push([bestNodes[i][0].obj, bestNodes[i][1]]);
+        if (bestNodes[i]) {
+          result.push([bestNodes[i].value[0].obj, bestNodes[i].value[1]]);
         }
       }
       return result;

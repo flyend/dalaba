@@ -19,9 +19,7 @@
     };
 
     function factoy (Heap) {
-        var heap = new Heap(function (a, b) {
-            return ascending(a, b, "distance");
-        });
+        var heap;
 
         function buildTree (points, depth, parent, dimensions) {
             var dimn = (dimensions || []).length,
@@ -63,6 +61,10 @@
             build: function (points, dimensions) {
                 this.dimensions = dimensions;// || ["x", "y"];
                 this.root = buildTree(points, 0, null, this.dimensions);
+
+                heap = new Heap(function (a, b) {
+                    return ascending(a, b, "distance");
+                });
             },
             nearest: function (point, callback, k) {
                 var dimensions = this.dimensions || [],
