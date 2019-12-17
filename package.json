@@ -9,17 +9,13 @@
   },
   "scripts": {
     "start": "gulp",
-    "build": "gulp pre-publish-cdn",
-    "publish-to-cdn": "sh deploy/publish-to-cdn.sh"
+    "build": "gulp pre-publish-cdn"
   },
   "files": [
     "dist/dalaba.js"
   ],
   "contributors": [
-    {
-      "name": "flyend",
-      "email": "flyend@126.com"
-    }
+    { "name": "flyend", "email": "flyend@126.com" }
   ],
   "license": "ISC",
   "devDependencies": {
@@ -39,7 +35,5 @@
     "browserify-derequire": "0.9.4",
     "src-import-curt": "0.0.4",
     "gulp-jsbeautifier": "2.1.0"
-  },
-  "dependencies": {
   }
 }

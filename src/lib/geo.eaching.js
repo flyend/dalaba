@@ -59,17 +59,18 @@
 
     function streamLine (coordinates, stream, closed) {
         var i = -1, n = coordinates.length - closed, coordinate;
-        stream.lineStart();
+        stream.lineStart && stream.lineStart(coordinates);
         while (++i < n) coordinate = coordinates[i], stream.point(coordinate[0], coordinate[1], coordinate[2]);
-        stream.lineEnd();
+        stream.lineEnd && stream.lineEnd(coordinates);
     }
 
     function streamPolygon (coordinates, stream) {
-        stream.polygonStart();
+        stream.polygonStart && stream.polygonStart(coordinates);
+        if (!coordinates.length) streamLine(coordinates, stream, 0);
         coordinates.forEach(function (coordinates) {
             streamLine(coordinates, stream, 1);
         });
-        stream.polygonEnd();
+        stream.polygonEnd && stream.polygonEnd(coordinates);
     }
 
     function geomCollection (geojson, context) {

@@ -3,6 +3,36 @@
 
     var hirschbergs = require("./hirschbergs")();
 
+    var listRemoved = (function () {
+        var filter = function (value, args) {
+            return args.some(function (d) {
+                return d === value;
+            });
+        };
+        function remove (arrays) {
+            var n = arrays.length, i = 0;
+            var value;
+            var removeCount = 0;
+            var args = [].slice.call(arguments, 1);
+
+            for (; i < n; i++) {
+                value = arrays[i];
+                if (filter.call(value, value, args, i, arrays) === true) {
+                    ++removeCount;
+                    continue;
+                }
+                if (removeCount > 0) arrays[i - removeCount] = value;
+            }
+            arrays.length -= removeCount;
+            return arrays;
+        }
+        remove.filter = function (_) {
+            if (({}).toString.call(_) === "[object Function]") filter = _;
+            return remove;
+        };
+        return remove;
+    })();
+
     var List = {
         /*
          * The data packet
@@ -67,13 +97,19 @@
          * @param place{.} All js data type
          * Returns Array
         */
-        fill: function (n, place) {
-            return Array.prototype.fill ? new Array(n = Math.max(0, n) || 0).fill(place) : (function () {
+        fill: function (n, place, start, end) {
+            return Array.prototype.fill ? new Array(n = Math.max(0, n) || 0).fill(place, start, end) : (function () {
                 var array = [];
-                while (n--) array.push(place);
+                var i = start || 0;
+
+                if (!isNaN(+end)) n = +end;
+
+                while (i < n) array.push(place), i++;
+                
                 return array;
             })();
-        }
+        },
+        remove: listRemoved
     };
 
     List.diff = require("./align").deps(hirschbergs);

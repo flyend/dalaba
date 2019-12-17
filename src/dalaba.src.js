@@ -1,7 +1,15 @@
-"use strict";
-!(function (global) {
+;(function (global, factory) {
+    typeof exports === "object" && typeof module !== "undefined"
+        ? factory(exports)
+        : typeof define === "function" && define.amd
+            ? define(["exports"], factory)
+            : factory((global.Dalaba = global.Dalaba || {}));
+}(typeof window !== "undefined" ? window : typeof this !== "undefined" ? this : global, (function (exports) {
+    "use strict";
 
-    var Dalaba = require("lib/dalaba");
+    require("lib/dalaba")(exports);
+
+    require("geom/geom").deps(exports);
 
     require("chart/chart");
     require("chart/tooltip");
@@ -28,17 +36,7 @@
     require("../theme/mobile.theme");
 
     //layout
-    require("lib/layout").deps(Dalaba);
+    require("lib/layout").deps(exports);
 
-    if (typeof module === "object" && module.exports) {
-        module.exports = Dalaba;
-    }
-    else if (typeof define === "function" && define.amd) {
-        define(function () {
-            return Dalaba;
-        });
-    }
-    else {
-        global.Dalaba = Dalaba;
-    }
-})(typeof window !== "undefined" ? window : typeof this !== "undefined" ? this : global);
+    Object.defineProperty(exports, "__esModule", { value: true });
+})));

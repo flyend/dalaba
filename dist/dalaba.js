@@ -4,11 +4,17 @@
  * @version v0.3.1
  * @license ISC
  */
-"use strict";
-!(function (global) {
+;(function (global, factory) {
+    typeof exports === "object" && typeof module !== "undefined"
+        ? factory(exports)
+        : typeof define === "function" && define.amd
+            ? define(["exports"], factory)
+            : factory((global.Dalaba = global.Dalaba || {}));
+}(typeof window !== "undefined" ? window : typeof this !== "undefined" ? this : global, (function (exports) {
+    "use strict";
 
-    var Dalaba = (function () {
-    
+    (function (exports) {
+
     var toString = ({}).toString;
 
     var typeOf = function (type) {
@@ -17,6 +23,10 @@
             return typeOf(type, "Function") ? type.apply(null, arguments) : typeOf(v);
         };
     };
+
+    var isNodeEnv = toString.call(typeof process !== "undefined" ? process : 0) === "[object process]";
+
+    var global = isNodeEnv ? global : typeof window !== "undefined" ? window : typeof self !== "undefined" ? self : {};
 
     var isObject = typeOf("Object");
 
@@ -48,7 +58,8 @@
         isString: isString,
         isNumber: isNumber,
         isEmptyObject: isEmptyObject,
-        defined: defined
+        defined: defined,
+        global: global
     };
     
     /**
@@ -116,7 +127,19 @@
         return a;
     };
 
-    Dalaba.LinkedList = (function () {
+    exports.DEVICE_PIXEL_RATIO = Dalaba.DEVICE_PIXEL_RATIO;
+    exports.isArray = Dalaba.isArray;
+    exports.isFunction = Dalaba.isFunction;
+    exports.isObject = Dalaba.isObject;
+    exports.isString = Dalaba.isString;
+    exports.isNumber = Dalaba.isNumber;
+    exports.isEmptyObject = Dalaba.isEmptyObject;
+    exports.defined = Dalaba.defined;
+    exports.global = Dalaba.global;
+    exports.pack = Dalaba.pack;
+    exports.extend = Dalaba.extend;
+
+    exports.LinkedList = (function () {
     /**
      * @param data{Array}
      * @param options{Object}
@@ -380,7 +403,7 @@
 
     return LinkedList;
 }).call(typeof window !== "undefined" ? window : this);;
-    Dalaba.Heap = (function () {
+    exports.Heap = (function(){
     /**
      * @param compare{Function}
      * @example
@@ -396,122 +419,73 @@
      * for(i = 0; i < 4; i++)
      *    console.log(heap.pop(), heap.length);
      */
-    var defaultCompare = function (a, b) {
+    var defaultCompare = function(a, b){
         return a - b;
     };
 
-    function down (data, i) {
-        var value = data[i];
-        var size = data.length;
+    function down(array, i){
+        var value = array[i];
+        var size = array.length;
 
-        while (true) {
+        while(true){
             var r = (i + 1) << 1,
                 l = r - 1,
                 j = i;
-            var child = data[j];
-
-            if (l < size && defaultCompare(child.value, data[l].value) > 0) child = data[j = l];
-            if (r < size && defaultCompare(child.value, data[r].value) > 0) child = data[j = r];
-            if (j === i) break;
-            data[i] = child, child.index = i;
-            data[i = j] = value, value.index = i;
+            var child = array[j];
+            if(l < size && defaultCompare(child, array[l]) > 0) child = array[j = l];
+            if(r < size && defaultCompare(child, array[r]) > 0) child = array[j = r];
+            if(j === i) break;
+            array[i] = child;
+            array[i = j] = value;
         }
     }
-
-    function up (data, i) {
-        var value = data[i];
-        while (i > 0) {
+    function up(array, i){
+        var value = array[i];
+        while(i > 0){
             var j = (i + 1 >> 1) - 1,
-                parent = data[j];
-            if (defaultCompare(value.value, parent.value) >= 0) break;
-            data[i] = parent, parent.index = i;
-            data[i = j] = value, value.index = i;
+                parent = array[j];
+            if(defaultCompare(value, parent) >= 0) break;
+            array[i] = parent;
+            array[i = j] = value;
         }
     }
 
-    var Heap = function (compare) {
+    var Heap = function(compare){
         return new Heap.init(compare);
     };
-    Heap.init = function (compare) {
-        defaultCompare = compare || function (a, b) {
-            return a - b;
-        };
-        this.data = [];
+    Heap.init = function(compare){
+        defaultCompare = compare || defaultCompare;
         this.length = 0;
         return this;
     };
-    
-    function search (data, index, value) {
-        var left, right;
-        var i;
-        if (data[index].value === value)
-            return index;
-        else if (defaultCompare(data[index].value, value) >= 0)
-            return -1;
-        left = index * 2 + 1;
-        right = left + 1;
-
-        i = search(data, left, value);
-
-        if (i !== -1)
-            return i;
-
-        return search(data, right, value);
-    }
 
     Heap.prototype = {
-        push: function (value) {
+        push: function(value){
             var size = this.length;
-            this[size] = {value: value, index: size};
+            this[size] = value;
             up(this, size++);
-            this.data.push(value);
             return this.length = size;
         },
-        pop: function () {
+        pop: function(){
             var size = this.length;
-            if (size <= 0)
+            if(size <= 0)
                 return null;
-            var removed = this[0],
-                last = this.splice(size - 1, 1)[0];
-            if ((this.length) > 0) {
-                //last.index = 0;
-                this[0] = last;//this[size];
+            var removed = this[0];
+            var end = this.splice(size - 1, 1)[0];
+            if((this.length = --size) > 0){
+                this[0] = end;//this[size];
                 down(this, 0);
             }
-            return removed.value;
+            return removed;
         },
-        remove: function (removed) {
-            var index = this.indexOf(removed),
-                
-                last = this.splice(this.length - 1, 1)[0];
-            if (index !== this.length) {
-                this[index] = last;
-                (defaultCompare(last.value, removed) < 0 ? up : down)(this, index);
-            }
-            return index;
-        },
-        update: function (index, value) {
-            var el = this.data[index],
-                i = el.index;
-            this.data[index] = value;
-            (defaultCompare(el.value, value) < 0 ? up : down)(this, i);
-        },
-        peek: function () {
-            return this[0].value;
-        },
-        indexOf: function (value) {
-            var i = -1,
-                length = this.length;
-
-            while (++i < length && this[i].value !== value);
-            //b = search(this, 0, removed)
-            return i < length ? i : -1;
+        peek: function(){
+            return this[0];
         },
         splice: [].splice,
-        size: function () {
+        size: function(){
             return this.length;
         },
-        empty: function () {
+        empty: function(){
             return this.length <= 0;
         }
     };
@@ -522,14 +496,14 @@
         module.exports = Heap;
     }
     else if (typeof define === "function" && define.amd) {
-        define(function () {
+        define(function() {
             return Heap;
         });
     }
     return Heap;
 }).call(typeof window !== "undefined" ? window : this);;
 
-    Dalaba.Math = (function () {
+    exports.Math = (function () {
 
     var mathPow = Math.pow;
 
@@ -563,7 +537,7 @@
     return Maths;
 
 }).call(typeof window !== "undefined" ? window : this);;
-    Dalaba.Numeric = (function () {
+    exports.Numeric = (function () {
     var abs = Math.abs,
         log = Math.log,
         pow = Math.pow,
@@ -807,7 +781,7 @@
     };
     return Numeric;
 }).call(typeof global !== "undefined" ? global : this);;
-    Dalaba.Vector = (function () {
+    exports.Vector = (function () {
     var mathCos = Math.cos,
         mathSin = Math.sin,
         mathAtan2 = Math.atan2;
@@ -913,55 +887,29 @@
     }
     return Vector;
 }).call(typeof global !== "undefined" ? global : window);;
-    Dalaba.Formatter = (function () {
+    exports.Formatter = (function () {
 
     var mathMax = Math.max,
         mathMin = Math.min;
 
-    //Think Right Before you Leap
+    //Think Right Before you Leap, top->right->bottom->left
     function TRouBLe () {
+        var packNumber = function (d) { return pack("number", +d, 0); };
         var args = arguments,
-            n = args.length;
-        var top = args[0];
+            top = [0];//default value is 0
 
-        var filled = function (n, v) {
-            var r = [], i = -1;
-            while (++i < n) r.push(pack("number", v[i], 0));
+        if (isArray(args[0]))
+            top = args[0].map(packNumber);
+        else if (args.length)
+            top = [].map.call(args, packNumber);
 
-            return r;
-        };
-
-        var fixed = function (d) {
-            var r = [], n = d.length, i = -1;
-            while (++i < n) r.push(pack("number", d[i], 0));
-
-            return r;
-        };
-
-        var concated = function () {
-            var args = [].slice.call(arguments, 0),
-                i = -1,
-                n = args.length;
-            var r = [];
-
-            while (++i < n) r = r.concat(args[i]);
-
-            return r;
-        };
-
-        if (!n && !(top = 0) || (isNumber(top, true) && n === 1)) {
-            return [top, top, top, top];
+        switch (top.length) {
+            case 1: top.push(top[0]);
+            case 2: [].push.apply(top, top); break;
+            case 3: top.push(top[1]);
         }
 
-        if (!isArray(args[0]) && n) {
-            top = [].slice.call(args, 0);
-        }
-
-        n = top.length;
-
-        return n === 1 ? filled(4, top.concat(top, top, top))
-            : n === 2 ? concated(filled(2, top), fixed(top))
-                : n === 3 ? concated(fixed(top), filled(1, [top[0]])) : fixed(top.slice(0, 4));
+        return top.slice(0, 4);
     }
 
     var Formatter = {
@@ -1023,7 +971,8 @@
 
                 background.loaded = function() {
                     background.completed = true;
-                    background.size = (tokens.length === 6 ? [tokens[4], tokens[5]] : tokens.length === 4 ? [tokens[3], tokens[3]] : [this.width, this.height]).map(parseFloat);
+                    background.size = (tokens.length === 6 ? [tokens[4], tokens[5]] : tokens.length === 4 ? [tokens[3], tokens[3]] : [image.width, image.height]).map(parseFloat);
+                    this.size = background.size, this.completed = true;
                 };
                 background.fail = function() {
                     console.error("background image loaded fail. <options.chart.backgroundImage>");
@@ -1054,9 +1003,9 @@
         });
     }
     return exports;
-}).call(typeof global !== "undefined" ? global : this).deps(Dalaba);
+}).call(typeof global !== "undefined" ? global : this).deps(exports);
     
-    Dalaba.KDTree = (function (global) {
+    exports.KDTree = (function (global) {
     var descending = function (a, b) {
         return a - b;
     };
@@ -1119,15 +1068,13 @@
             build: function (points, dimensions) {
                 this.dimensions = dimensions;// || ["x", "y"];
                 this.root = buildTree(points, 0, null, this.dimensions);
-
                 heap = new Heap(function (a, b) {
                     return ascending(a, b, "distance");
                 });
             },
             nearest: function (point, callback, k) {
-                var dimensions = this.dimensions || [],
-                    dl = dimensions.length;
-                var ret = [];
+                var dimensions = this.dimensions || [];
+                var result = [];
 
                 k = Math.max(1, +k) || 1;
                 //reset heap
@@ -1145,25 +1092,27 @@
                     }
                 }
 
-                function find (tree) {
-                    var maps = {},
-                        aValue = callback(point, tree.node),
-                        bValue;
-                    var node;
+                function search (tree) {
+                    var dimension = dimensions[tree.dim];
+                    var avalue = callback(point, tree.node), bvalue;
+                    var maps = {};
+                    var node, child;
 
-                    if (dl) {
+                    if (dimensions.length) {
                         dimensions.forEach(function (item, i) {
-                            maps[item] = i === tree.dim ? point[item] : tree.node[item];
+                            maps[item] = i === dimension ? point[item] : tree.node[item];
                         });
                     }
                     else {
                         maps = point;
                     }
-                    bValue = callback(maps, tree.node);
+                    bvalue = callback(maps, tree.node);
+
+                    
                     //leaf
                     if (tree.right === null && tree.left === null) {
-                        if (heap.size() < k || aValue < heap.peek().distance) {
-                            put(tree, aValue);
+                        if (heap.size() < k || avalue < heap.peek().distance) {
+                            put(tree, avalue);
                         }
                         return null;
                     }
@@ -1176,30 +1125,29 @@
                     }
                     //left && right
                     else {
-                        node = (dl ? point[dimensions[tree.dim]] < tree.node[dimensions[tree.dim]] : point < tree.node)
+                        node = (dimensions.length ? point[dimensions[dimension]] < tree.node[dimensions[dimension]] : point < tree.node)
                             ? tree.left
                             : tree.right;
                     }
 
-                    find(node);
+                    search(node);
 
-                    if (heap.size() < k || aValue < heap.peek().distance) {
-                        put(tree, aValue);
+                    if (heap.size() < k || avalue < heap.peek().distance) {
+                        put(tree, avalue);
                     }
 
-                    if (heap.size() < k || Math.abs(bValue) < heap.peek().distance) {
-                        var child = node === tree.left ? tree.right : tree.left;
-                        child !== null && find(child);
+                    if (heap.size() < k || Math.abs(bvalue) < heap.peek().distance) {
+                        (child = node === tree.left ? tree.right : tree.left) !== null && search(child);
                     }
+                    maps = null;
                 }
 
                 if (this.root) {
-                    find(this.root);
-                
-                    for (var i = 0; i < k; i++) if (!heap.empty() && heap[i].value.node !== null)
-                        ret.push(heap[i].value.node.node);
+                    search(this.root);
+                    for (var i = 0; i < k; i++) if (!heap.empty() && heap[i].node !== null)
+                        result.push(heap[i].node.node);
                 }
-                return ret;
+                return result;
             },
             //TODO
             insert: function () {
@@ -1225,9 +1173,9 @@
             return factoy.apply(global, [].slice.call(arguments));
         }
     };
-})(typeof window !== "undefined" ? window : this).deps(Dalaba.Heap);
+})(typeof window !== "undefined" ? window : this).deps(exports.Heap);
 
-    Dalaba.Geometry = (function (global) {
+    exports.Geometry = (function (global) {
     var PI = Math.PI;
     var PI2 = PI * 2;
 
@@ -1696,8 +1644,8 @@
         });
     }
     return exports;
-})(typeof window !== "undefined" ? window : this).deps(Dalaba.Vector);
-    Dalaba.Color = (function () {
+})(typeof window !== "undefined" ? window : this).deps(exports.Vector);
+    exports.Color = (function () {
 	var toString = Object.prototype.toString;
 
 	var defined = function (a) {
@@ -2062,7 +2010,7 @@
     }
     return Color;
 })();
-    Dalaba.Text = (function (global) {
+    exports.Text = (function (global) {
 
     var document = global.document;
 
@@ -2457,7 +2405,7 @@
     return Text;
 })(typeof window !== "undefined" ? window : global);
 
-    Dalaba.Cluster = (function () {
+    exports.Cluster = (function () {
     var indexOf = Array.prototype.indexOf;
 
     var hirschbergs = (function () {
@@ -2574,6 +2522,36 @@
     return align;
 })();
 
+    var listRemoved = (function () {
+        var filter = function (value, args) {
+            return args.some(function (d) {
+                return d === value;
+            });
+        };
+        function remove (arrays) {
+            var n = arrays.length, i = 0;
+            var value;
+            var removeCount = 0;
+            var args = [].slice.call(arguments, 1);
+
+            for (; i < n; i++) {
+                value = arrays[i];
+                if (filter.call(value, value, args, i, arrays) === true) {
+                    ++removeCount;
+                    continue;
+                }
+                if (removeCount > 0) arrays[i - removeCount] = value;
+            }
+            arrays.length -= removeCount;
+            return arrays;
+        }
+        remove.filter = function (_) {
+            if (({}).toString.call(_) === "[object Function]") filter = _;
+            return remove;
+        };
+        return remove;
+    })();
+
     var List = {
         /*
          * The data packet
@@ -2638,13 +2616,19 @@
          * @param place{.} All js data type
          * Returns Array
         */
-        fill: function (n, place) {
-            return Array.prototype.fill ? new Array(n = Math.max(0, n) || 0).fill(place) : (function () {
+        fill: function (n, place, start, end) {
+            return Array.prototype.fill ? new Array(n = Math.max(0, n) || 0).fill(place, start, end) : (function () {
                 var array = [];
-                while (n--) array.push(place);
+                var i = start || 0;
+
+                if (!isNaN(+end)) n = +end;
+
+                while (i < n) array.push(place), i++;
+                
                 return array;
             })();
-        }
+        },
+        remove: listRemoved
     };
 
     List.diff = (function (global) {
@@ -2802,7 +2786,6 @@
 
         var bfs = function (root, callback) {
             var queue = (isArray(root) ? root : [root]).slice();
-            var n, i;
             var node, childs;
             var index = 0;
 
@@ -2810,9 +2793,7 @@
                 node = queue.shift();
                 childs = (node.children || []).slice();
                 callback && callback.call(node, node, index++, queue);
-                if (isArray(childs) && (i = -1, n = childs.length)) for (; ++i < n; ) {
-                    queue.push(childs[i]);
-                }
+                if (isArray(childs)) [].push.apply(queue, childs);
             }
 
             queue = null;// gc
@@ -3119,6 +3100,272 @@
     };
 })().deps(dfs, hammingDistance);
 
+        tree.trie = (function () {
+    function factory (levenshtein) {
+        function trie () {
+            var root = null;
+            var leafs = [];
+
+            var splitter = Infinity;
+            var valueOf = function (d) { return d; };
+
+            function trie (tables) {
+                var dp = [];
+                var prev = [];
+
+                root = {value: "-1", children: []};
+                leafs = [];
+
+                for (var i = 0; i < tables.length; i++) {
+                    var values = tables[i], value;
+                    var state = dp[dp.length - 1];
+
+                    var next = root;
+                    var n = values.length, j = 0, k;
+                    var indexes = levenshtein(prev, prev = values.map(valueOf), state, splitter);
+                    // console.log(indexes)
+
+                    for (j = 0; j < n; j++) {
+                        value = values[j];
+                        k = indexes[j];
+                        if (j < splitter) {
+                            next = next.children[k] = next.children[k] || { value: value, children: [], col: j, index: i};
+                        }
+                    }
+                    // delete next.children;                    
+                    // merge remaining node
+                    for (j = 0; j < n - splitter; j++) {
+                        value = {
+                            __sort: j,
+                            col: j + splitter,
+                            index: i,
+                            range: [i, i],
+                            isLeaf: splitter + 1 <= j + splitter,
+                            value: values[splitter + j]
+                        };
+                        next.children.push(value);
+                    }
+                    leafs.push(next);
+                    dp.push(indexes);
+                }
+                leafs.forEach(function (leaf) {
+                    leaf.children.sort(function (a, b) { return a.__sort - b.__sort; });
+                    leaf.children.forEach(function (d) { delete d.__sort; });
+                });
+
+                dp = prev = null;
+
+                return trie;
+            }
+
+            trie.root = function () {
+                return root;
+            };
+            trie.leaf = function () {
+                return leafs;
+            };
+
+            trie.splitter = function (_) {
+                return arguments.length ? (splitter = +_, isNaN(splitter) && (splitter = Infinity), trie) : splitter;
+            };
+
+            trie.valueOf = function (_) {
+                return arguments.length && ({}).toString.call(_) === "[object Function]" ? (valueOf = _, trie) : valueOf;
+            };
+
+            return trie;
+        }
+        return trie;
+    }
+    return {
+        deps: function (levenshtein) {
+            return factory(levenshtein);
+        }
+    };
+}).call(typeof window !== "undefined" ? window : this).deps((function () {
+	function levenshtein (s0, s1, dp, splitter) {
+        var indexes = new Array(s1.length);// s0 and s1 are the same size
+        var n = s1.length, i = 0;
+        var current, left, top, lefttop;
+
+        splitter = Math.min(splitter, n);
+
+        for (; i < n; i++) indexes[i] = 0;
+
+        if (s0 == null || !s0.length) return indexes;
+
+        indexes[0] = (0 >= splitter || s0[0] !== s1[0]) ? dp[0] + 1 : dp[0];
+        
+        for (i = 1; i < n; i++) {
+            current = s1[i];
+            left = s1[i - 1];
+            lefttop = s0[i - 1];// left-top i - 1, top = i
+            top = s0[i];
+            if (!(i <= splitter && left === lefttop)) {
+                indexes[i] = 0;// 遗传下去
+                break;
+            }
+            indexes[i] = current === top
+                ? (i === splitter || i === n - 1) ? dp[i] + 1 : dp[i] // some leaf
+                : dp[i] + 1;
+        }
+        return indexes;
+    }
+    return levenshtein;
+})());
+
+        tree.rangetree = (function () {
+
+    function factory (trie, dfs) {
+        function rangetree () {
+
+            var filter = function (childs) { return childs; };
+            var valueOf = function (d) { return d; };
+
+            var tree, tables;
+            var splitter = Infinity;
+            var dp;
+
+            function build (data) {
+                tree = [trie().valueOf(valueOf).splitter(rangetree.splitter())(data).root()];
+                return tree;
+            }
+
+            function treePath (root) {
+                var path = [];
+                var nodes = [];
+                var tables = {};
+                var newNode;
+                var deep = 0,
+                    hash = "";
+
+                dfs(root, function (node) {
+                    newNode = extend({}, node);
+                    (newNode.children || []).forEach(function (d, i) {
+                        d.index = i;
+                    });
+                    newNode.deep = deep++;
+                    path.push(newNode);
+                }, function () {
+                    var uri = "",
+                        pating = "";
+                    var node, parent;
+                    path.forEach(function (d) {
+                        var index = d.index,
+                            code = d.deep.toString(2);
+                        var hasIndex = typeof index === "undefined";
+                        !hasIndex && (code += index.toString(2));
+                        pating += code;
+                        if (!d.children) {
+                            hash += pating;
+                        }
+                        uri += d.deep + "" + (hasIndex ? "" : index) + "/";
+                    });
+                    
+                    newNode = path.pop();
+                    parent = path[path.length - 1];
+                    node = {
+                        node: newNode.value,
+                        deep: deep,
+                        index: newNode.index,
+                        row: newNode.range[1],
+                        col: newNode.col,
+                        range: newNode.range,
+                        isLeaf: !newNode.children || (newNode.children && !newNode.children.length),
+                        //parent: parent,
+                        uri: uri.slice(0, -1),
+                    };
+                    nodes.push(node);
+                    tables[node.uri] = node;
+                    deep--;
+                });
+                path = null;
+                if (nodes.length) {
+                    nodes[nodes.length - 1].hash = hash;//后序遍历push最后一个节点为根节点
+                }
+                return tables;
+            }
+            
+            function treeRange (filter) {
+                function dfs (tree, deep) {
+                    var childs;
+                    tree.forEach(function (node) {
+                        childs = node.children;
+                        if (childs) {
+                            if (filter) childs = filter.call(node, childs);
+                            dfs(childs, deep + 1);
+                            dp[deep] = dp[deep] ? [dp[deep][1] + 1, dp[deep][1] + childs.length] : [0, childs.length - 1];
+                            node.range = [dp[deep][0], dp[dp.length - 1][1]];
+                        }
+                    });
+                }
+                return dfs;
+            }
+
+            function rangetree (data) {
+                dp = [];
+                tree = build.apply(null, [data].concat([].slice.call(arguments, 1)));
+
+                treeRange(filter)(tree, 0);
+
+                tables = treePath(tree);
+
+                dp = null;
+
+                return rangetree;
+            }
+
+            rangetree.filter = function (_) {
+                return arguments.length ? (filter = _, rangetree) : filter;
+            };
+
+            rangetree.splitter = function (_) {
+                return arguments.length ? (splitter = +_, isNaN(splitter) && (splitter = Infinity), rangetree) : splitter;
+            };
+
+            rangetree.treePath = function () {
+                return tables;
+            };
+
+            rangetree.tree = function () {
+                return tree;
+            };
+
+            rangetree.getXY = function (uri) {
+                return tables[uri];
+            };
+
+            rangetree.getPath = function (x, y) {
+                var table, range, p;
+                if (isNumber(x, true) && isNumber(y, true) && x * y >= 0) for (p in tables) if (hasOwnProperty.call(tables, p)) {
+                    range = (table = tables[p]).range;
+                    if (y === table.col && (x === table.row || (x >= range[0] && x <= range[1]))) {
+                        return p;// console.log(table, p);
+                    }
+                }
+                return null;
+            };
+
+            rangetree.valueOf = function (_) {
+                return arguments.length && ({}).toString.call(_) === "[object Function]" ? (valueOf = _, rangetree) : valueOf;
+            };
+
+            return rangetree;
+        }
+
+        return rangetree;
+    }
+
+    return {
+        deps: function () {
+            return factory.apply(null, [].slice.call(arguments));
+        }
+    };
+}).call(typeof window !== "undefined" ? window : this).deps(
+            tree.trie,
+            tree.dfs
+        );
+
         return tree;
     }
 
@@ -3145,9 +3392,9 @@
         });
     }
     return exports;
-}).call(typeof global !== "undefined" ? global : this).deps(Dalaba);
+}).call(typeof global !== "undefined" ? global : this).deps(exports);
 
-    Dalaba.ZTree = (function (factoy) {
+    exports.ZTree = (function (factoy) {
     var exports = {
         deps: function () {
             return factoy.apply(null, [].slice.call(arguments, 0));
@@ -3252,9 +3499,9 @@
     ZTree.init.prototype = ZTree.prototype;
 
     return ZTree;
-}).deps(Dalaba.Cluster.List.partition);
+}).deps(exports.Cluster.List.partition);
     
-    Dalaba.geo = (function () {
+    exports.geo = (function () {
     var PI = Math.PI;
     var PI2 = PI * 2;
 
@@ -3360,17 +3607,18 @@
 
     function streamLine (coordinates, stream, closed) {
         var i = -1, n = coordinates.length - closed, coordinate;
-        stream.lineStart();
+        stream.lineStart && stream.lineStart(coordinates);
         while (++i < n) coordinate = coordinates[i], stream.point(coordinate[0], coordinate[1], coordinate[2]);
-        stream.lineEnd();
+        stream.lineEnd && stream.lineEnd(coordinates);
     }
 
     function streamPolygon (coordinates, stream) {
-        stream.polygonStart();
+        stream.polygonStart && stream.polygonStart(coordinates);
+        if (!coordinates.length) streamLine(coordinates, stream, 0);
         coordinates.forEach(function (coordinates) {
             streamLine(coordinates, stream, 1);
         });
-        stream.polygonEnd();
+        stream.polygonEnd && stream.polygonEnd(coordinates);
     }
 
     function geomCollection (geojson, context) {
@@ -3408,8 +3656,9 @@
         },
         lineEnd: function () {
             this._point = NaN;
-            if (this._line === 0)
-                this.points.push(this.points[0].slice());// closepath
+            if (this._line === 0) {
+                this.points.length && this.points.push(this.points[0].slice());// closepath
+            }
             this.polygons.push(this.points);
             this.points = [];
         },
@@ -3512,7 +3761,6 @@
                     var centerX = parsed.centerX,
                         centerY = parsed.centerY,
                         scale = parsed._scale;
-                    //console.log(scale)
 
                     Stream.feature = function (feature) {
                         callback && callback(this.polygons, feature);// polygons != features
@@ -3558,16 +3806,16 @@
                 centroid: function (geoJson) {
                     var x = 0, y = 0;
                     var count = 0;
-                    var coords;
 
-                    this.feature(geoJson, null, function (point, p) {
-                        x += point[0];
-                        y += point[1];
-                        count++;
+                    eaching(geoJson, {
+                        point: function (px, py) {
+                            x += px;
+                            y += py;
+                            count++;
+                        }
                     });
 
-                    coords = [x / count, y / count];
-                    return coords;
+                    return [x / count, y / count];
                 },
                 bounds: function (geoJson) {
                     var bounds = [[Infinity, Infinity], [-Infinity, -Infinity]]; 
@@ -3586,6 +3834,7 @@
                     var width = this.width,
                         height = this.height;
                     var bounds = [[Infinity, Infinity], [-Infinity, -Infinity]];
+
                     if (!isArray(center)) {
                         this.center(center = this.centroid(geoJson));//no projection
                         this.centerX = this.celler[0];
@@ -3671,9 +3920,9 @@
     }
     return exports;
 
-}).call(typeof window !== "undefined" ? window : this).deps(Dalaba);
+}).call(typeof window !== "undefined" ? window : this).deps(exports);
 
-    Dalaba.geo.simplify = (function () {
+    exports.geo.simplify = (function () {
 
     var abs = Math.abs;
 
@@ -3898,10 +4147,1252 @@
             };
         }
     };
-})().deps(Dalaba.Heap, Dalaba.LinkedList);
+})().deps(exports.Heap, exports.LinkedList);
+
+    exports.CSSParser = (function () {
+    var hasOwnProperty = ({}).hasOwnProperty;
+
+    var toString = ({}).toString;
+
+    var isString = function (d) {
+        return toString.call(d) === "[object Object]";
+    };
+
+    var isFunction = function (d) {
+        return toString.call(d) === "[object Function]";
+    };
+
+    var camelize = function (s) {
+        return s.replace(/-(\w)/g, function (_, c) {
+            return c ? c.toUpperCase() : "";
+        });
+    };
+
+    var namespace = function (context, selector, value) {
+        var tokens = selector.split(/\s+/g),
+            ns = context[tokens[0]] = context[tokens[0]] || {};
+        tokens.slice(1).forEach(function (d) {
+            ns = ns[d] = ns[d] || {};
+        });
+        return Object.assign(ns, value);
+    };
+
+    var merge = function (source, target) {
+        var p;
+        for (p in target) if (!hasOwnProperty.call(source, p) && hasOwnProperty.call(target, p)) {
+            source[p] = target[p];
+        }
+    };
+
+    var isPrimitive = function (content) {
+        var start = content[0],
+            end = content[content.length - 1];
+        var primitive = 0;
+
+        switch (true) {
+            case start.charCodeAt() === 0x7B && end.charCodeAt() === 0x7D: primitive = 1; break;
+            case start.charCodeAt() === 0x5B && end.charCodeAt() === 0x5D: primitive = 1; break;
+            default: primitive = 0; break;
+        }
+        return primitive;
+    };
+
+    var parseJSON = function (content) {
+        var vars = this.var;
+        var start = content[0],
+            args = [].slice.call(arguments, 1);
+        var primitive = 0;
+        var evalFn = content;
+        var callArgs;
+
+        try {
+            if (primitive = isPrimitive(content)) {
+                evalFn = JSON.parse(content);
+            }
+            else if (content.substr(0, 1) === "@") {
+                start = content.indexOf("(");
+                primitive = content.substr(1, start < 0 ? content.length : start - 1).trim();
+                if (primitive && hasOwnProperty.call(vars, primitive)) {
+                    if (start < 0) {
+                        evalFn = isFunction(vars[primitive]) ? vars[primitive].apply(vars, args) : vars[primitive];
+                    }
+                    else {
+                        // only one call is supported
+                        callArgs = content.substr(-~start, content.lastIndexOf(")") - start - 1);
+                        callArgs = new Function("", "return [" + callArgs + "]")();
+                        evalFn = vars[primitive].apply(null, callArgs);
+                        return isFunction(evalFn) ? evalFn.apply(vars, args) : evalFn;
+                    }
+                }
+            }
+            else if (content.substr(0, 8) === "function") {
+                start = content.indexOf("{");
+                evalFn = new Function("", [
+                    "return " + content.substr(0, start - 1) + " {",
+                    vars == null ? "if (true) {" : "with (this.var) {",
+                    content.substr(start + 1),
+                    "}"
+                ].join("\n"))().apply(this, args);
+            }
+            return evalFn;
+        }
+        catch (_) {
+            console.error("error parse " + _ + ".");
+            return content;
+        }
+    };
+
+    var CSSParser = (function () {
+
+        var propertyMap = function (styles, isvar) {
+            var props;
+            [].forEach.call(styles, function (prop) {
+                var name = prop.trim(),
+                    value;
+                var prefix;
+                name = name.substr(name.substr(0, 2) === "--" ? 2 : 0);
+                value = (styles.getPropertyValue(prop) || "").trim();
+                if (isvar) {
+                    prefix = value.indexOf("{");
+                    value = new Function("", "return " +
+                        (value.substr(0, 8) === "function"
+                            ? [value.substr(0, prefix - 1),
+                                " { ",
+                                "with (this) {",
+                                value.substr(prefix + 1),
+                                " }"
+                            ].join("\n")
+                            : value)
+                    ).apply(this, [prop]);
+                }
+                if (name && value) {
+                    props || (props = {});
+                    props[camelize(name)] = value;
+                }
+            }, this);
+            return props;
+        };
+
+        var attrMap = function (rule) {
+            var prefix, suffix, ns, attr;
+            if (!isString(rule) && (rule = (rule || "").trim()) && !rule.length) {
+                return null;
+            }
+            prefix = rule.indexOf("[");
+            suffix = rule.lastIndexOf("]");
+            if (prefix * suffix < 0) {
+                return null;
+            }
+            ns = rule.substr(0, prefix).trim();
+            attr = rule.substr(-~prefix, ~-suffix - prefix).trim();
+            if (!ns.length || !attr.length || attr.indexOf("[") + attr.lastIndexOf("]") > -1) {
+                return null;
+            }
+            return {
+                ns: ns,
+                name: attr,
+                value: null // TODO parse attribute value
+            };
+        };
+
+        var styleSheets = function (cssText) {
+            var style = document.createElement("style");
+            style.type = "text/css";
+            style.innerText = cssText;
+            document.head.appendChild(style);
+            return style.sheet;// document.styleSheets[0];
+        };
+
+        var parser = function (rule) {
+            var selector = (rule.selectorText || "").trim(),
+                styles = rule.style;
+            var props;
+            var isvar = selector === "var" || selector === "function";
+            
+            if (selector.length) {
+                props = propertyMap.call(this, styles, isvar);
+                if (isvar) {
+                    Object.assign(this.var, props);
+                }
+                else {
+                    if (hasOwnProperty.call(this.rules, selector)) {
+                        props = Object.assign(this.rules[selector], props);
+                    }
+                    else {
+                        this.rules[selector] = props;
+                    }
+                    props && namespace(this._json, selector, props);
+                }
+            }
+        };
+
+        function CSSParser (cssText, options) {
+            return new CSSParser.fn.init(cssText, options);
+        }
+
+        CSSParser.parse = function (cssText, options) {
+            return new CSSParser.fn.init(cssText, options);
+        };
+
+        CSSParser.fn = CSSParser.prototype = {
+            constructor: CSSParser,
+            init: function (cssText, options) {
+                this.rules = {};
+                this.var = {};
+                this._json = {};
+
+                this.useJSON = !!options || !!(options && options.useJSON);
+                
+                if (cssText) {
+                    if (cssText.sheet instanceof CSSStyleSheet) {
+                        this.sheet = cssText.sheet;
+                    }
+                    else {
+                        this.sheet = styleSheets(cssText);
+                    }
+                    if (this.sheet.cssRules != null) {
+                        [].forEach.call(this.sheet.cssRules, function (rule) {
+                            parser.call(this, rule);
+                        }, this);
+
+                        merge(this, this._json);
+                    }
+                }
+
+                return this;
+            },
+            addRule: function (rule, value) {
+                var newRule, rules;
+                this.sheet.addRule(rule, value);
+                rules = this.sheet.cssRules;
+                if (rules != null) {
+                    newRule = rules[rules.length - 1];
+                    parser.call(this, newRule);
+                    merge(this, this._json);
+                }
+            },
+            attr: function (rule) {
+                var rules = this.rules,
+                    vars = this.var,
+                    useJSON = this.useJSON,
+                    context = this;
+                var attr = attrMap(rule), ns;// namespace and attr name&value
+                var args = [].slice.call(arguments, 1),
+                    objects,
+                    n,
+                    i = -1,
+                    ob;
+
+                var parseTo = function (d) {
+                    return useJSON ? parseJSON.apply(context, [d].concat(args)) : d;
+                };
+
+                if (attr === null) return null;
+                ns = attr.ns;
+                attr = attr.name;
+                objects = args.concat(rules[ns]);//[].splice.call(objects, objects.length, 0, rules[ns]);
+                n = objects.length;
+
+                while (++i < n) if (ob = objects[i]) {
+                    if (hasOwnProperty.call(ob, attr)) {
+                        return parseTo(ob[attr]);
+                    }
+                }
+                return null;
+            },
+            rule: function (rule) {
+                var rules = this.rules;
+                var newRule = null, p;
+                var context = this;
+
+                var toPrimitive = function (content) {
+                    var evalFn = content;
+
+                    if (content.includes("false")) return false;
+                    else if (content.includes("true")) return true;
+
+                    try {
+                        if (isPrimitive(content)) {
+                            evalFn = JSON.parse(content);
+                        }
+                    }
+                    catch (_) {
+                        console.error("Uncaught SyntaxError: Unexpected token o in JSON " + _ + ".");
+                    }
+                    return evalFn;
+                };
+
+                if (hasOwnProperty.call(rules, rule)) {
+                    rule = rules[rule];
+                    if (!this.useJSON) return rule;
+
+                    for (p in rule) if (hasOwnProperty.call(rule, p)) {
+                        newRule || (newRule = {});
+                        newRule[p] = toPrimitive.call(context, rule[p]);
+                    }
+                    return newRule;
+                }
+                return null;
+            },
+            toJSON: function () {
+                return this._json;
+            },
+            clear: function () {
+                this.sheet.deleteRule();
+                this.rules = {};
+                this._json = {};
+            }
+        };
+
+        CSSParser.fn.init.prototype = CSSParser.fn;
+
+        return CSSParser;
+    })();
+
+    if (typeof module === "object" && module.exports) {
+        module.exports = CSSParser;
+    }
+    else if (typeof define === "function" && define.amd) {
+        define(function () {
+            return CSSParser;
+        });
+    }
+    else {
+        global.CSSParser = CSSParser;
+    }
+    return CSSParser;
+}).call(typeof global !== "undefined" ? global : window);;
 
     return Dalaba;
+})(exports);
+
+    (function () {
+    var exports = (function (global) {
+        return {
+            deps: function (Dalaba) {
+                var Tree = (function () {
+
+    function sortWeight (arrays, value) {
+    var n = arrays.length,
+        i = 0, m;
+    if (value.sortWeighted == null) value.sortWeighted = 0;
+
+    if (!n || (arrays[n - 1].sortWeighted === 0 && value.sortWeighted === 0)) return arrays.push(value) - 1;
+    else {
+        while (i < n) {
+            m = i + n >>> 1;
+            if (/*arrays[m].sortWeighted === 0 || */arrays[m].sortWeighted < value.sortWeighted) i = m + 1;
+            else n = m;
+        }
+        arrays.splice(i, 0, value);
+    }
+    return i;
+}
+
+function resetWeight (prev, node, next) {
+    if (prev && next) {
+        node.sortWeighted = (prev.sortWeighted + next.sortWeighted) / 2;
+    }
+    else if (prev === null && next) {
+        node.sortWeighted = next.sortWeighted - 1;
+    }
+    else if (prev && next === null) {
+        node.sortWeighted = prev.sortWeighted === 0 ? 0 : prev.sortWeighted + 1;
+    }
+};
+    function linklistAdd (node, prev, prevprev) {
+    if (!prev) {
+        node.next = node.prev = null;
+    }
+    else {
+        node.next = null, node.prev = prev.id;
+        prev.next = node.id, prev.prev = prevprev ? prevprev.id : null;
+    }
+}
+function linklistInsert (prev, cur, next) {
+    cur.next = cur.prev = null;
+
+    if (prev) {
+        cur.prev = prev.id;
+        prev.next = cur.id;
+    }
+    if (next) {
+        cur.next = next.id;
+        next.prev = cur.id;
+    }
+}
+function linklistRemove (prev, cur, next) {
+    var nextId = cur.next,
+        prevId = cur.prev;
+
+    if (prev) prev.next = nextId;
+    if (next) next.prev = prevId;
+    cur.prev = cur.next = null;
+}
+function linklistJoin (alink, blink) {
+    var n = alink.length, i = 0;
+    var node, last;
+    var sortWeighted;
+
+    if (n) {
+        last = alink[n - 1];
+        sortWeighted = last.sortWeighted;
+        if (sortWeighted != null && (n = blink.length)) {
+            for (i = 0; i < n; i++) {
+                node = blink[i];
+                node.sortWeighted = sortWeighted + i + 1;
+                alink.push(node);
+            }
+        }
+    }
+    else {
+        [].push.apply(alink, blink);
+    }
+};
+    function find (parents, i) {
+    if (!(i in parents)) return "" + i;
+    return find(parents, parents[i]);
+}
+function union (parents, x, y) {
+    var xset = find(parents, x),
+        yset = find(parents, y);
+    xset !== yset && (parents[xset] = yset);
+};
+
+    function factoy (Dalaba) {
+        var isArray = Dalaba.isArray;
+
+        function addEdge (adj, u, v, mask) {
+            if (mask & 1) return (adj[v] = adj[v] || []);
+            if (mask & 2) return (adj[u] = adj[u] || []).push(v), adj[u];
+        }
+        function addNode (adj, id, node, copy) {
+            node.parent = node.pid;
+            adj[id] = node;
+            adj[id].data = copy;
+        }
+
+        var Tree = (function () {
+
+            var Tree, protoAccessors;
+
+            var indices, nodes;
+
+            function build (data, indices, nodes, addRoot) {
+                var root = null;
+                var parents = {};
+                var cycling = false;
+                var n, i;
+                var node, x, y;
+
+                data = (isArray(data) ? data : []);
+                n = data.length, i = 0;
+
+                for (; !addRoot && i < n; i++) {
+                    node = data[i];
+                    x = find(parents, node.id);
+                    y = find(parents, node.pid);
+                    if (n > 1 && x === y) {
+                        cycling = true;// if both subsets are same, then there is cycle in graph.
+                        break;
+                    }
+                    union(parents, x, y);
+                    nodeAdd(node, node.pid);
+                }
+
+                if (cycling) {
+                    indices = Object.create(null);
+                    nodes = Object.create(null);
+                    parents = null;
+                    console.error("tree data exists cycling.");
+                    return null;
+                }
+
+                function parentRoot (nodes, id, pid) {
+                    var node = nodes[id];
+                    if (id === pid || node == null) return "" + id;
+
+                    return parentRoot(nodes, node.parent, id);
+                }
+
+                parents = null;
+                root = isArray(data) && data.length ? parentRoot(nodes, data[0].id, data[0].pid) : null;
+                return root !== null ? (nodes[root] = { pid: null, id: "" + root, parent: null, next: null, prev: null }) : null;
+            }
+
+            function checkInserted (parents, id) {
+                var n = parents.length, i;
+                var parent;
+                var checkin = false;
+
+                for (i = 0; i < n && !checkin; i++) if (checkin = (parent = parents[i]).id === id);
+
+                return checkin;
+            }
+
+            var nodeAdd = function (node, pid, beforeId) {
+                var index, id;
+                var childs, copy;
+                var prev, next, cur;
+
+                if (node && (id = node.id) != null) {
+                    copy = Object.assign({}, node);
+
+                    childs = addEdge(indices, node, pid, 0x01);
+
+                    // if (pid === beforeId) beforeId = null;
+
+                    if (beforeId == null || protoAccessors.get(beforeId) === null) {
+                        index = sortWeight(childs, node);// first node push
+                        if (childs.length) {
+                            prev = childs[index - 1], next = childs[index + 1];
+                            // for (var i = 1; i < childs.length; i++) linklistAdd(childs[i], childs[i - 1], childs[i - 2]);
+                            linklistInsert(prev, node, next);
+                        }
+                    }
+                    else {
+                        index = childs.length;// childs.indexOf(protoAccessors.get(beforeId));
+                        do {
+                            cur = childs[--index];
+                            childs[index + 1] = childs[index];
+                            if (cur.id === beforeId) break;
+                        } while (index >= 0);
+                        if (index === -1) {
+                            sortWeight(childs, node);
+                        }
+                        else {
+                            next = childs[index], prev = childs[index - 1];
+                            childs[index] = node;
+                            linklistInsert(prev, node, next);
+                        }
+                    }
+                    
+                    addNode(nodes, id, node, copy);
+
+                    // reset weight
+                    if (childs.length && node.sortWeighted === 0) {
+                        prev = protoAccessors.prev(id), next = protoAccessors.next(id);
+                        resetWeight(prev, node, next);
+                    }
+                }
+                return node;
+            };
+
+            /**
+             * insertBefore
+             * 源节点存在用insertBefore
+             * 源节点不存在则用appendChild
+            **/
+
+            var nodeInserted = function (id, pid, beforeId) {
+                var source = this.get(id),
+                    target;
+                var before, childs;
+                var beforePrev, beforeNext;
+                var parent, inserted = id === pid || checkInserted(this.parents(pid, id) || [], id);// 弱检测
+
+                if (arguments.length === 1) {
+                    pid = this.root.id;
+                }
+                target = this.get(pid);
+                // TODO beforeId not pid
+
+                if (target !== null && !inserted) {
+                    parent = this.parents(id);
+
+                    if (parent !== null && source) {
+                        childs = this.childrens(parent.id, false) || [];
+                        childs.splice(childs.indexOf(source), 1);
+                        if (childs.length === 0) {
+                            delete indices[parent.id];// this.remove(parent.id, false);
+                        }
+                    }
+                    childs = this.childrens(pid, false);
+                    before = this.get(beforeId);
+
+                    // insertBefore
+                    if (source !== null) {
+                        if (beforeId == null || before === null) {
+                            beforePrev = childs[childs.length - 1];
+                            childs.splice(childs.indexOf(source), 0);
+                            childs.push(source);
+                            beforeNext = null;
+                            
+                            linklistRemove(this.prev(source.id), source, this.next(source.id));
+                            linklistInsert(beforePrev, source, beforeNext);
+                            resetWeight(beforePrev, source, beforeNext);
+                        }
+                        else {
+                            childs.splice(childs.indexOf(before), 0, source);
+                            beforePrev = this.prev(before.id);
+                            beforeNext = this.get(before.id);
+                            
+                            linklistRemove(this.prev(source.id), source, this.next(source.id));
+                            linklistInsert(beforePrev, source, beforeNext);
+                            resetWeight(beforePrev, source, beforeNext);
+                        }
+                        source.parent = source.pid = pid;
+                        //childs.length && linklistAdd(childs[childs.length - 1], childs[childs.length - 2], childs[childs.length - 3]);
+                    }
+                    else {
+                        // append
+                        if (beforeId == null || before === null) {
+                            //delete source.sortWeighted;// unbind sort weight
+                            if (this.isleaf(pid)) {
+                                (childs = addEdge(indices, source, pid, 0x01)).push(source);
+                            }
+                            else {
+                                linklistJoin(childs, [source]);
+                                //childs = sortWeighted(addEdge(indices, source, pid, 0x01), source);
+                            }
+                        }
+                    }
+                }
+            };
+
+            Tree = function (data) {
+                this.root = build(data, indices = Object.create(null), nodes = Object.create(null));
+                this.indices = indices; this.nodes = nodes;
+            };
+            protoAccessors = {
+                // append new node
+                add: function (node, pid, beforeId) {
+                    if (arguments.length) {
+                        if (this.root === null) return this.root = build([node], indices, nodes, true);
+                        if (pid == null) pid = this.root.id;
+                        return nodeAdd(node, pid, beforeId);
+                    }
+                    return null;
+                },
+                remove: function (id, noDeep) {
+                    var parent = this.parents(id);
+                    var childs = this.childrens(id, false),
+                        child;
+                    var lastSibling;
+                    var siblings, node = this.get(id);
+                    var i;
+
+                    if (id != null && parent !== null) {
+                        // 从父节点中删除自身
+                        if (parent != null) {
+                            siblings = this.childrens(parent.id, false); // 删除父索引，兄弟节点包含自己
+                            for (i = 0; i < siblings.length; i++) {
+                                child = siblings[i];
+                                if ("" + child.id === "" + id) {
+                                    linklistRemove(siblings[i - 1], child, siblings[i + 1]);
+                                    siblings.splice(i, 1);// 删除子节点， 删除自身
+                                }
+                            }
+                        }
+
+                        if (noDeep !== false) {
+                            // deep remove all children
+                            this.dfs(id, function (node) {
+                                delete nodes[node.id];
+                                //maps[node.id] = node.id;
+                            });
+                        }
+                        // no leaf
+                        else if (childs.length) {
+                            parent = this.get(parent.id);
+
+                            if (parent != null) {
+                                if (siblings.length) {
+                                    lastSibling = siblings[siblings.length - 1];
+                                    lastSibling.next = childs[0].id;
+                                    childs[0].prev = lastSibling.id;
+                                    childs.forEach(function (node) {
+                                        node.parent = node.pid = parent.id;
+                                        siblings.push(node);
+                                        typeof lastSibling.sortWeighted === "number" && (node.sortWeighted = ++lastSibling.sortWeighted);
+                                    });
+                                }
+                                else {
+                                    indices[parent.id] = childs;// no sort
+                                }
+                            }
+                        }
+                        delete nodes[id];
+                        delete indices[id];
+
+                        // 更新关系
+                        if (parent != null && siblings.length === 0) {
+                            delete indices[parent.id];
+                        }
+                        
+                        siblings = childs = null;
+                        return node;
+                    }
+                },
+                // move exists node
+                insert: nodeInserted,
+                get: function (id) {
+                    if (id != null) {
+                        //if (id === this.root.id) return this.root;
+                        return nodes[id] || null;
+                    }
+                    return null;
+                },
+                next: function (id) {
+                    var node = nodes[id];
+                    var nextId;
+                    if (node != null) {
+                        node = nodes[nextId = node.next];
+                        return nextId !== null && node != null ? node : null;
+                    }
+                    return null;
+                },
+                prev: function (id) {
+                    var node = nodes[id];
+                    var prevId;
+                    if (node != null) {
+                        node = nodes[prevId = node.prev];
+                        return prevId !== null && node != null ? node : null;
+                    }
+                    return null;
+                },
+                treeify: function () {
+
+                },
+                parents: function (id, toId, contains) {
+                    var root = this.root;
+                    var parentId = id;
+                    var node = nodes[id];
+                    var ancestors = [], ancestor;
+
+                    if ("" + id === root.id + "") return null;
+                    if (node == null) return null;
+                    parentId = "" + node.parent;// if ((parentId = "" + node.parent) == null) return null;
+
+                    if (toId != null) {
+                        if (contains === true && parentId === root.id && toId !== parentId) return null;
+                        while (parentId != null) {
+                            ancestor = nodes[parentId];
+                            if (ancestor == null) break;
+                            ancestors.push(ancestor);
+
+                            if (contains === true && parentId === root.id && toId !== parentId) return null;// check parent id not root
+                            if (toId === parentId) break;// no parents to root
+                            parentId = ancestor.parent;
+                        }
+                        return ancestors;
+                    }
+                    else {
+                        node = nodes[parentId];
+                        return node || null;
+                    }
+                },
+                childrens: function (id, noDeep) {
+                    var nodes = [];
+                    if (id == null) id = this.root.id;
+                    if (noDeep === false) {
+                        return indices[id] || [];
+                    }
+                    this.dfs(id, function (node) {
+                        if ("" + node.id !== "" + id) nodes.push(node);
+                    });
+                    return nodes;
+                },
+                siblings: function (id) {
+                    var parentId = nodes[id];
+
+                    if (parentId && (parentId = parentId.parent) != null) {
+                        return (indices[parentId] || []).filter(function (node) {
+                            return "" + node.id !== "" + id;
+                        });
+                    }
+                    return null;
+                },
+                isleaf: function (id) {
+                    if (id === this.root.id) return false;
+                    return indices[id] == null;
+                },
+                hasSibling: function (id) {
+                    var parent = this.parents(id);
+                    if (parent != null) {
+                        return (indices[parent.id] || []).length > 1;
+                    }
+                    return false;
+                },
+                dfs: function dfs (fromId, before, after) {
+    var root = this.root;
+    var id = root.id,
+        parentId;
+    var typeFn = "[object Function]";
+
+    if (toString.call(fromId) !== typeFn) {
+        root = this.get(fromId);
+    }
+
+    if (arguments.length < 3) {
+        if (toString.call(fromId) !== typeFn) {
+            root = this.get(fromId);
+        }
+        else {
+            id = before, before = fromId, after = id;
+            fromId = root.id;
+        }
+    }
+
+    function dfs (indices, nodeId, parentId, parent, deep) {
+        var edges = indices[nodeId] || [],
+            n = edges.length, i;
+        var edge;
+
+        before && before.call(null, parent, n === 0, parentId, deep);
+
+        for (i = 0; i < n; i++) {
+            edge = edges[i];
+            if (edge.id !== parentId) dfs(indices, edge.id, nodeId, edge, deep + 1);
+        }
+
+        after && after.call(null, parent, n === 0, parentId, deep);
+    }
+
+    if (indices[fromId]) {
+        dfs(indices, fromId, root.pid, root, 0);
+    }
+    else if ((root = nodes[fromId]) != null) {
+        before && before.call(null, root, false, root.parent, 0);// leaf node
+        after && after.call(null, root, false, root.parent, 0);
+    }
+},
+                bfs: function (fromId, callback) {
+                    var queue = [this.root];
+                    var edges, node;
+                    var i = 0;
+
+                    while (queue.length) {
+                        node = queue.shift();
+                        edges = indices[node.id] || [];
+                        if (edges.length) [].push.apply(queue, edges);
+                        callback && callback.call(node, node, i, edges);
+                        i++;
+                    }
+                    queue = null;
+                },
+                clear: function () {
+                    indices = nodes = null;
+                }
+            };
+
+            Tree.prototype = protoAccessors;
+
+            return Tree;
+        })();
+
+        return Tree;
+    }
+
+    var exports = (function (global) {
+        return {
+            deps: function (Dalaba) {
+                return factoy.call(global, Dalaba);
+            }
+        };
+    })(this);
+
+    if (typeof module === "object" && module.exports) {
+        module.exports = exports;
+    }
+    else if (typeof define === "function" && define.amd) {
+        define(function () {
+            return exports;
+        });
+    }
+    return exports;
+})(typeof window !== "undefined" ? window : this).deps(Dalaba);
+                var RTree = (function () {
+    function intersects (p0, p1) {
+    var rx = (p0.x - p1.x) * (p0.x - (p1.x + p1.width));
+    var ry = (p0.y - p1.y) * (p0.y - (p1.y + p1.height));
+    return rx <= 0.0 && ry <= 0.0;
+}
+
+function contains (p0, p1) {
+    return p0.x <= p1.x &&
+        p0.x + p0.width >= p1.x + p1.width &&
+        p0.y <= p1.y &&
+        p0.y + p0.height >= p1.y + p1.height;
+};
+    function distance (a, b) {
+    // a is current node, b is new node
+    var minX, minY, maxX, maxY;
+    var area;
+
+    if (a.isRoot === true) return b.width * b.height;
+    area = a.width * a.height;
+    minX = nativeMin(a.x, b.x);
+    minY = nativeMin(a.y, b.y);
+    maxX = nativeMax(a.x + a.width, b.x + b.width);
+    maxY = nativeMax(a.y + a.height, b.y + b.height);
+
+    return (maxX - minX) * (maxY - minY) - area;
+};
+
+    var splitSiblings = (function () {
+    var hilbertcurves = (function () {
+    // A Hilbert space-filling curve
+    function interleave (x) {
+        x = (x | (x << 8)) & 0x00FF00FF;
+        x = (x | (x << 4)) & 0x0F0F0F0F;
+        x = (x | (x << 2)) & 0x33333333;
+        x = (x | (x << 1)) & 0x55555555;
+        return x;
+    }
+    function deinterleave (x) {
+        x = (x | (x << 8)) & 0x00FF00FF;
+        x = (x | (x << 4)) & 0x0F0F0F0F;
+        x = (x | (x << 2)) & 0x33333333;
+        x = (x | (x << 1)) & 0x55555555;
+        return x;
+    }
+    function hilbert (x, y) {
+        var a = x ^ y;
+        var b = 0xFFFF ^ a;
+        var c = 0xFFFF ^ (x | y);
+        var d = x & (y ^ 0xFFFF);
+
+        var A = a | (b >> 1);
+        var B = (a >> 1) ^ a;// descan
+        var C = ((c >> 1) ^ (b & (d >> 1))) ^ c;
+        var D = ((a & (c >> 1)) ^ (d >> 1)) ^ d;// sw
+
+        var i0, i1;
+
+        a = A; b = B; c = C; d = D;
+        A = ((a & (a >> 2)) ^ (b & (b >> 2)));
+        B = ((a & (b >> 2)) ^ (b & ((a ^ b) >> 2)));
+        C ^= ((a & (c >> 2)) ^ (b & (d >> 2)));
+        D ^= ((b & (c >> 2)) ^ ((a ^ b) & (d >> 2)));// nw
+
+        a = A; b = B; c = C; d = D;
+        A = ((a & (a >> 4)) ^ (b & (b >> 4)));
+        B = ((a & (b >> 4)) ^ (b & ((a ^ b) >> 4)));
+        C ^= ((a & (c >> 4)) ^ (b & (d >> 4)));
+        D ^= ((b & (c >> 4)) ^ ((a ^ b) & (d >> 4)));// ne
+
+        a = A; b = B; c = C; d = D;
+        C ^= ((a & (c >> 8)) ^ (b & (d >> 8)));
+        D ^= ((b & (c >> 8)) ^ ((a ^ b) & (d >> 8)));// se
+
+        // undo transformation prefix scan
+        // 前缀扫描技术来并行化从索引到坐标的映射
+        a = C ^ (C >> 1);
+        b = D ^ (D >> 1);
+
+        // recover index bits
+        i0 = x ^ y;
+        i1 = b | (0xFFFF ^ (i0 | a));
+
+        i0 = interleave(i0);
+        i1 = deinterleave(i1);
+
+        return ((i1 << 1) | i0) >>> 0;
+    }
+    return hilbert;
 })();;
+    var bisect = (function () {
+    function defaultCompare (a, b) {
+        return a - b;
+    }
+
+    function bisect (arrays, value, left, right, compare) {
+        if (left == null) left = 0;
+        if (right == null) right = arrays.length;
+        if (compare == null) compare = defaultCompare;
+
+        var mid;
+
+        while (left < right) {
+            mid = left + right >>> 1;
+            if (compare(arrays[mid], value) > 0) right = mid;
+            else left = mid + 1;
+        }
+        return left;
+    }
+    return bisect;
+})();; // bisect([1, 2, 2, 2, 3, 4], 2);
+
+    var nativeCeil = Math.ceil;
+
+    function splitSiblings (node, insertChild) {
+        var childs = node.children || [],
+            child;
+        var siblingLeft = addNode(null, null, null, null);// empty node, x, y, width, height
+        var siblingRight = addNode(null, null, null, null);
+        var n, i, j;
+        var pivot;
+        var x, y;
+        var indexes = [];
+
+        if (!(n = childs.length)) return [];
+        pivot = n >> 1;
+        
+        for (i = 0; i < n; i++) {
+            child = childs[i];
+            x = nativeCeil(child.x + child.width / 2.0);
+            y = nativeCeil(child.y + child.height / 2.0);
+            child.__sorted = hilbertcurves(x, y);
+            if (i) {
+                j = bisect(indexes, child.__sorted, null, null, function (a, b) {
+                    return a.__sorted - b;
+                });
+                indexes.splice(j, 0, child);
+            }
+            else indexes[i] = child;
+        }
+        // console.log(indexes.map(d => d.__sorted));
+
+        for (i = 0; i < n; i++) {
+            child = childs[i];
+            insertChild(child, i <= pivot ? siblingLeft : siblingRight);
+            delete child.__sorted;
+        }
+        node.children = indexes = null;
+        child = null;
+        return [siblingLeft, siblingRight];
+    }
+    return splitSiblings;
+})();;
+
+    var treeOp = (function () {
+    function lerp (x, s, dx) {
+        return dx + x * s;
+    }
+    function setTransform (node, transform) {
+        var x = node.x, y = node.y;
+        var width = node.width, height = node.height;
+        var translate = transform.translate;
+        var scale = transform.scale;
+
+        return {
+            x: lerp(x, scale[0], translate[0]),
+            y: lerp(y, scale[1], translate[1]),
+            width: lerp(width, scale[0], 0),
+            height: lerp(height, scale[1], 0)
+        };
+    }
+	var treeSearch = function (boundary, node) {
+        function childrensOf (node) {
+            var childs = node.children || [];
+            if (childs.length === 0) return [node];
+            return childs.map(childrensOf);
+        }
+
+        function dfs (boundary, node) {
+            var childs = node.children || [],
+                child;
+            var n = childs.length, i;
+            var nodes = [], childrens;
+
+            if (contains(boundary, setTransform(node, {translate: translate, scale: scale})) || (!node.children || node.children.length === 0)) return childrensOf(node);
+
+            for (i = 0; i < n; i++) {
+                child = childs[i];
+                if (intersects(boundary, setTransform(child, {translate: translate, scale: scale}))) {
+                    childrens = dfs(boundary, child);
+                    if (childrens.length) [].push.apply(nodes, childrens);
+                }
+            }
+            return nodes;
+        }
+        return dfs(boundary, node);
+    };
+    return {
+    	search: treeSearch
+    };
+})();;
+
+    var nativeMin = Math.min;
+    var nativeMax = Math.max;
+
+    function addNode (x, y, width, height) {
+        return {
+            x: x, y: y,
+            width: width, height: height,
+            children: null
+        };
+    }
+
+    function factoy (Dalaba) {
+        var extend = Dalaba.extend;
+        var pack = Dalaba.pack;
+        var isArray = Dalaba.isArray;
+
+        var treeIsLeaf = function (node) {
+            var childs = node.children;
+            if (!isArray(childs)) return true;
+            if (node.children.length === 0) return true;
+            childs = childs[0].children;
+            if (!isArray(childs)) return true;
+            if (node.children.length === 0) return true;
+            return false;
+        };
+
+        function updateBBox (newNode, node) {
+            var newWidth, newHeight;
+            var minX, minY;
+
+            if (node.isRoot === true || node.x === Infinity) {
+                node.x = newNode.x, node.y = newNode.y;
+                node.width = newNode.width, node.height = newNode.height;
+            }
+            else {
+                newWidth = newNode.x + newNode.width;
+                newHeight = newNode.y + newNode.height;
+                minX = nativeMin(node.x, newNode.x);
+                minY = nativeMin(node.y, newNode.y);
+                node.x = minX;
+                node.y = minY;
+                node.width = nativeMax(node.x + node.width, newWidth) - minX;
+                node.height = nativeMax(node.y + node.height, newHeight) - minY;
+            }
+            return node;
+        }
+
+        function insertChild (node, parent) {
+            node.parent = parent;
+            if (!parent.children) parent.children = [];
+            parent.children.push(node);
+            updateBBox(node, parent);
+        }
+        function removeChild (node, parent) {
+            var childs = parent.children || [];
+            var i = childs.indexOf(node);
+            childs.splice(i, 1);
+        }
+
+        var treeInserted = function (boundary) {
+            var node = this.root;
+            var newNode = extend({}, boundary);// clone new node
+            var childs, child;
+            var minNode, minDistance;
+            var dist;
+            var n, i;
+
+            if (newNode.id != null) this.indices[newNode.id] = newNode;
+
+            newNode.x = boundary.x, newNode.y = boundary.y;
+            newNode.width = boundary.width, newNode.height = boundary.height;
+
+            while (!treeIsLeaf(node)) {
+                node = updateBBox(newNode, node);
+                n = (childs = node.children || []).length;
+                minDistance = Infinity;
+                for (i = 0; i < n; i++) {
+                    dist = distance(child = childs[i], newNode);
+                    if (dist < minDistance) {
+                        minDistance = dist;
+                        minNode = child;
+                    }
+                }
+                node = minNode;
+            }
+            insertChild(newNode, node);
+            balanceTree(this.root, newNode, this.maxDepth);
+        };
+
+        function balanceTree (root, newNode, maxDepth) {
+            var node = newNode;
+            var siblings;
+            var n, i;
+
+            while (node.parent != null && node.parent.children.length > maxDepth) {
+                node = node.parent;// 往上递归
+                if (node.isRoot !== true) {
+                    siblings = splitSiblings(node, insertChild);
+                    removeChild(node, node.parent);
+                    for (i = 0, n = siblings.length; i < n; i++) {
+                        insertChild(siblings[i], node.parent);
+                    }
+                }
+                else if (node === root) {
+                    siblings = splitSiblings(node, insertChild);
+                    for (i = 0, n = siblings.length; i < n; i++) {
+                        insertChild(siblings[i], node);
+                    }
+                }
+            }
+        }
+
+        var RTree = function (maxDepth) {
+            this.maxDepth = pack("number", maxDepth, 4);
+            this.root = addNode(null, null, null, null);
+            this.root.isRoot = true;
+            this.indices = {};
+        };
+        var prototypeRTree = {
+            insert: treeInserted,
+            search: function (boundary, node, transform) {
+                var tr = {};
+                if (node == null) node = this.root;
+                if (transform == null) tr = {translate: [0, 0], scale: [1, 1]};
+                else {
+                    if (transform.translate != null) tr.translate = [pack("number", transform.translate[0]), pack("number", transform.translate[1])];
+                    if (transform.zoom != null) tr.scale = [pack("number", transform.zoom, transform.zoom[0], 1), pack("number", transform.zoom, transform.zoom[1], 1)];
+                    if (transform.scale != null) tr.scale = [pack("number", transform.scale, transform.scale[0], 1), pack("number", transform.scale, transform.scale[1], 1)];
+                }
+                return treeOp.search(boundary, node, tr);
+            },
+            remove: function () {
+                // TODO
+            },
+            get: function (id) {
+                var node = this.indices[id];
+                return node == null ? null : node;
+            },
+            isleaf: treeIsLeaf,
+            clear: function () {
+                this.root = addNode(null, null, null, null);
+                this.root.isRoot = true;
+                this.indices = {};
+            }
+        };
+
+        Object.assign(RTree.prototype, prototypeRTree);
+
+        return RTree;
+    }
+
+    var exports = (function (global) {
+        return {
+            deps: function (Dalaba) {
+                return factoy.call(global, Dalaba);
+            }
+        };
+    })(this);
+
+    if (typeof module === "object" && module.exports) {
+        module.exports = exports;
+    }
+    else if (typeof define === "function" && define.amd) {
+        define(function () {
+            return exports;
+        });
+    }
+    return exports;
+})(typeof window !== "undefined" ? window : this).deps(Dalaba);
+                
+                return Dalaba.geom = {
+                    Tree: Tree,
+                    RTree: RTree
+                };
+            }
+        };
+    })(this);
+
+    if (typeof module === "object" && module.exports) {
+        module.exports = exports;
+    }
+    else if (typeof define === "function" && define.amd) {
+        define(function () {
+            return exports;
+        });
+    }
+    return exports;
+
+}).call(typeof window !== "undefined" ? window : typeof global !== "undefined" ? global : this).deps(exports);
 
     /**
  * Chart constructor function
@@ -3912,7 +5403,7 @@
 
     var pack = Dalaba.pack;
 
-    var document = global.document;
+    var document = Dalaba.global.document;
     /*
      * scale canvas
      * @param g{CanvasRenderingContext2D}
@@ -4186,8 +5677,9 @@
 })();
 
     var Event = (function (global) {
-    var document = global.document;
     function factory (Dalaba) {
+        var document = Dalaba.global.document;
+
         var DEVICE_PIXEL_RATIO = Dalaba.DEVICE_PIXEL_RATIO;
 
         var pack = Dalaba.pack;
@@ -4198,31 +5690,38 @@
 
         var hasTouch = defined(document) && ("ontouchstart" in document);// document.documentElement.ontouchstart !== undefined;
 
-        var normalize = function(e, element){
+        var normalize = function (e, element) {
             var x, y;
-            var pos, bbox;
+            var event, bbox;
+            var sw, sh;
+
             e = e || global.event;
-            if(!e.target)
+            if (!e.target)
                 e.target = e.srcElement;
-            pos = e.touches ? e.touches.length ? e.touches[0] : e.changedTouches[0] : e;
+            event = e.touches ? e.touches.length ? e.touches[0] : e.changedTouches[0] : e;
             bbox = element.getBoundingClientRect();
-            if(!bbox){
-                //bbox = offset(element);
+
+            isNaN(sw = element.width / bbox.width) && (sw = 1);
+            isNaN(sh = element.height / bbox.height) && (sh = 1);
+
+            if (event.pageX === undefined) {
+                x = Math.max(e.x, e.clientX - bbox.left - element.clientLeft) * sw;
+                y = (event.clientY - bbox.top - element.clientTop) * sh;
             }
-            
-            if(pos.pageX === undefined){
-                x = Math.max(e.x, e.clientX - bbox.left);
-                y = e.y;
+            else {
+                x = (event.pageX - bbox.left) * sw;
+                y = (event.pageY - bbox.top) * sh;
             }
-            else{
-                x = pos.pageX - bbox.left;
-                y = pos.pageY - bbox.top;
-            }
-            x *= pack("number", element.width / DEVICE_PIXEL_RATIO, element.offsetWidth) / bbox.width;
-            y *= pack("number", element.height / DEVICE_PIXEL_RATIO, element.offsetHeight) / bbox.height;
+
+            x *= pack(function (d) {
+                return isNumber(d, true);
+            }, element.width / DEVICE_PIXEL_RATIO, element.offsetWidth / bbox.width, 1);
+            y *= pack(function (d) {
+                return isNumber(d, true);
+            }, element.height / DEVICE_PIXEL_RATIO, element.offsetHeight / bbox.height, 1);
             return {
-                x: x - Math.max(document.body.scrollLeft, global.scrollX),
-                y: y - Math.max(document.body.scrollTop, global.scrollY)
+                x: x - pack("number", global.scrollX),// Math.max(document.body.scrollLeft, global.scrollX),
+                y: y - pack("number", global.scrollY)// Math.max(document.body.scrollTop, global.scrollY)
             };
         };
         var Event = {
@@ -4230,7 +5729,7 @@
             normalize: normalize
         };
         return extend(Event, {
-            draggable: function(){
+            draggable: function () {
                 var sx = 0, sy = 0, dx = 0, dy = 0;
                 return {
                     start: function(element, e){
@@ -4582,7 +6081,7 @@
                     plotPoint = (plotOptions[series.type] || {}).point || {};
                     points = graphic.getShape && graphic.getShape(x, y);
                     useHTML = (series.dataLabels || {}).useHTML === true;
-                    if (points && points.length || useHTML) {
+                    if (points && points.length) {
                         click = (series.events || {}).click || (plotPoint.events || {}).click;
                         //if (series.clicked !== false) {
                         callbacks.push([
@@ -4636,7 +6135,7 @@
                 {x: sx, y: sy},
                 {x: pane.plotX, y: pane.plotY, width: pane.plotX + pane.plotWidth, height: pane.plotY + pane.plotHeight}
             ) && 1;//no rangeSelector;
-            slider && slider.onStart(0, 0, e);
+            slider && slider.onStart(0, 0, e, chart.container);
         });
         chart.charts.forEach(function(item){
             isFunction(item.onStart) && item.onStart();
@@ -4972,7 +6471,7 @@
 
     return {
         deps: function () {
-            return factory.apply(global, [].slice.call(arguments));
+            return factory.apply(null, [].slice.call(arguments));
         }
     };
 })(typeof window !== "undefined" ? window : this).deps(Dalaba, Event);
@@ -5881,7 +7380,7 @@ var ZTree = Dalaba.ZTree;
 var Projection = Dalaba.geo.Projection;
 
 
-var document = global.document;
+var document = Dalaba.global.document;
 
 var defined = Dalaba.defined,
     extend = Dalaba.extend,
@@ -6202,7 +7701,7 @@ var DataLabels = (function () {
     
     return {
         deps: function () {
-            return factoy.apply(global, [].slice.call(arguments, 0));
+            return factoy.apply(null, [].slice.call(arguments, 0));
         }
     };
 }).call(typeof window !== "undefined" ? window : this).deps(Dalaba, Dalaba.Text);;
@@ -6571,7 +8070,8 @@ var DataLabels = (function () {
                 x: px,
                 y: py,
                 width: pw,
-                height: ph
+                height: ph,
+                _height: ph
             });
         }
         return panel;
@@ -6587,6 +8087,7 @@ var DataLabels = (function () {
                 grid.push({
                     x: px, y: py,
                     width: pw, height: ph,
+                    _height: ph,
                     plotX: px, plotY: py,
                     plotWidth: pw, plotHeight: ph,
                     borderWidth: pane.borderWidth,
@@ -8367,17 +9868,18 @@ var DataLabels = (function () {
         },
         setSize: function (width, height, event) {
             var options = this.options,
-                spacing = TRouBLe(options.chart.spacing),
-                layout = options.layout;
+                spacing = TRouBLe(options.chart.spacing);
             var panel = this.panel;
             var percentage = Numeric.percentage;
             var chart = this;
+            //var viewport = this.getViewport();
             var oldWidth = this.width,
                 oldHeight = this.height;
-            var ratioWidth = width - oldWidth;
+            var ratioWidth = width - oldWidth,
+                ratioHeight;
 
-            this.width = width;
-            this.height = height;
+            //this.width = width;
+            //this.height = height;
 
             this.layer.forEach(function (layer) {
                 if (!chart.is3D) {
@@ -8402,11 +9904,14 @@ var DataLabels = (function () {
                 );
             }
             ratioWidth = width / oldWidth;
-            
+            ratioHeight = height / oldHeight;
+            //console.log(this.height, oldHeight);
+
             panel.forEach(function (pane) {
                 pane.plotX = pane.x *= ratioWidth;
                 pane.plotWidth = pane.width *= ratioWidth;
                 //pane.width += ratioWidth;
+                pane.height = pane._height + (height - oldHeight);// viewport.height;// *= ratioHeight;
             });
             this.rangeSlider.forEach(function (slider) {
                 slider.setOptions({
@@ -8644,6 +10149,7 @@ var DataLabels = (function () {
                     var plotHeight = pane.height - pane.viewportTop - pack("number", pane.viewportBottom),
                         plotWidth = pane.width - pane.viewportLeft - pane.viewportRight,
                         plotY = pane.y + pane.viewportTop;
+
                     var x = pane.x,
                         y = plotY;
                     //startX = x;
@@ -13169,12 +14675,12 @@ var DataLabels = (function () {
                 this.getRangeValue();
             }
         },
-        onStart: function (x, y, e) {
+        onStart: function (x, y, e, container) {
             var target;
             var start = parseFloat(this.start, 10),
                 end = parseFloat(this.end, 10),
                 t;
-            x = Event.normalize(e, this.canvas);
+            x = Event.normalize(e, container || this.canvas);
             y = x.y;
             x = x.x;
             this.dragging = (target = this.target = this.getTarget(x, y)) > -1 && target < 3;
@@ -15995,10 +17501,6 @@ var DataLabels = (function () {
     (function (global, Chart) {
     var relayout = (function (global) {
 
-    var setTransform = function (a, b, k) {
-        return a * k + b;
-    };
-
     var seriesFind = function (key, series) {
         var n = series.length,
             i = -1;
@@ -16056,7 +17558,7 @@ var DataLabels = (function () {
 
                     xAxisOptions = series._xAxis || {};
                     yAxisOptions = series._yAxis || {};
-                    logBase = pack("number", pack("object", yAxisOptions.logarithmic, {}).base, 10),
+                    logBase = pack("number", pack("object", yAxisOptions.logarithmic, {}).base, 10);
                     maxValue = pack("number", series.max, yAxisOptions.maxValue);
                     minValue = pack("number", series.min, yAxisOptions.minValue);
                     reversed = yAxisOptions.reversed;
@@ -16087,8 +17589,8 @@ var DataLabels = (function () {
                         if (isFunction(projection)) {
                             //投影数据需要x，y和value
                             x = projection([shape._x, shape._y]);
-                            y = setTransform(x[1], translate[1], scale);
-                            x = setTransform(x[0], translate[0], scale);
+                            y = x[1];
+                            x = x[0];
                             if (isObject(shape._source) && defined(shape._source.name))
                                 shape.key = shape._source.name;
                             else
@@ -17389,8 +18891,25 @@ var DataLabels = (function () {
     (function (global, Chart) {
     
     var relayout = (function () {
+    function compose (origin, angle, sx, sy, translate) {
+        var dx = translate[0], dy = translate[1];
+        var ox = origin[0], oy = origin[1];
+        var sin = Math.sin(angle), cos = Math.cos(angle);
 
-    var setTransform = Numeric.lerp;
+        /**
+         * ------ mat2D ------
+            sx, 0,
+            0,  sy,
+            dx, dy
+        **/
+
+        return [
+            sx *  cos, sy * sin,
+            -sx * sin, sy * cos,
+            ox * sx * cos - oy * sx * sin + dx,
+            oy * sy * sin + oy * sy * cos + dy
+        ];
+    }
 
     var setBounds = function (bounds, x, y) {
         bounds[0][0] = mathMin(bounds[0][0], x);
@@ -17420,7 +18939,9 @@ var DataLabels = (function () {
                         maxValue = colorAxisOptions.maxValue;
                     var transform = series.transform,
                         translate = transform.translate,
-                        scaleRadio = Math.max(0, pack("number", transform.scale, 0.75));
+                        scaleRadio = isArray(transform.scale) ? transform.scale : isNumber(transform.scale, true) ? [transform.scale, transform.scale] : [0.75, 0.75],
+                        scaleRadioX = Math.max(0, pack("number", scaleRadio[0], 0.75)),
+                        scaleRadioY = Math.max(0, pack("number", scaleRadio[1], 0.75));
 
                     var projection = series.projection,//series.getOptions()
                         projectAt;
@@ -17453,7 +18974,9 @@ var DataLabels = (function () {
                         var centerX = 0,
                             centerY = 0;
                         var projected = new Projection(projectAt);
+                        var matrix;
                         var index = 0;
+
                         projected.size([plotWidth, plotHeight]).parse(geoJson, function (groups, feature) {
                             var points = [];
                             var count = 0;
@@ -17477,29 +19000,33 @@ var DataLabels = (function () {
                             shape.code = properties.code || properties.id;
                             shape.points = points;
                             var cp = properties.cp;
+                            
                             groups.forEach(function (polygon) {
                                 var x, y;
                                 var length = polygon.length,
                                     j;
                                 var point;
-                                x = setTransform(0, polygon[j = 0][0], scaleRadio);
-                                y = setTransform(0, polygon[j][1], scaleRadio);
-                                bounds = setBounds(bounds, x, y);
-                                //i && points.push({x: x, y: y, isNext: true});
-                                for (j = 0; j < length; j++) {
-                                    point = polygon[j];
-                                    x = setTransform(0, point[0], scaleRadio);
-                                    y = setTransform(0, point[1], scaleRadio);
-                                    cx += (x - cx) / ++count;
-                                    cy += (y - cy) / count;
-                                    points.push({x: x, y: y, isNext: point.moved});
+                                if (length) {
+                                    x = polygon[j = 0][0];
+                                    y = polygon[j][1];
                                     bounds = setBounds(bounds, x, y);
+                                    
+                                    //i && points.push({x: x, y: y, isNext: true});
+                                    for (j = 0; j < length; j++) {
+                                        point = polygon[j];
+                                        x = point[0];
+                                        y = point[1];
+                                        cx += (x - cx) / ++count;
+                                        cy += (y - cy) / count;
+                                        points.push({x: x, y: y, isNext: point.moved});
+                                        bounds = setBounds(bounds, x, y);
+                                    }
                                 }
                             });
                             if (defined(cp) && isNumber(cp[0], true) && isNumber(cp[1], true)) {
                                 cp = projected.point(projected.projection.call(projected, cp));
-                                cx = setTransform(0, cp[0], scaleRadio);
-                                cy = setTransform(0, cp[1], scaleRadio);
+                                cx = cp[0];
+                                cy = cp[1];
                             }
                             shape.shapeArgs = {
                                 x: cx, y: cy,
@@ -17515,22 +19042,22 @@ var DataLabels = (function () {
                         });
                         if (!defined(projectAt) || (projectAt && !defined(projectAt.translate))) {
                             if (defined(translate)) {
-                                translate = TRouBLe(translate);
-                                centerX = -bounds[0][0] + translate[0] + plotX;
-                                centerY = -bounds[0][1] + translate[1] + plotY;
+                                //translate = TRouBLe(translate);
+                                //centerX = -bounds[0][0] + plotX;
+                                //centerY = -bounds[0][1] + plotY;
                             }
-                            else {
-                                centerX = plotX + (plotWidth - (bounds[1][0] - bounds[0][0])) / 2 - bounds[0][0];
-                                centerY = plotY + (plotHeight - (bounds[1][1] - bounds[0][1])) / 2 - bounds[0][1];
-                            }
+                            centerX = plotX + (plotWidth - (bounds[1][0] - bounds[0][0])) / 2 - bounds[0][0];
+                            centerY = plotY + (plotHeight - (bounds[1][1] - bounds[0][1])) / 2 - bounds[0][1];
                         }
+                        
                         shapes.forEach(function (shape) {
-                            shape.points.forEach(function (point, i) {
-                                point.x += centerX;
-                                point.y += centerY;
+                            shape.points.forEach(function (point) {
+                                matrix = compose([point.x + centerX, point.y + centerY], 0, scaleRadioX, scaleRadioY, translate || [-centerX, centerY]);
+                                point.x = matrix[4], point.y = matrix[5];
                             });
-                            shape.shapeArgs.x += centerX;
-                            shape.shapeArgs.y += centerY;
+                            matrix = compose([shape.shapeArgs.x + centerX, shape.shapeArgs.y + centerY], 0, scaleRadioX, scaleRadioY, translate || [-centerX, centerY]);
+                            shape.shapeArgs.x = matrix[4];
+                            shape.shapeArgs.y = matrix[5];
                         });
                         series.__transform__ = {
                             center: [centerX, centerY]
@@ -17538,10 +19065,8 @@ var DataLabels = (function () {
                         series.__projector__ = {
                             projection: function (point) {
                                 var p = projected.point(projected.projection.call(projected, point));
-                                return [
-                                    setTransform(0, p[0], scaleRadio) + centerX,
-                                    setTransform(0, p[1], scaleRadio) + centerY
-                                ];
+                                matrix = compose([p[0] + centerX, p[1] + centerY], 0, scaleRadioX, scaleRadioY, translate || [-centerX, centerY]);
+                                return [matrix[4], matrix[5]];
                             }
                         };
                         series.getProjection = series.__projector__.projection;
@@ -22788,17 +24313,7 @@ var DataLabels = (function () {
         });
     }
     return exports;
-}).call(typeof window !== "undefined" ? window : this).deps(Dalaba);
+}).call(typeof window !== "undefined" ? window : this).deps(exports);
 
-    if (typeof module === "object" && module.exports) {
-        module.exports = Dalaba;
-    }
-    else if (typeof define === "function" && define.amd) {
-        define(function () {
-            return Dalaba;
-        });
-    }
-    else {
-        global.Dalaba = Dalaba;
-    }
-})(typeof window !== "undefined" ? window : typeof this !== "undefined" ? this : global);
+    Object.defineProperty(exports, "__esModule", { value: true });
+})));

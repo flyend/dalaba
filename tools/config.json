@@ -1,0 +1,60 @@
+{
+    "global": {
+        "root": "./",
+        "cacheDir": ".cache",
+        "debug": false,
+        "rewriteRules": [
+            "^/((bar|column|funnel|heatmap|line|map|node|pie|radar|scatter|venn|k|sankey)/?(?:index.js|index.html)?)$ /demo/chart/$1"
+        ]
+    },
+    "task": {
+        "server": {
+            "port": 3012,
+            "fallback": "./index.html"
+        },
+        "dalaba": {
+            "src": {
+                "entriesJs": ["src/dalaba.src.js"],
+                "watches": [
+                    "src/**/*.js",
+                    "!src/**/index.js", "!src/**/dalaba.js",
+                    "demo/gallery/6*/index.js",
+                    "demo/gallery/7*/index.js",
+                    "demo/gallery/8*/index.js",
+                    "demo/gallery/1**/index.js"
+                ],
+                "html": "demo/chart/*/index.html"
+            },
+            "dest": {
+                "jsPath": "dist",
+                "jsFile": "dalaba.js"
+            },
+            "reload": {
+                "target": ["demo/chart/*/index.html"]
+            },
+            "moduleName": "Dalaba"
+        },
+        "dalababuild": {
+            "src": {
+                "entriesJs": ["src/dalaba.src.js"],
+                "html": "src/index.html"
+            },
+            "dest": {
+                "jsPath": "dist",
+                "jsFile": "dalaba.js"
+            },
+            "reload": {
+                "target": ["src/index.html"]
+            },
+            "moduleName": "Dalaba"
+        },
+        "less": {
+            "watch": "src/**/*.less",
+            "src": "src/demo/style/less/**/*.less",
+            "dest": "src/demo/style/css",
+            "reload": {
+                "target": ["src/index.html"]
+            }
+        }
+    }
+}

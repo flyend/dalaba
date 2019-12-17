@@ -62,8 +62,9 @@
         },
         lineEnd: function () {
             this._point = NaN;
-            if (this._line === 0)
-                this.points.push(this.points[0].slice());// closepath
+            if (this._line === 0) {
+                this.points.length && this.points.push(this.points[0].slice());// closepath
+            }
             this.polygons.push(this.points);
             this.points = [];
         },
@@ -166,7 +167,6 @@
                     var centerX = parsed.centerX,
                         centerY = parsed.centerY,
                         scale = parsed._scale;
-                    //console.log(scale)
 
                     Stream.feature = function (feature) {
                         callback && callback(this.polygons, feature);// polygons != features
@@ -212,16 +212,16 @@
                 centroid: function (geoJson) {
                     var x = 0, y = 0;
                     var count = 0;
-                    var coords;
 
-                    this.feature(geoJson, null, function (point, p) {
-                        x += point[0];
-                        y += point[1];
-                        count++;
+                    eaching(geoJson, {
+                        point: function (px, py) {
+                            x += px;
+                            y += py;
+                            count++;
+                        }
                     });
 
-                    coords = [x / count, y / count];
-                    return coords;
+                    return [x / count, y / count];
                 },
                 bounds: function (geoJson) {
                     var bounds = [[Infinity, Infinity], [-Infinity, -Infinity]]; 
@@ -240,6 +240,7 @@
                     var width = this.width,
                         height = this.height;
                     var bounds = [[Infinity, Infinity], [-Infinity, -Infinity]];
+
                     if (!isArray(center)) {
                         this.center(center = this.centroid(geoJson));//no projection
                         this.centerX = this.celler[0];

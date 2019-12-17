@@ -240,7 +240,7 @@
     
     return {
         deps: function () {
-            return factoy.apply(global, [].slice.call(arguments, 0));
+            return factoy.apply(null, [].slice.call(arguments, 0));
         }
     };
 }).call(typeof window !== "undefined" ? window : this)

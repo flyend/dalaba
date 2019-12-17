@@ -480,12 +480,12 @@
                 this.getRangeValue();
             }
         },
-        onStart: function (x, y, e) {
+        onStart: function (x, y, e, container) {
             var target;
             var start = parseFloat(this.start, 10),
                 end = parseFloat(this.end, 10),
                 t;
-            x = Event.normalize(e, this.canvas);
+            x = Event.normalize(e, container || this.canvas);
             y = x.y;
             x = x.x;
             this.dragging = (target = this.target = this.getTarget(x, y)) > -1 && target < 3;

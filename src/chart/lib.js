@@ -3,7 +3,7 @@
 
     var pack = Dalaba.pack;
 
-    var document = global.document;
+    var document = Dalaba.global.document;
     /*
      * scale canvas
      * @param g{CanvasRenderingContext2D}

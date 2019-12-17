@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,minimum-scale=1.0,maximum-scale=1.0,user-scalable=no">
+    <title>Welcome to MChart</title>
+    <link rel="stylesheet" href="demo/style/css/reset.css">
+    <link rel="stylesheet" href="demo/style/css/index.css">
+</head>
+<body>
+    <div class="mc-wrapper">
+        <!--m:header-->
+        <div class="mc-header">
+            <div class="mc-logo"><img src="/demo/img/logo.jpg" style="transform: translate(-14px, -37px) scale(0.8);" alt="logo" /></div>
+            <div class="mc-nav">
+                <ul class="mc-nav-right">
+                    <li><a href="/demo" title="DEMO">Demos</a></li>
+                    <li><a href="/demo/preview.html" title="Preview">Preview</a></li>
+                </ul>
+            </div>
+        </div>
+        <!--/m:header-->
+        <!--m:content-->
+        <div class="mc-content">
+            <div class="mc-banner" id="banner">
+                <div class="mc-banner-item" id="realtime">
+                </div>
+            </div>
+            <div class="mc-desc">
+                <p>MChart基于Canvas的JavaScript图表库。简单易用，独立性强。 
+                </p>
+            </div>
+            <!--m:gallery-->
+            <div class="mc-gallery" id="gallery">
+            </div>
+            <!--/m:gallery-->
+            <div class="mc-live">
+                <a href="http://codepen.io/mchart/pens/public/">DEMO LIVE</a>
+            </div>
+        </div>
+        <!--/m:content-->
+        <!--m:footer-->
+        <div class="mc-footer" id="mcFooter">
+          <div class="mc-footer-inner mc-layout-center">
+              <p class="mc-footer-desc">
+                  Designed And Created By MX.
+              </p>
+              <p class="mc-footer-desc">
+                 美团MX © 2016
+              </p>
+          </div>
+        </div>
+        <!--/m:footer-->
+    </div>
+    <script type="text/javascript" src="demo/js/lib/jquery.js"></script>
+    <script type="text/javascript" src="demo/js/lib/masonry.pkgd.js"></script>
+    <script type="text/javascript" src="dist/dalaba.js"></script>
+    <script type="text/javascript" src="demo/js/realtime.js"></script>
+    <script type="text/javascript">
+        "use strict";
+        ;(function(){
+            function makeLineData(n, v){
+                var ret = [];
+                for(var i = 0; i < n; i++){
+                    var r = Math.random(),
+                        d = r * v - v;
+                    //if(r < .5)
+                    //    d = null;
+                    ret.push(d);
+                }
+                return ret;
+            }
+            
+            var makeTimeData = (function(){
+                var date = new Date(2015, 0, 2);
+                var timeInterval = 864e5;
+                var angle = 0;
+
+                return function(){
+                    angle = (angle += 20) % 360;
+                    var y = Math.sin(angle * Math.PI / 180);
+                    date = new Date(date.getTime() + timeInterval);
+                    return {
+                        x: date.getTime(),
+                        y: y,
+                        value: y
+                    };
+                };
+            })();
+
+            var gallery = $("#gallery");
+
+            var scatterData = [];
+            for(var i = 0; i < 10; i++){
+                scatterData.push(makeTimeData());
+            }
+            
+            var options = [{
+                type: "spline",
+                title: { text: null },
+                chart: {
+                    height: 200,
+                    spacing: [10, 10, 20, 0]
+                },
+                legend: {
+                    //enabled: false
+                    width: "100%"
+                },
+                tooltip: {
+                    crosshairs: [{}, {}]
+                },
+                series: [{
+                    name: "Left",
+                    data: makeLineData(20, -10),
+                    stack: 0
+                }, {
+                    name: "Center",
+                    data: makeLineData(20, -10),
+                    stack: 0
+                }, {
+                    name: "Right",
+                    data: makeLineData(20, -10),
+                    stack: 0
+                }],
+                desc: "线图（Spline），堆积线图。"
+            }, {
+                type: "bar",
+                title: { text: null },
+                chart: {
+                    height: 250,
+                    spacing: [10, 10, 20, 0]
+                },
+                //legend: {enabled: false},
+                tooltip: {
+                    crosshairs: [
+                        {lineWidth: 2, color: "#FE5D4A"},
+                        {lineWidth: 2, color: "#FE5D4A"}
+                    ]
+                },
+                yAxis: {
+                    tickWidth: 1,
+                    lineWidth: 1
+                },
+                series: [{
+                    data: makeLineData(20, -10),
+                    stack: 0
+                }, {
+                    data: makeLineData(20, -10),
+                    stack: 0
+                }, {
+                    data: makeLineData(20, -10),
+                    stack: 0
+                }],
+                desc: "柱状图（Bar），堆积柱状图。"
+            }, {
+                type: "pie",
+                title: { text: null },
+                chart: {
+                    height: 200,
+                    spacing: [10, 10, 0, 10]
+                },
+                series: [{
+                    data: [3, 4, 2],
+                    showInLegend: true
+                }],
+                desc: "饼图（Pie）"
+            }, {
+                type: "funnel",
+                title: { text: null },
+                chart: {
+                    height: 220,
+                    spacing: [10, 10, 0, 0]
+                },
+                legend: {enabled: false},
+                series: [{
+                    data: [3, 4, 2]
+                }],
+                desc: "漏斗图（Funnel）。"
+            }, {
+                type: "area",
+                title: { text: null },
+                chart: {
+                    height: 200,
+                    spacing: [10, 10, 15, 0]
+                },
+                xAxis: {enabled: false},
+                yAxis: {
+                    labels: {
+                        formatter: function(){
+                            return this.value / 1 + "";
+                        }
+                    },
+                    startOnTick: true
+                },
+                legend: {enabled: false},
+                series: [{
+                    data: [749,749,746,717,736,737,734,731,729,726,727,724,723,721,715,709,711,714,713,715,715,718,721,716,726,726,729,729,732,723,720,718,701,650,653,620,587,540,487,417,335,191,93,69,43,30,18,10,77,34,18,10,9,6,5,494,480,528,528,509,497,507,464,523,464,524,512,494,481,522,524,469,523,467,516,466,465,474,505,469,520,495,499,466,503,488,502,525,470,522,484,518,481,464,475,467,464,509,464,484,509,478,517,488,465,514,464,522,495,464,520]
+                }]
+            }, {
+                type: "venn",
+                title: { text: null },
+                chart: {
+                    height: 220,
+                    spacing: [10, 10, 0, 0]
+                },
+                legend: {enabled: false},
+                series: [{
+                    data: [
+                        {name: "A", value: 77348, id: 0},
+                        {name: "B", value: 5621, id: 1},
+                        {name: "C", value: 27053, id: 2},
+                        {sets: [0, 1], value: 3330},
+                        {sets: [1, 2], value: 1000}
+                    ]
+                }],
+                desc: "文氏图（Venn）。"
+            }, {
+                type: "area",
+                title: { text: null },
+                chart: {
+                    height: 240,
+                    spacing: [10, 10, 20, 0]
+                },
+                legend: {enabled: false},
+                tooltip: {
+                    crosshairs: true
+                },
+                series: [{
+                    data: [0.7695,0.7648,0.7645,0.7638,0.7549,0.7562,0.7574,0.7543,0.751,0.7498,0.7477,0.7492,0.7487,0.748,0.7466,0.7521,0.7564,0.7621,0.7623,0.7644,0.7685,0.7671,0.7687,0.7687,0.7654,0.7705,0.7687,0.7744,0.7793,0.7804,0.777,0.7824,0.7705,0.7635,0.7652,0.7656,0.7655,0.7598,0.7619,0.7628,0.7609,0.7599,0.7584,0.7562,0.7575,0.7531,0.753,0.7526,0.754,0.754,0.7518,0.7571,0.7529,0.7532,0.7542,0.7515,0.7498,0.7473,0.7494,0.7497,0.7519,0.754,0.7543,0.7492,0.7502,0.7503,0.7499,0.7453,0.7487,0.7487,0.7472,0.7471,0.748,0.7467,0.7497,0.7552,0.7562,0.7572,0.7581,0.7593,0.7571,0.7622,0.7588,0.7591,0.7544,0.7537,0.7512,0.7519,0.7522,0.7486,0.75,0.7486,0.7396,0.7391,0.7394,0.7389,0.7411,0.7422,0.7393,0.7413,0.7396,0.741,0.7393,0.7393,0.7365,0.7343,0.7376,0.737,0.7362,0.7368,0.7393,0.7397,0.7385,0.7377,0.7374,0.7395,0.7389,0.7312,0.7307,0.7309,0.7308,0.7256,0.7258,0.7247,0.7244,0.7244,0.7255,0.7275,0.728,0.7361,0.7415,0.7411,0.7399,0.7421,0.74,0.7452,0.7479,0.7492,0.746,0.7442,0.7415,0.7429,0.741,0.7417,0.7405,0.7386,0.7441,0.7418,0.7376,0.7379,0.7399,0.7369,0.7365,{value:0.763, name: "标记值", dataLabels: {enabled: true}, marker: {enabled: true, fillColor: "#f0f", lineColor: "#000"}},0.735,0.7358,0.7362,0.7385,0.7359,0.7357,0.7317,0.7297,0.7296,0.7279,0.7267,0.7254,0.727,0.7276,0.7278,0.7267,0.7263,0.7307,0.7319,0.7315,0.7311,0.7301,0.7308,0.731,0.7304,0.7277,0.7272,0.7244,0.7275,0.7271,0.7314,0.7359,0.7355,0.7338,0.7345,0.7366,0.7349,0.7316,0.7315,0.7315,0.731,0.735,0.7341,0.7385,0.7392,0.7379,0.7373,0.7381,0.7301,0.7311,0.7306,0.7314,0.7316,0.7319,0.7377,0.7415,0.7414,0.7393,0.7397,0.7389,0.7358,0.7334,0.7343,0.7328,0.7332,0.7356,0.7309,0.7304,0.73,0.7295,0.7268,0.7281,0.7289,0.7278,0.728,0.728,0.7275,0.7306,0.7295,0.7245,0.7259,0.728,0.7276,0.7282,0.7215,0.7206,0.7206,0.7207,0.7216,0.7192,0.721,0.7187,0.7188,0.7183,0.7177,0.7229,0.7258,0.7249,0.7247,0.7226,0.7232,0.7255,0.7278,0.7271,0.7272,0.7261,0.725,0.7264,0.7289,0.7298,0.7298,0.7278,0.7248,0.7218,0.72,0.7202,0.7222,0.7236,0.7239,0.7238,0.7238,0.7238,0.7239,0.725,0.7244,0.7238,0.7229,0.7229,0.7226,0.722,0.724,0.7211,0.721,0.7209,0.7209,0.7207,0.718,0.7188,0.7225,0.7268,0.7267,0.7269,0.7297,0.7291,0.7294,0.7302,0.7298,0.7295,0.7298,0.7307,0.7323,0.7335,0.7338,0.7329,0.7335,0.7358,0.7351,0.7337,0.7338,0.7355,0.7338,0.7353,0.7321,0.733,0.7327,0.7356,0.7381,0.7389,0.7379,0.7384,0.7388,0.7367,0.7382,0.7356,0.7349,0.7353,0.7357,0.735,0.735,0.7337,0.7347,0.7327,0.733,0.7304,0.731,0.732,0.7347,0.7356,0.736,0.735,0.7346,0.7329,0.7348,0.7349,0.7352,0.7342,0.7369,0.7393,0.7392,0.7394,0.739,0.7395,0.7427,0.7427,0.7428,0.7446,0.7447,0.744,0.7458,0.7464,0.7469,0.7446,0.7447,0.745,0.7477,0.7472,0.7483,0.7457,0.746,0.747,0.748,0.7482,0.7482,0.7463,0.7469,0.7483,0.7508,0.7541,0.7529,0.7551,0.7577,0.758,0.7593,0.758,0.7585,0.7614,0.7618,0.7618,0.7614,0.7604,0.7725,0.7722,0.7721,0.7753,0.773,0.7742,0.7736,0.7713,0.7717,0.7727,0.7716,0.7772,0.7739,0.7794,0.7788,0.7782,0.7784,0.7824,0.7843,0.7884,0.7891,0.7883,0.7916,0.7922,0.7893,0.7989,0.7992,0.7903,0.7893,0.7853,0.788,0.7919,0.7912,0.7842,0.79,0.779,0.7806,0.7835,0.7844,0.7813,0.7864,0.7905,0.7907,0.7893,0.7889,0.7875,0.7853,0.7916,0.7929,0.7984,0.7999,0.8012,0.7971,0.8009,0.8081,0.803,0.8025,0.8051,0.8016,0.804,0.8015,0.7985,0.7988,0.8032,0.7976,0.7965,0.7975,0.8071,0.8082,0.8037,0.8016,0.7996,0.8022,0.8031,0.804,0.802,0.8075,0.8123,0.8078,0.8139,0.8135,0.8119,0.8081,0.8034,0.8057,0.8024,0.8024,0.804,0.7993,0.8102,0.8139,0.8177,0.818,0.8176,0.8215,0.82,0.8182,0.8213,0.8218,0.8229,0.8225,0.8266,0.8262,0.8331,0.8371,0.838,0.8411,0.8447,0.848,0.8445,0.8425,0.8451,0.8495,0.8482,0.8598,0.8643,0.8648,0.8617,0.8658,0.8613,0.8798,0.8922,0.899,0.8898,0.8787,0.8859,0.8834,0.8859,0.8843,0.8817,0.871,0.8813,0.8713,0.8837,0.8839,0.8831,0.8833,0.8823,0.877,0.8783,0.8774,0.8807,0.8762,0.8774,0.8798,0.8787,0.8787,0.8824,0.8818,0.8801,0.8931,0.8932,0.896,0.8941,0.8948,0.9026,0.9066,0.9222,0.9221,0.9214,0.9347,0.9482,0.9403,0.9528,0.9541,0.9462,0.9435,0.9203,0.9381,0.9241,0.9237,0.9135,0.9152,0.9114,0.9188,0.9184,0.9188,0.9231,0.9319,0.9291,0.9188,0.9109,0.9091,0.9154,0.9246,0.9276,0.9382,0.9431,0.9426,0.9463,0.9386,0.9357,0.9293,0.9254,0.9251,0.9312,0.9315,0.9323,0.9236,0.9196,0.9201,0.9184,0.9106,0.8983,0.8909,0.8928,0.8941,0.8972,0.894,0.8808,0.8876,0.8925,0.8934,0.8964,0.8917,0.8805,0.8764,0.8732,0.8737,0.8838,0.8969,0.9014,0.8999,0.9076,0.9098,0.911,0.9196,0.917,0.9133,0.9101,0.9126,0.9151,0.8965,0.8871,0.8898,0.8999,0.9004,0.8857,0.8862,0.8829,0.8882,0.8873,0.8913,0.8862,0.8891,0.8821,0.8802,0.8808,0.8794,0.8818,0.8952,0.8924,0.8925,0.8955,0.9113,0.89,0.895]
+                }],
+                desc: "区域图（Area）。"
+            }, {
+                type: "column",
+                title: { text: null },
+                chart: {
+                    height: 230,
+                    spacing: [10, 10, 20, 0]
+                },
+                yAxis: {
+                    tickAmount: 5
+                },
+                //xAxis: {startOnTick: true},
+                legend: {enabled: false},
+                series: [{
+                    data: [292.53,292.53,292.53,326.56,367.56,411,462,513,564,615,666,717,768,819,870,921,972,1023,1074,1125,1176,1227,1278,1329,1380,1431,1482,1533,1584,1635,1686,1737,1788,1839,1890,1941,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68,1980.68]
+                }]
+            }, {
+                type: "column",
+                title: { text: "MChart" },
+                chart: {
+                    //width: 960,//items[0].offsetWidth,
+                    height: 200,
+                    spacing: [0, 10, 0, 5]
+                },
+                legend: {
+                    enabled: true
+                },
+                plotOptions: {
+                    column: {
+                        maxPointWidth: 8
+                    }
+                },
+                tooltip: {shared: true},
+                xAxis: {gridLineWidth: 0, startOnTick: true},
+                yAxis: {enabled: false},
+                series: [{
+                      name: "M",
+                      data: [0, 20, 0, 20, 0, null, 0, 0, 0, 0, null, null, null, null, null, null, null, 0, 20, 20, 0],
+                      type: "spline",
+                      lineWidth: 3,
+                      marker: {
+                          enabled: false
+                      }
+                },
+                {
+                      name: "A",
+                      data: [{name: "A", value: 1}],
+                      type: "pie",
+                      borderWidth: 0,
+                      size: 40,
+                      innerSize: "85%",
+                      dataLabels: {enabled: false},
+                      startAngle: -20,
+                      endAngle: 200,
+                      center: [215, 18],
+                      showInLegend: true
+                  },
+                  {
+                      name: "R",
+                      data: [null, null, null, null, null, null, 20, 20, 20, 20, null, null, 10, 10, null, null, null, null, 10, 10, null, null, 11, 5, 0, null, 20, 20, 20, 20, 20],
+                      color: Dalaba.Chart.getOptions().colors[0],
+                      lineWidth: 3,
+                      type: "line",
+                      marker: {
+                          enabled: false
+                      }
+                  },
+                  {
+                      name: "T",
+                      data: [null, null, null, null, null, null, 20, null, null, null, null, 20, null, null, 20, null, null, null, null, null, null, null, 20, null, null, null, null, null, 20, null, null],
+                      type: "column",
+                      color: Dalaba.Chart.getOptions().colors[0]
+                  },
+                ]
+            }];
+            var defaultOptions = {
+                yAxis: {
+                    title: {
+                        enabled: false
+                    }
+                }
+            };
+            //scatter
+            options.push({
+                type: "scatter",
+                title: {
+                    text: "Scatter Animation"
+                },
+                xAxis: {
+                    type: "datetime",
+                    dateType: "day",
+                    labels: {
+                        formatter: function(){
+                            var value;
+                            return (this.name)
+                                ? (value = (value = "" + this.name).split(/\D+/),  value[0] + "<br />" + (value[1] || "") + "-" + (value[2] || ""))
+                                : null;
+                        },
+                        //step: 1
+                    }
+
+                },
+                chart: {
+                    height: 250,
+                    spacing: [0, 10, 0, 0]
+                },
+                legend: {
+                    enabled: false
+                },
+                series: [{
+                    data: scatterData
+                }]
+            });
+
+            Dalaba.Chart.setOptions(defaultOptions);
+            options.forEach(function(item){
+                var gitem = $("<div class='mc-gallery-item'>"),
+                    gchart = $("<div class='mc-gallery-chart'>").height((item.chart || {}).height || 200),
+                    gdesc = $("<p class='mc-gallery-desc'>");
+                var chart;
+                gdesc.html(item.desc || "");
+                gitem.append(gchart);
+                gitem.append(gdesc);
+                gallery.append(gitem);
+                chart = new Dalaba.Chart(gchart.get(0), item);
+                if(item.type === "scatter"){
+                    setInterval(function(){
+                        var series = chart.series[0];
+                        scatterData.shift();
+                        scatterData.push(makeTimeData());
+                        series.update({
+                            data: scatterData
+                        });
+                    }, 2000);
+                }
+            });
+            gallery.masonry({ 
+                itemSelector : ".mc-gallery-item",  
+                columnWidth : 320,
+                //gutter: 10
+            });
+        })();
+      </script>
+    </body>
+</html>

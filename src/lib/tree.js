@@ -29,7 +29,6 @@
 
         var bfs = function (root, callback) {
             var queue = (isArray(root) ? root : [root]).slice();
-            var n, i;
             var node, childs;
             var index = 0;
 
@@ -37,9 +36,7 @@
                 node = queue.shift();
                 childs = (node.children || []).slice();
                 callback && callback.call(node, node, index++, queue);
-                if (isArray(childs) && (i = -1, n = childs.length)) for (; ++i < n; ) {
-                    queue.push(childs[i]);
-                }
+                if (isArray(childs)) [].push.apply(queue, childs);
             }
 
             queue = null;// gc
@@ -215,6 +212,13 @@
         **/
 
         tree.diff = require("./tree.diff").deps(dfs, hammingDistance);
+
+        tree.trie = require("./trie").deps(require("./levenshtein"));
+
+        tree.rangetree = require("./rangetree").deps(
+            tree.trie,
+            tree.dfs
+        );
 
         return tree;
     }

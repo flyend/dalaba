@@ -220,7 +220,7 @@
                     plotPoint = (plotOptions[series.type] || {}).point || {};
                     points = graphic.getShape && graphic.getShape(x, y);
                     useHTML = (series.dataLabels || {}).useHTML === true;
-                    if (points && points.length || useHTML) {
+                    if (points && points.length) {
                         click = (series.events || {}).click || (plotPoint.events || {}).click;
                         //if (series.clicked !== false) {
                         callbacks.push([
@@ -274,7 +274,7 @@
                 {x: sx, y: sy},
                 {x: pane.plotX, y: pane.plotY, width: pane.plotX + pane.plotWidth, height: pane.plotY + pane.plotHeight}
             ) && 1;//no rangeSelector;
-            slider && slider.onStart(0, 0, e);
+            slider && slider.onStart(0, 0, e, chart.container);
         });
         chart.charts.forEach(function(item){
             isFunction(item.onStart) && item.onStart();
@@ -610,7 +610,7 @@
 
     return {
         deps: function () {
-            return factory.apply(global, [].slice.call(arguments));
+            return factory.apply(null, [].slice.call(arguments));
         }
     };
 })(typeof window !== "undefined" ? window : this)

@@ -1,5 +1,5 @@
-(function () {
-    
+(function (exports) {
+
     var toString = ({}).toString;
 
     var typeOf = function (type) {
@@ -8,6 +8,10 @@
             return typeOf(type, "Function") ? type.apply(null, arguments) : typeOf(v);
         };
     };
+
+    var isNodeEnv = toString.call(typeof process !== "undefined" ? process : 0) === "[object process]";
+
+    var global = isNodeEnv ? global : typeof window !== "undefined" ? window : typeof self !== "undefined" ? self : {};
 
     var isObject = typeOf("Object");
 
@@ -39,7 +43,8 @@
         isString: isString,
         isNumber: isNumber,
         isEmptyObject: isEmptyObject,
-        defined: defined
+        defined: defined,
+        global: global
     };
     
     /**
@@ -107,27 +112,41 @@
         return a;
     };
 
-    Dalaba.LinkedList = require("./linkedlist");
-    Dalaba.Heap = require("./heap");
+    exports.DEVICE_PIXEL_RATIO = Dalaba.DEVICE_PIXEL_RATIO;
+    exports.isArray = Dalaba.isArray;
+    exports.isFunction = Dalaba.isFunction;
+    exports.isObject = Dalaba.isObject;
+    exports.isString = Dalaba.isString;
+    exports.isNumber = Dalaba.isNumber;
+    exports.isEmptyObject = Dalaba.isEmptyObject;
+    exports.defined = Dalaba.defined;
+    exports.global = Dalaba.global;
+    exports.pack = Dalaba.pack;
+    exports.extend = Dalaba.extend;
 
-    Dalaba.Math = require("./math");
-    Dalaba.Numeric = require("./numeric");
-    Dalaba.Vector = require("./vector");
-    Dalaba.Formatter = require("./formatter").deps(Dalaba);
+    exports.LinkedList = require("./linkedlist");
+    exports.Heap = require("./heap");
+
+    exports.Math = require("./math");
+    exports.Numeric = require("./numeric");
+    exports.Vector = require("./vector");
+    exports.Formatter = require("./formatter").deps(exports);
     
-    Dalaba.KDTree = require("./kdtree").deps(Dalaba.Heap);
+    exports.KDTree = require("./kdtree").deps(exports.Heap);
 
-    Dalaba.Geometry = require("./geometry").deps(Dalaba.Vector);
-    Dalaba.Color = require("./color");
-    Dalaba.Text = require("./text");
+    exports.Geometry = require("./geometry").deps(exports.Vector);
+    exports.Color = require("./color");
+    exports.Text = require("./text");
 
-    Dalaba.Cluster = require("./cluster").deps(Dalaba);
+    exports.Cluster = require("./cluster").deps(exports);
 
-    Dalaba.ZTree = require("./ztree").deps(Dalaba.Cluster.List.partition);
+    exports.ZTree = require("./ztree").deps(exports.Cluster.List.partition);
     
-    Dalaba.geo = require("./geo").deps(Dalaba);
+    exports.geo = require("./geo").deps(exports);
 
-    Dalaba.geo.simplify = require("./simplify").deps(Dalaba.Heap, Dalaba.LinkedList);
+    exports.geo.simplify = require("./simplify").deps(exports.Heap, exports.LinkedList);
+
+    exports.CSSParser = require("./cssparser");
 
     return Dalaba;
-})();
+})

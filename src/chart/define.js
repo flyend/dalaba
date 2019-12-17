@@ -56,7 +56,7 @@ var ZTree = Dalaba.ZTree;
 var Projection = Dalaba.geo.Projection;
 
 
-var document = global.document;
+var document = Dalaba.global.document;
 
 var defined = Dalaba.defined,
     extend = Dalaba.extend,

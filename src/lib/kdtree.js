@@ -61,15 +61,13 @@
             build: function (points, dimensions) {
                 this.dimensions = dimensions;// || ["x", "y"];
                 this.root = buildTree(points, 0, null, this.dimensions);
-
                 heap = new Heap(function (a, b) {
                     return ascending(a, b, "distance");
                 });
             },
             nearest: function (point, callback, k) {
-                var dimensions = this.dimensions || [],
-                    dl = dimensions.length;
-                var ret = [];
+                var dimensions = this.dimensions || [];
+                var result = [];
 
                 k = Math.max(1, +k) || 1;
                 //reset heap
@@ -87,25 +85,27 @@
                     }
                 }
 
-                function find (tree) {
-                    var maps = {},
-                        aValue = callback(point, tree.node),
-                        bValue;
-                    var node;
+                function search (tree) {
+                    var dimension = dimensions[tree.dim];
+                    var avalue = callback(point, tree.node), bvalue;
+                    var maps = {};
+                    var node, child;
 
-                    if (dl) {
+                    if (dimensions.length) {
                         dimensions.forEach(function (item, i) {
-                            maps[item] = i === tree.dim ? point[item] : tree.node[item];
+                            maps[item] = i === dimension ? point[item] : tree.node[item];
                         });
                     }
                     else {
                         maps = point;
                     }
-                    bValue = callback(maps, tree.node);
+                    bvalue = callback(maps, tree.node);
+
+                    
                     //leaf
                     if (tree.right === null && tree.left === null) {
-                        if (heap.size() < k || aValue < heap.peek().distance) {
-                            put(tree, aValue);
+                        if (heap.size() < k || avalue < heap.peek().distance) {
+                            put(tree, avalue);
                         }
                         return null;
                     }
@@ -118,30 +118,29 @@
                     }
                     //left && right
                     else {
-                        node = (dl ? point[dimensions[tree.dim]] < tree.node[dimensions[tree.dim]] : point < tree.node)
+                        node = (dimensions.length ? point[dimensions[dimension]] < tree.node[dimensions[dimension]] : point < tree.node)
                             ? tree.left
                             : tree.right;
                     }
 
-                    find(node);
+                    search(node);
 
-                    if (heap.size() < k || aValue < heap.peek().distance) {
-                        put(tree, aValue);
+                    if (heap.size() < k || avalue < heap.peek().distance) {
+                        put(tree, avalue);
                     }
 
-                    if (heap.size() < k || Math.abs(bValue) < heap.peek().distance) {
-                        var child = node === tree.left ? tree.right : tree.left;
-                        child !== null && find(child);
+                    if (heap.size() < k || Math.abs(bvalue) < heap.peek().distance) {
+                        (child = node === tree.left ? tree.right : tree.left) !== null && search(child);
                     }
+                    maps = null;
                 }
 
                 if (this.root) {
-                    find(this.root);
-                
-                    for (var i = 0; i < k; i++) if (!heap.empty() && heap[i].value.node !== null)
-                        ret.push(heap[i].value.node.node);
+                    search(this.root);
+                    for (var i = 0; i < k; i++) if (!heap.empty() && heap[i].node !== null)
+                        result.push(heap[i].node.node);
                 }
-                return ret;
+                return result;
             },
             //TODO
             insert: function () {

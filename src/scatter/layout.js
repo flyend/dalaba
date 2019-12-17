@@ -1,9 +1,5 @@
 (function (global) {
 
-    var setTransform = function (a, b, k) {
-        return a * k + b;
-    };
-
     var seriesFind = function (key, series) {
         var n = series.length,
             i = -1;
@@ -61,7 +57,7 @@
 
                     xAxisOptions = series._xAxis || {};
                     yAxisOptions = series._yAxis || {};
-                    logBase = pack("number", pack("object", yAxisOptions.logarithmic, {}).base, 10),
+                    logBase = pack("number", pack("object", yAxisOptions.logarithmic, {}).base, 10);
                     maxValue = pack("number", series.max, yAxisOptions.maxValue);
                     minValue = pack("number", series.min, yAxisOptions.minValue);
                     reversed = yAxisOptions.reversed;
@@ -92,8 +88,8 @@
                         if (isFunction(projection)) {
                             //投影数据需要x，y和value
                             x = projection([shape._x, shape._y]);
-                            y = setTransform(x[1], translate[1], scale);
-                            x = setTransform(x[0], translate[0], scale);
+                            y = x[1];
+                            x = x[0];
                             if (isObject(shape._source) && defined(shape._source.name))
                                 shape.key = shape._source.name;
                             else
