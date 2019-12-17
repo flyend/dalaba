@@ -15,7 +15,7 @@
 	"validthis": true,
 	"globals": {
 		"Path2D": true,
-		"Graph": true,
+		"Dalaba": true,
 		"let": true,
 		"$": true
 	}

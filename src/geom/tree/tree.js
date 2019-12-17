@@ -1,6 +1,6 @@
 (function () {
 
-    require("./treeWeight");
+    require("./tree.weight");
     require("./linklist");
     require("./union");
 
