@@ -1,6 +1,6 @@
 /**
  * dalaba - A JavaScript chart library for Canvas.
- * @date 2019/12/17
+ * @date 2019/12/20
  * @version v0.3.1
  * @license ISC
  */
