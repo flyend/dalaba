@@ -11,6 +11,49 @@
         </style>
     </head>
     <body>
+        <p id="id38">
+            <script type="text/javascript">
+                (() => {
+                    const tickerMap = { };
+                    function animationFlash ({ symbol, lastPrice }) {
+                        const item = tickerMap[symbol];
+
+                        if (item == null) return tickerMap[symbol] = { price: lastPrice }, null;
+
+                        const dir = lastPrice > item.price ? 'up' : lastPrice < item.price ? 'down' : '';
+                        item.price = lastPrice;
+
+                        return dir === 'up' ? 'flashUp' : dir === 'down' ? 'flashDown' : null;
+                    }
+                    function streamTo (symbols, data = []) {
+                        data.forEach(({ s, c, P }) => {
+                            if (symbols.indexOf(s) !== -1) {
+                                const text = document.querySelector(`#item-${s}`);
+                                text.innerHTML = `${s} $${parseFloat(c).toLocaleString('en')} (<font color="${P >= 0 ? '#00D67D' : '#DD4B55'}">${P}%</font>)`;
+                                text.style['-webkit-animation-name'] = animationFlash({ symbol: s, lastPrice: c });
+                            }
+                        });
+                    }
+
+                    const symbols = 'BTCUSDT,ETHUSDT,SOLUSDT'.split(',');
+                    const tickerId = 1, tickerType = '!ticker_1d@arr@1000ms';
+                    const ws = new WebSocket('wss://stream.binance.com/stream');
+                    ws.onopen = () => ws.send(`{"method":"SUBSCRIBE", "params":["${tickerType}"],"id": ${tickerId}}`);
+                    ws.onmessage = e => {
+                        const message = JSON.parse(e.data);
+                        if (message.id === tickerId); // pass
+                        if (message.stream === tickerType) streamTo(symbols, message.data);
+                    };
+                    void (document.querySelector('#id38').innerHTML = `<p><style type="text/css">
+                        @-webkit-keyframes flashUp { 0% { background: rgba(31, 178, 101, 0.3);} 100% { background: inherit; }}
+                        @-webkit-keyframes flashDown { 0% { background: rgba(166, 9, 9, 0.3);} 100% { background: inherit; }}
+                        .item38 { font-size: .8rem; padding: .2rem .4rem; animation-duration: 200ms; animation-iteration-count: 1; animation-timing-function: ease; }
+                    </style>${symbols.reduce((acc, d) => acc + `<span class="item38" id="item-${d}"> $${d}-- (--%)</span>`, '')}</p>`);
+                    })();
+            </script>
+            <img src="./untitle/code38.png" />
+        </p>
+        <hr />
         <p class="col"><img src="./untitle/code36.png" /><img src="./untitle/code37.png" /></p>
         <hr />
         <p><img src="./untitle/code35.png" /></p>
