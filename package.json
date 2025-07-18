@@ -22,7 +22,7 @@
     "browserify": "13.1.1",
     "gulp": "3.9.0",
     "connect-modrewrite": "0.10.1",
-    "gulp-connect": "5.0.0",
+    "gulp-connect": "5.7.0",
     "gulp-watch": "4.3.5",
     "gulp-rename": "1.2.2",
     "gulp-header": "1.8.8",
