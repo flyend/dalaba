@@ -20,7 +20,7 @@
   "license": "ISC",
   "devDependencies": {
     "browserify": "13.1.1",
-    "gulp": "3.9.0",
+    "gulp": "5.0.1",
     "connect-modrewrite": "0.10.1",
     "gulp-connect": "5.0.0",
     "gulp-watch": "4.3.5",
@@ -28,7 +28,7 @@
     "gulp-header": "1.8.8",
     "vinyl-source-stream": "1.1.0",
     "less-plugin-autoprefix": "1.5.1",
-    "gulp-less": "3.0.3",
+    "gulp-less": "3.5.0",
     "watchify": "3.6.1",
     "glob": "7.0.3",
     "glob-watcher": "3.0.0",
